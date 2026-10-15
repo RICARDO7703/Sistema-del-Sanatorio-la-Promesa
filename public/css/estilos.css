@@ -1,0 +1,628 @@
+body {
+    margin: 0;
+    background-color: #f5f9fe;
+    color: #172033;
+}
+
+/* Contenedor principal */
+
+.sistema-contenedor {
+    min-height: 100vh;
+    display: flex;
+    padding: 15px;
+    gap: 0;
+}
+
+/* Menú lateral */
+
+.sidebar {
+    width: 310px;
+    min-height: calc(100vh - 30px);
+    background-color: white;
+    border-radius: 18px 0 0 18px;
+    padding: 25px 18px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 3px 18px rgba(31, 41, 55, 0.08);
+}
+
+.sidebar-logo {
+    text-align: center;
+    margin-bottom: 45px;
+}
+
+.sidebar-logo img {
+    width: 230px;
+    max-width: 100%;
+    height: auto;
+}
+
+.sidebar-menu {
+    gap: 12px;
+}
+
+.sidebar .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    color: #24344f;
+    padding: 15px 18px;
+    border-radius: 12px;
+    font-weight: 500;
+    font-size: 17px;
+}
+
+.sidebar .nav-link i {
+    font-size: 26px;
+}
+
+.sidebar .nav-link:hover {
+    background-color: #eef5ff;
+    color: #0d6efd;
+}
+
+.sidebar .nav-link.activo {
+    background-color: #e4efff;
+    color: #0d6efd;
+}
+
+/* Footer del menú */
+
+.sidebar-footer {
+    margin-top: auto;
+    padding: 0 8px;
+}
+
+.linea-footer {
+    height: 2px;
+    background-color: #a71930;
+    margin-bottom: 25px;
+}
+
+.sistema-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: #34425a;
+}
+
+.sistema-info i {
+    font-size: 30px;
+    color: #b7c4d3;
+}
+
+.sistema-info span,
+.sistema-info strong {
+    display: block;
+}
+
+.sistema-info strong {
+    color: #a71930;
+}
+
+.sidebar-footer p {
+    font-size: 12px;
+    color: #65738a;
+    margin-top: 25px;
+}
+
+/* Contenido principal */
+
+.contenido-principal {
+    flex: 1;
+    min-height: calc(100vh - 30px);
+    padding: 25px 45px 50px 45px;
+    border-radius: 0 18px 18px 0;
+    background:
+        radial-gradient(circle at 80% 75%, rgba(203, 225, 255, 0.45), transparent 38%),
+        linear-gradient(135deg, #fbfdff, #f1f7ff);
+}
+
+/* Usuario */
+
+.barra-superior {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 45px;
+}
+
+.usuario {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: white;
+    padding: 12px 18px;
+    border: 1px solid #e1e8ef;
+    border-radius: 12px;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.usuario i:first-child {
+    font-size: 25px;
+    color: #a71930;
+}
+
+/* Encabezado */
+
+.inicio-encabezado {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    margin-bottom: 45px;
+}
+
+.inicio-icono {
+    width: 80px;
+    height: 80px;
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.inicio-icono i {
+    font-size: 40px;
+    color: #9e1730;
+}
+
+.inicio-encabezado h1 {
+    font-size: 52px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.inicio-encabezado p {
+    margin: 15px 0 0 0;
+    font-size: 18px;
+    color: #53627a;
+}
+
+/* Tarjetas */
+
+.inicio-card {
+    min-height: 250px;
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 6px 18px rgba(31, 41, 55, 0.08);
+}
+
+.card-superior {
+    display: flex;
+    align-items: flex-start;
+    gap: 25px;
+}
+
+.card-icono {
+    min-width: 85px;
+    height: 85px;
+    border-radius: 50%;
+    background-color: #eaf3ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card-icono i {
+    font-size: 42px;
+    color: #0d6efd;
+}
+
+.inicio-card h3 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 10px 0 5px 0;
+}
+
+.inicio-card p {
+    color: #62718a;
+    font-size: 16px;
+    line-height: 1.7;
+    margin: 0;
+}
+
+/* Botones */
+
+.card-acciones {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 25px;
+}
+
+.btn-pacientes {
+    padding: 12px 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.btn-flecha {
+    width: 52px;
+    height: 52px;
+    border: 1px solid #e0e6ed;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0d6efd;
+    text-decoration: none;
+    font-size: 25px;
+}
+
+.btn-flecha:hover {
+    background-color: #eef5ff;
+}
+
+/* Estilos del login*/
+
+.login-body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at 8% 35%, rgba(154, 186, 199, 0.18) 0 6px, transparent 7px),
+        radial-gradient(circle at 92% 30%, rgba(154, 186, 199, 0.18) 0 10px, transparent 11px),
+        linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+}
+
+.login-contenedor {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 20px;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 750px;
+    background-color: white;
+    padding: 50px 70px;
+    border-radius: 22px;
+    box-shadow: 0 12px 35px rgba(31, 41, 55, 0.12);
+}
+
+.logo-login {
+    display: block;
+    width: 550px;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto 30px auto;
+}
+
+.separador-login {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.separador-login::before,
+.separador-login::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: #d9e0e7;
+}
+
+.separador-login span {
+    width: 10px;
+    height: 10px;
+    background-color: #b9c3cd;
+    border-radius: 50%;
+}
+
+.login-titulo {
+    text-align: center;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 25px;
+}
+
+.login-card .form-label {
+    color: #263238;
+    font-weight: 500;
+}
+
+.login-input {
+    position: relative;
+}
+
+.login-input .form-control {
+    height: 55px;
+    padding-left: 50px;
+    border-radius: 8px;
+}
+
+.login-input .icono-izquierdo {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #8c98a4;
+    font-size: 20px;
+    z-index: 2;
+}
+
+.login-input .icono-derecho {
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #8c98a4;
+    font-size: 20px;
+}
+
+.btn-login {
+    height: 55px;
+    border-radius: 8px;
+    font-size: 17px;
+    margin-top: 15px;
+}
+
+/* Expedientes */
+
+.expediente-buscador,
+.expediente-card {
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 14px rgba(31, 41, 55, 0.06);
+}
+
+.expediente-buscador .form-control,
+.expediente-buscador .btn {
+    height: 50px;
+    border-radius: 10px;
+}
+
+.expediente-paciente {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.expediente-avatar {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background-color: #eaf3ff;
+    color: #0d6efd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.expediente-paciente h3 {
+    margin: 0 0 8px 0;
+    font-size: 23px;
+    font-weight: 700;
+}
+
+.dato-label {
+    margin: 0 0 4px 0;
+    color: #6b778c;
+    font-size: 14px;
+}
+
+.alerta-card i {
+    color: #a71930;
+    font-size: 28px;
+}
+
+.alerta-card li {
+    margin-bottom: 10px;
+    color: #53627a;
+}
+
+.expediente-tabs {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    background-color: white;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+}
+
+.tab-expediente {
+    border: none;
+    background-color: transparent;
+    padding: 10px 16px;
+    border-radius: 9px;
+    color: #53627a;
+}
+
+.tab-expediente.activo {
+    background-color: #e4efff;
+    color: #0d6efd;
+    font-weight: 600;
+}
+
+.expediente-card h4 {
+    font-size: 19px;
+    font-weight: 700;
+}
+
+.medicamento-item {
+    padding: 12px 0;
+    border-bottom: 1px solid #edf1f5;
+}
+
+.medicamento-item:last-child {
+    border-bottom: none;
+}
+
+.medicamento-item strong,
+.medicamento-item span {
+    display: block;
+}
+
+.medicamento-item span {
+    margin-top: 4px;
+    color: #6b778c;
+    font-size: 14px;
+}
+
+/* Evolución clínica */
+
+.evolucion-card {
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 25px;
+    box-shadow: 0 4px 14px rgba(31, 41, 55, 0.06);
+}
+
+.evolucion-card h4 {
+    font-size: 19px;
+    font-weight: 700;
+}
+
+.evolucion-card h4 i {
+    color: #0d6efd;
+    margin-right: 8px;
+}
+
+.evolucion-paciente {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.evolucion-paciente h3 {
+    margin: 0 0 5px 0;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.evolucion-paciente p {
+    color: #6b778c;
+}
+
+.evolucion-card .form-control {
+    border-radius: 10px;
+}
+
+.evolucion-card textarea {
+    resize: none;
+}
+
+.evolucion-acciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-bottom: 30px;
+}
+
+.evolucion-acciones .btn {
+    min-width: 170px;
+    padding: 11px 18px;
+    border-radius: 10px;
+}
+
+/* Bitácora */
+
+.bitacora-acciones {
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    box-shadow: 0 4px 14px rgba(31, 41, 55, 0.06);
+}
+
+.bitacora-acciones .btn {
+    min-height: 45px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bitacora-fecha {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bitacora-fecha .form-control {
+    height: 45px;
+    border-radius: 10px;
+}
+
+.bitacora-card {
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 25px;
+    box-shadow: 0 4px 14px rgba(31, 41, 55, 0.06);
+}
+
+.bitacora-titulo h3 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.bitacora-titulo p {
+    margin: 5px 0 20px 0;
+    color: #6b778c;
+}
+
+.bitacora-tabla thead th {
+    padding: 14px;
+    color: #53627a;
+    font-weight: 600;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.bitacora-tabla tbody td {
+    padding: 16px 14px;
+    border-bottom: 1px solid #edf1f5;
+}
+
+.modulo-badge {
+    background-color: #eaf3ff;
+    color: #0d6efd;
+    font-weight: 500;
+    padding: 7px 10px;
+}
+
+.accion-badge {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.accion-badge.consulta {
+    background-color: #eaf3ff;
+    color: #0d6efd;
+}
+
+.accion-badge.registro {
+    background-color: #e9f7ef;
+    color: #198754;
+}
+
+.accion-badge.modificacion {
+    background-color: #fff3cd;
+    color: #8a6d00;
+}
