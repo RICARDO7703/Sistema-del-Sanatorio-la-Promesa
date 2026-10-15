@@ -66,10 +66,11 @@ class SistemaTest extends TestCase
     {
         $this->withSession(['id_usuario' => 1])->post('/pacientes', $this->pacienteValido() + ['contacto' => ['nombre' => 'María López', 'parentesco' => 'Madre', 'telefono' => '44444444']])->assertSessionHasNoErrors();
         $paciente = Paciente::firstOrFail();
-        $this->get('/pacientes')->assertOk()->assertSee('Evolución');
+        $this->get('/pacientes')->assertOk()->assertSee('Atención al paciente');
         $this->get('/pacientes/'.$paciente->getKey().'/expediente')->assertOk()->assertSee('Nuevo ingreso')->assertDontSee('Información clínica general');
         DB::table('tbl_paciente')->where('id_paciente', $paciente->getKey())->update(['alergias' => 'Alergia de prueba']);
-        $this->get('/pacientes/'.$paciente->getKey().'/expediente')->assertOk()->assertSee('Información clínica general')->assertSee('Alergia de prueba');
+        $this->get('/pacientes/'.$paciente->getKey().'/expediente')->assertOk()->assertSee('Información clínica general')->assertSee('Alergia de prueba')
+            ->assertSeeInOrder(['id="datos-paciente"', 'id="contactos-paciente"', 'Información clínica general', 'id="historial-evoluciones"'], false);
         $this->put('/pacientes/'.$paciente->getKey(), array_replace($this->pacienteValido(), ['tipo_sangre' => 'AB-']))->assertSessionHasNoErrors();
         $this->assertDatabaseHas('tbl_paciente', ['tipo_sangre' => 'AB-', 'telefono' => '5555-5555']);
         $this->post('/pacientes', $this->pacienteValido())->assertSessionHasErrors('dpi');
@@ -85,6 +86,7 @@ class SistemaTest extends TestCase
         $this->withSession(['id_usuario' => 1])->post('/pacientes', ['estado_identificacion' => 'No identificado'])->assertSessionHasNoErrors();
         $paciente = Paciente::firstOrFail();
         self::assertNotEmpty($paciente->codigo_temporal);
+        $this->get('/pacientes/'.$paciente->getKey().'/expediente')->assertOk()->assertDontSee('id="contactos-paciente"', false);
     }
 
     private function personalValido(): array
@@ -226,15 +228,21 @@ class SistemaTest extends TestCase
         $paciente = Paciente::firstOrFail();
         $this->post('/ingresos', ['id_paciente' => $paciente->getKey(), 'id_habitacion' => 1, 'fecha_ingreso' => '2026-10-11 08:00:00', 'motivo_ingreso' => 'Control de prueba'])->assertSessionHasNoErrors();
         $ingreso = Ingreso::firstOrFail();
-        $datos = ['id_ingreso' => $ingreso->getKey(), 'fecha_hora' => '2026-10-11 09:00:00', 'motivo_atencion' => 'Control de prueba', 'diagnostico' => 'Diagnóstico de prueba', 'examen_fisico' => ['presion_arterial' => '120/80', 'frecuencia_cardiaca' => 80], 'modo_ordenes' => 'actualizar', 'estado_mejoria' => 'Sin cambios', 'id_personal_medico' => 1, 'ordenes' => ['dieta' => 'Libre', 'medicamentos' => [['nombre' => 'Medicina escrita libremente', 'dosis' => 'Dosis de prueba', 'via' => 'Oral', 'frecuencia' => 'Según indicación']]]];
+        $this->get('/pacientes')->assertOk()->assertSee('href="'.route('atencion.show', $ingreso).'"', false);
+        $this->get(route('pacientes.expediente', $paciente))->assertOk()->assertSee('Habitación actual')->assertDontSee('Cambios de habitación');
+        $datos = ['id_ingreso' => $ingreso->getKey(), 'fecha_hora' => '2026-10-11 09:00:00', 'motivo_atencion' => 'Control de prueba', 'diagnostico' => 'Diagnóstico de prueba', 'examen_fisico' => ['presion_arterial' => '120/80', 'frecuencia_cardiaca' => 80], 'estado_mejoria' => 'Sin cambios', 'id_personal_medico' => 1, 'ordenes' => ['dieta' => 'Libre', 'medicamentos' => [['nombre' => 'Medicina escrita libremente', 'dosis' => 'Dosis de prueba', 'via' => 'Oral', 'frecuencia' => 'Según indicación']]]];
         $this->post('/evolucion', $datos)->assertSessionHasNoErrors();
         $id = EvolucionClinica::firstOrFail()->getKey();
         $this->get('/atencion/'.$ingreso->getKey().'?registro='.$id)->assertOk()->assertSee('Medicina escrita libremente');
         $this->patch('/hospitalizacion/'.$ingreso->hospitalizacion->getKey().'/cambiar-habitacion', ['id_habitacion' => 2])->assertSessionHasNoErrors();
+        $this->get(route('pacientes.expediente', $paciente))->assertOk()->assertSee('Habitación actual')->assertSee('Cambios de habitación')->assertSee('101')->assertSee('102');
         $this->travel(2)->minutes();
         $this->post('/atencion/'.$ingreso->getKey().'/alta', ['id_personal_medico' => 1, 'fecha_hora' => now()->format('Y-m-d H:i:s'), 'diagnostico_final' => 'De prueba', 'condicion_egreso' => 'Estable'])->assertSessionHasNoErrors();
         $this->get('/atencion/'.$ingreso->getKey().'?registro='.$id)->assertOk()->assertSee('modo consulta');
+        $this->get(route('pacientes.expediente', $paciente))->assertOk()->assertSee('Última habitación ocupada')->assertSee('Cambios de habitación')->assertSee('102');
         self::assertSame('Dado de alta', $ingreso->fresh()->estado);
+        $this->get('/pacientes')->assertOk()->assertSee('Atención al paciente')->assertSee('El paciente no tiene un ingreso activo')
+            ->assertDontSee('href="'.route('atencion.show', $ingreso).'"', false);
         self::assertSame(0, DB::table('tbl_hospitalizacion_habitacion')->whereNull('fecha_hora_fin')->count());
     }
 }

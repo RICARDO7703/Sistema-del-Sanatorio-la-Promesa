@@ -1,7 +1,7 @@
 @php
     $examen = $registro?->examen_fisico ?? [];
     $recuperar = old('_formulario') === $formulario;
-    $valorExamen = fn ($campo) => $recuperar ? old('examen_fisico.'.$campo) : ($examen[$campo] ?? '');
+    $valorExamen = fn ($campo) => $recuperar ? old('examen_fisico.'.$campo) : ($campo === 'peso' ? (\App\Services\ExamenFisico::pesoEnLibras($examen) ?? '') : ($examen[$campo] ?? ''));
 @endphp
 <fieldset class="border rounded p-3 mb-3">
     <legend class="float-none w-auto px-2 fs-5">Examen físico</legend>
@@ -18,7 +18,7 @@
             <label class="form-label" for="{{ $formulario }}-fr">Frecuencia respiratoria (FR, rpm)</label>
             <input id="{{ $formulario }}-fr" class="form-control" type="number" name="examen_fisico[frecuencia_respiratoria]" min="1" max="100" step="1" value="{{ $valorExamen('frecuencia_respiratoria') }}">
         </div>
-        @foreach(['talla'=>['Talla (cm)',0.01,999.99,0.01], 'peso'=>['Peso (kg)',0.01,999.99,0.01], 'temperatura'=>['Temperatura (°C)',25,50,0.1], 'saturacion_oxigeno'=>['Saturación de oxígeno (%)',0,100,1]] as $campo=>$config)
+        @foreach(['talla'=>['Talla (cm)',0.01,999.99,0.01], 'peso'=>['Peso (lb)',0.01,999.99,0.01], 'temperatura'=>['Temperatura (°C)',25,50,0.1], 'saturacion_oxigeno'=>['Saturación de oxígeno (%)',0,100,1]] as $campo=>$config)
         <div class="col-md-3">
             <label class="form-label" for="{{ $formulario }}-{{ $campo }}">{{ $config[0] }}</label>
             <input id="{{ $formulario }}-{{ $campo }}" class="form-control" type="number" name="examen_fisico[{{ $campo }}]" min="{{ $config[1] }}" max="{{ $config[2] }}" step="{{ $config[3] }}" value="{{ $valorExamen($campo) }}">

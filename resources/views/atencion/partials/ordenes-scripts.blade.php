@@ -2,16 +2,6 @@
 (() => {
     const form = document.getElementById('form-evolucion');
     if (!form) return;
-    const modo = document.getElementById('modo-ordenes');
-    const actualizar = () => {
-        const igual = modo.value === 'igual';
-        document.getElementById('campos-ordenes').disabled = igual;
-        document.getElementById('campos-ordenes').hidden = igual;
-        const previas = document.getElementById('ordenes-previas');
-        if (previas) previas.hidden = !igual;
-    };
-    modo.addEventListener('change', actualizar);
-    actualizar();
     const indices = {};
     ['soluciones', 'medicamentos'].forEach(tipo => {
         const campos = [...document.getElementById('filas-' + tipo).querySelectorAll('[name]')];
@@ -20,18 +10,27 @@
             return Number.isFinite(indice) ? Math.max(maximo, indice + 1) : maximo;
         }, 0);
     });
+    const actualizarBotonSolucion = () => {
+        const boton = form.querySelector('[data-agregar="soluciones"]');
+        if (boton) boton.hidden = document.getElementById('filas-soluciones').children.length >= 1;
+    };
+    actualizarBotonSolucion();
     form.addEventListener('click', event => {
         const quitar = event.target.closest('[data-quitar]');
-        if (quitar) quitar.closest('.fila-orden').remove();
+        if (quitar) {
+            quitar.closest('.fila-orden').remove();
+            actualizarBotonSolucion();
+        }
         const agregar = event.target.closest('[data-agregar]');
         if (!agregar) return;
         const tipo = agregar.dataset.agregar;
         const contenedor = document.getElementById('filas-' + tipo);
-        if (contenedor.children.length >= (tipo === 'soluciones' ? 20 : 50)) return;
+        if (contenedor.children.length >= (tipo === 'soluciones' ? 1 : 50)) return;
         const plantilla = document.getElementById('plantilla-' + tipo).content.cloneNode(true);
         plantilla.querySelectorAll('[name]').forEach(campo => campo.name = campo.name.replace('__INDEX__', indices[tipo]));
         indices[tipo]++;
         contenedor.append(plantilla);
+        actualizarBotonSolucion();
     });
 })();
 </script>

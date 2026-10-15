@@ -182,19 +182,18 @@ class AtencionController extends Controller
         $medicamentos = Medicamento::where('estado', 'Activo')->orderBy('nombre_medicamento')->get();
         $medicos = Personal::where('estado', 'Activo')->whereHas('cargo', fn ($q) => $q->whereIn('nombre_cargo', ['Médico general', 'Médico especialista', 'Cirujano', 'Cirujano externo', 'Anestesiólogo']))->orderBy('nombres')->get();
 
-        $request->validate(['registro' => ['nullable', 'integer', 'min:1']]);
+        $request->validate(['registro' => ['nullable', 'integer', 'min:1'], 'consulta' => ['nullable', 'in:valoracion,alta']]);
         $historial = $ingreso->evoluciones()->where('estado', 'Activo')->with('personal')->orderByDesc('fecha_hora')->orderByDesc('id_evolucion')->paginate(10)->withQueryString();
         $registroSeleccionado = $request->filled('registro')
             ? $ingreso->evoluciones()->where('estado', 'Activo')->with('personal')->findOrFail($request->integer('registro'))
             : null;
-        $ultimasOrdenes = $ingreso->evoluciones()->where('estado', 'Activo')->whereNotNull('ordenes_medicas')->orderByDesc('fecha_hora')->orderByDesc('id_evolucion')->first();
         $personalSesion = DB::table('tbl_usuario')->where('id_usuario', session('id_usuario'))->value('id_personal');
 
         return view(
             'atencion.show',
             compact(
                 'ingreso',
-                'habitacionesDisponibles', 'medicamentos', 'medicos', 'historial', 'registroSeleccionado', 'ultimasOrdenes', 'personalSesion'
+                'habitacionesDisponibles', 'medicamentos', 'medicos', 'historial', 'registroSeleccionado', 'personalSesion'
             )
         );
     }

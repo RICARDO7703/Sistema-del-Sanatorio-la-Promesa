@@ -51,6 +51,21 @@ class ExamenFisico
             $examen['presion_arterial'] = preg_replace('/\s+/', '', $examen['presion_arterial']);
         }
 
+        if (isset($examen['peso'])) {
+            $examen['unidad_peso'] = 'lb';
+        }
+
         return $examen;
+    }
+
+    public static function pesoEnLibras(?array $examen): ?float
+    {
+        if (! isset($examen['peso']) || ! is_numeric($examen['peso'])) {
+            return null;
+        }
+
+        $peso = (float) $examen['peso'];
+
+        return round(($examen['unidad_peso'] ?? 'kg') === 'lb' ? $peso : $peso * 2.2046226218, 2);
     }
 }

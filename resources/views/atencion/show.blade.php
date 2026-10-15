@@ -5,7 +5,7 @@
 @section('menu-atencion', 'activo')
 
 @section('content')
-<fieldset @disabled($ingreso->estado !== 'Activo')>
+<fieldset class="atencion-contenido" @disabled($ingreso->estado !== 'Activo')>
 @if($ingreso->estado !== 'Activo')<div class="alert alert-info">Ingreso dado de alta. Historia clínica disponible en modo consulta.</div>@endif
 @if($errors->any())
 <div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
@@ -626,14 +626,20 @@ $ingreso->hospitalizacion->habitacionActual
 @endsection
 
 @section('scripts')
+@include('atencion.partials.borradores-scripts')
 @include('atencion.partials.ordenes-scripts')
 <?php
     $formularioAnterior = old('_formulario', '');
-    $modalAbierto = str_starts_with($formularioAnterior, 'valoracion') ? 'modalValoracion'
-        : ($formularioAnterior === 'alta' ? 'modalAlta'
+    $modalAbierto = (str_starts_with($formularioAnterior, 'valoracion') || request('consulta') === 'valoracion' || ($registroSeleccionado && $registroSeleccionado->getKey() === $ingreso->evoluciones->first()?->getKey() && $registroSeleccionado->ordenes_medicas === null)) ? 'modalValoracion'
+        : ($formularioAnterior === 'alta' || request('consulta') === 'alta' ? 'modalAlta'
         : (str_starts_with($formularioAnterior, 'evolucion-') || $registroSeleccionado || request('nuevo') === '1' ? 'modalEvolucion' : null));
 ?>
 @if($modalAbierto)
-<script>const modalPendiente = document.getElementById(@json($modalAbierto)); if (modalPendiente) bootstrap.Modal.getOrCreateInstance(modalPendiente).show();</script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modalPendiente = document.getElementById(@json($modalAbierto));
+    if (modalPendiente) bootstrap.Modal.getOrCreateInstance(modalPendiente).show();
+});
+</script>
 @endif
 @endsection

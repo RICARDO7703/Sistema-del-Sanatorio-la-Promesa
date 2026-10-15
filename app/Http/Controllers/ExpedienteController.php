@@ -11,7 +11,7 @@ class ExpedienteController extends Controller
     {
         $paciente->load('contactos');
 
-        $ingresos = $paciente->ingresos()->with('altaMedica.medico')
+        $ingresos = $paciente->ingresos()->with(['altaMedica.medico', 'personalRegistra', 'hospitalizacion.habitacionActual.habitacion', 'hospitalizacion.historialHabitaciones' => fn ($consulta) => $consulta->with('habitacion')->orderBy('fecha_hora_inicio')->orderBy('id_hospitalizacion_habitacion'), 'evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')->with('personal')->orderBy('fecha_hora')->orderBy('id_evolucion')])->withCount(['evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')])
             ->orderBy('fecha_ingreso', 'desc')
             ->get();
 

@@ -1,5 +1,7 @@
 @php
     $registro = $registroSeleccionado;
+    $primero = $ingreso->evoluciones->first();
+    $idValoracion = $primero && $primero->ordenes_medicas === null ? $primero->getKey() : null;
     $formulario = $registro ? 'evolucion-'.$registro->getKey() : 'evolucion-nueva';
     $recuperar = old('_formulario') === $formulario;
     $valorCampo = fn ($campo, $defecto = '') => $recuperar ? old($campo, $defecto) : ($registro?->{$campo} ?? $defecto);
@@ -9,13 +11,13 @@
     <h4>Evolución clínica y órdenes médicas</h4>
     <p class="text-muted">Seleccione un registro del historial para consultar o editar su evolución y sus órdenes. Cada registro conserva sus propias indicaciones.</p>
     <div class="table-responsive"><table class="table table-hover align-middle">
-        <thead><tr><th>Fecha y hora</th><th>Médico</th><th>Evolución</th><th></th></tr></thead>
+        <thead><tr><th>Fecha y hora</th><th>Médico</th><th>Tipo de registro</th><th>Evolución del paciente</th><th>Acciones</th></tr></thead>
         <tbody>@forelse($historial as $item)
         <tr @class(['table-primary' => $registro?->getKey() === $item->getKey()])>
-            <td>{{ $item->fecha_hora->format('d/m/Y H:i') }}</td><td>{{ $item->personal?->nombres }} {{ $item->personal?->apellidos }}</td><td>{{ $item->estado_mejoria ?: 'Sin registro' }}</td>
+            <td>{{ $item->fecha_hora->format('d/m/Y H:i') }}</td><td>{{ $item->personal?->nombres }} {{ $item->personal?->apellidos }}</td><td><span class="badge {{ $item->getKey() === $idValoracion ? 'bg-primary' : 'bg-success' }}">{{ $item->getKey() === $idValoracion ? 'Valoración inicial' : 'Evolución clínica' }}</span></td><td>{{ $item->getKey() === $idValoracion ? '—' : ($item->estado_mejoria ?: 'Sin registro') }}</td>
             <td><a class="btn btn-sm btn-outline-primary" href="{{ route('atencion.show', ['ingreso'=>$ingreso->getKey(), 'registro'=>$item->getKey(), 'page'=>$historial->currentPage()]) }}#evoluciones">{{ $ingreso->estado === 'Activo' ? 'Ver / editar' : 'Ver' }} #{{ $item->getKey() }}</a></td>
         </tr>
-        @empty<tr><td colspan="4">Sin evoluciones registradas.</td></tr>@endforelse</tbody>
+        @empty<tr><td colspan="5">Sin registros clínicos.</td></tr>@endforelse</tbody>
     </table></div>
     <div class="d-flex gap-3 align-items-center mb-3">
         @if($historial->previousPageUrl())<a href="{{ $historial->previousPageUrl() }}#evoluciones">Anterior</a>@endif
@@ -35,29 +37,30 @@
                 <h5>Evolución clínica</h5>
                 <label class="form-label" for="evo-fecha">Fecha y hora</label><input id="evo-fecha" class="form-control mb-3" type="datetime-local" name="fecha_hora" required max="{{ now()->format('Y-m-d\TH:i') }}" value="{{ $recuperar ? old('fecha_hora') : ($registro?->fecha_hora ?? now())->format('Y-m-d\TH:i') }}">
                 <label class="form-label" for="evo-medico">Médico responsable</label><select id="evo-medico" name="id_personal_medico" class="form-select mb-3" required><option value="">Seleccione un médico</option>@foreach($medicos as $medico)<option value="{{ $medico->getKey() }}" @selected(($recuperar ? old('id_personal_medico') : ($registro?->id_personal ?? $personalSesion)) == $medico->getKey())>{{ $medico->nombres }} {{ $medico->apellidos }}</option>@endforeach</select>
-                <label class="form-label" for="evo-motivo">Motivo de consulta</label><input id="evo-motivo" class="form-control mb-3" name="motivo_atencion" maxlength="255" value="{{ $valorCampo('motivo_atencion', $ingreso->motivo_ingreso) }}" required>
+                <input type="hidden" name="motivo_atencion" value="{{ $registro?->motivo_atencion ?: ($ingreso->motivo_ingreso ?: 'Seguimiento clínico') }}">
                 <label class="form-label" for="evo-sintomas">Signos y síntomas</label><textarea id="evo-sintomas" class="form-control mb-3" name="sintomas" maxlength="1000">{{ $valorCampo('sintomas') }}</textarea>
                 @include('atencion.partials.examen-fisico', ['registro'=>$registro, 'formulario'=>$formulario])
                 <label class="form-label" for="evo-diagnostico">Diagnóstico actual</label><textarea id="evo-diagnostico" class="form-control mb-3" name="diagnostico" maxlength="1000" required>{{ $valorCampo('diagnostico') }}</textarea>
                 <label class="form-label" for="evo-observaciones">Observaciones</label><textarea id="evo-observaciones" class="form-control mb-3" name="observaciones" maxlength="1000">{{ $valorCampo('observaciones') }}</textarea>
-                <label class="form-label" for="evo-mejoria">Evolución del paciente</label><select id="evo-mejoria" class="form-select" name="estado_mejoria" required><option value="">Seleccione</option>@foreach(['Mejoró','Sin cambios','Empeoró'] as $estado)<option @selected($valorCampo('estado_mejoria') === $estado)>{{ $estado }}</option>@endforeach</select>
+                <fieldset>
+                    <legend class="float-none fs-6 mb-2">Evolución del paciente</legend>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach(['Mejoró'=>'success', 'Sin cambios'=>'secondary', 'Empeoró'=>'danger'] as $estado=>$color)
+                        <div class="flex-fill">
+                            <input type="radio" class="btn-check" name="estado_mejoria" id="evo-mejoria-{{ $loop->index }}" value="{{ $estado }}" @checked($valorCampo('estado_mejoria') === $estado) required>
+                            <label class="btn btn-outline-{{ $color }} w-100" for="evo-mejoria-{{ $loop->index }}">{{ $estado }}</label>
+                        </div>
+                        @endforeach
+                    </div>
+                </fieldset>
             </div>
             <div class="col-xl-6 border-start">
                 <h5>Órdenes médicas</h5><p class="text-muted">Indicaciones para enfermería vinculadas a esta evolución.</p>
                 @if($registro?->ordenes_medicas)<div class="border rounded p-2 mb-3"><strong>Órdenes guardadas de este registro</strong>@include('atencion.partials.ordenes-resumen', ['resumenOrdenes'=>$registro->ordenes_medicas])</div>@endif
                 <p><strong>Ingreso #{{ $ingreso->getKey() }}</strong> · Habitación {{ $ingreso->hospitalizacion?->habitacionActual?->habitacion?->numero_habitacion ?? 'Sin asignar' }}</p>
-                @if(($registro?->ordenes_medicas['modo'] ?? '') === 'igual')<p class="alert alert-info">Estas órdenes se mantuvieron del registro #{{ $registro->ordenes_medicas['origen_evolucion'] }}.</p>@endif
-                <label class="form-label" for="modo-ordenes">Órdenes de este registro</label>
-                <select id="modo-ordenes" class="form-select mb-3" name="modo_ordenes"><option value="actualizar">{{ $registro ? 'Revisar / actualizar órdenes' : 'Indicar órdenes' }}</option>@if(!$registro && $ultimasOrdenes)<option value="igual" @selected($recuperar && old('modo_ordenes') === 'igual')>Sigue igual: mantener órdenes del registro #{{ $ultimasOrdenes->getKey() }}</option>@endif</select>
-                <input type="hidden" name="origen_ordenes" value="{{ $ultimasOrdenes?->getKey() }}">
-                @if(!$registro && $ultimasOrdenes)
-                <div id="ordenes-previas" hidden class="alert alert-info">Se guardará una copia de estas órdenes, correspondientes al {{ $ultimasOrdenes->fecha_hora->format('d/m/Y H:i') }}.
-                    @include('atencion.partials.ordenes-resumen', ['resumenOrdenes'=>$ultimasOrdenes->ordenes_medicas])
-                </div>
-                @endif
                 <fieldset id="campos-ordenes">
-                    <label class="form-label" for="orden-dieta">Dieta</label><select id="orden-dieta" class="form-select mb-3" name="ordenes[dieta]" required><option value="">Seleccione</option>@foreach(['Libre','Blanda','Líquida'] as $dieta)<option @selected(($ordenes['dieta'] ?? '') === $dieta)>{{ $dieta }}</option>@endforeach</select>
-                    <h6>Soluciones</h6><div id="filas-soluciones">
+                    <label class="form-label" for="orden-dieta">Dieta <span class="text-danger">*</span></label><select id="orden-dieta" class="form-select mb-3" name="ordenes[dieta]" required><option value="">Seleccione</option>@foreach(['Libre','Blanda','Líquida'] as $dieta)<option @selected(($ordenes['dieta'] ?? '') === $dieta)>{{ $dieta }}</option>@endforeach</select>
+                    <h6>Solución</h6><div id="filas-soluciones">
                     @foreach($ordenes['soluciones'] ?? [] as $indice=>$fila)@include('atencion.partials.fila-solucion')@endforeach
                     </div><button type="button" class="btn btn-outline-primary btn-sm mb-3" data-agregar="soluciones">Agregar solución</button>
                     <h6>Medicamentos</h6><div id="filas-medicamentos">

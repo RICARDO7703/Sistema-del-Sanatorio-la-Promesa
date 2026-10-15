@@ -40,422 +40,31 @@
 
 
 <!-- Datos principales -->
-
-<div class="evolucion-card mb-4">
-
-    <h4 class="mb-3">Datos del paciente</h4>
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
-
-        <div>
-
-            <h4 class="mb-1">
-
-                @if($paciente->estado_identificacion === 'Identificado')
-
-                {{ $paciente->nombres }}
-                {{ $paciente->apellidos }}
-
-                @else
-
-                Paciente no identificado
-
-                @endif
-
-            </h4>
-
-            <span class="text-muted">
-                {{ $paciente->numero_expediente }}
-            </span>
-
+<div class="evolucion-card mb-4" id="datos-paciente">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <h4 class="mb-0">Datos del paciente</h4>
+        <div class="d-flex gap-2">
+            <span class="badge {{ $paciente->estado_identificacion === 'Identificado' ? 'bg-success' : 'bg-warning text-dark' }}">{{ $paciente->estado_identificacion }}</span>
+            <span class="badge {{ $paciente->estado === 'Activo' ? 'bg-primary' : 'bg-secondary' }}">{{ $paciente->estado }}</span>
         </div>
-
-        <div>
-
-            @if($paciente->estado_identificacion === 'Identificado')
-
-            <span class="badge bg-success">
-                Identificado
-            </span>
-
-            @else
-
-            <span class="badge bg-warning text-dark">
-                No identificado
-            </span>
-
-            @endif
-
-            @if($paciente->estado === 'Activo')
-
-            <span class="badge bg-primary">
-                Activo
-            </span>
-
-            @else
-
-            <span class="badge bg-secondary">
-                Inactivo
-            </span>
-
-            @endif
-
-        </div>
-
     </div>
-
-    <div class="row g-4">
-
-        @if($paciente->codigo_temporal)
-
-        <div class="col-md-4">
-            <strong>Código temporal</strong>
-            <p class="mb-0">
-                {{ $paciente->codigo_temporal }}
-            </p>
-        </div>
-
-        @endif
-
-        <div class="col-md-4">
-            <strong>DPI</strong>
-            <p class="mb-0">
-                {{ $paciente->dpi ?: 'Sin registro' }}
-            </p>
-        </div>
-
-        <div class="col-md-4">
-            <strong>Fecha de nacimiento</strong>
-
-            <p class="mb-0">
-
-                @if($paciente->fecha_nacimiento)
-
-                {{ $paciente->fecha_nacimiento->format('d/m/Y') }}
-
-                @else
-
-                Sin registro
-
-                @endif
-
-            </p>
-        </div>
-
-        <div class="col-md-4">
-            <strong>Edad</strong>
-
-            <p class="mb-0">
-
-                @if($paciente->fecha_nacimiento)
-
-                {{ $paciente->fecha_nacimiento->age }} años
-
-                @else
-
-                Sin registro
-
-                @endif
-
-            </p>
-        </div>
-
-        <div class="col-md-4">
-            <strong>Sexo</strong>
-            <p class="mb-0">
-                {{ $paciente->sexo ?: 'Sin registro' }}
-            </p>
-        </div>
-
-        <div class="col-md-4">
-            <strong>Teléfono</strong>
-            <p class="mb-0">
-                {{ $paciente->telefono ?: 'Sin registro' }}
-            </p>
-        </div>
-
-        <div class="col-md-4">
-            <strong>Tipo de sangre</strong>
-            <p class="mb-0">
-                {{ $paciente->tipo_sangre ?: 'Sin registro' }}
-            </p>
-        </div>
-
-        <div class="col-md-8">
-            <strong>Dirección</strong>
-            <p class="mb-0">
-                {{ $paciente->direccion ?: 'Sin registro' }}
-            </p>
-        </div>
-
-    </div>
-
-
-@if(collect([$paciente->alergias, $paciente->antecedentes_medicos, $paciente->antecedentes_familiares, $paciente->observaciones_generales])->contains(fn ($dato) => trim((string) $dato) !== ''))
-<hr class="my-4">
-<div>
-
-    <h4 class="mb-4">
-        <i class="bi bi-clipboard2-pulse"></i>
-        Información clínica general
-    </h4>
-
-    <div class="row g-4">
-
-        @if(trim((string) $paciente->alergias) !== '')
-        <div class="col-md-6">
-
-            <strong>Alergias</strong>
-
-            <p class="mb-0">
-                {{ $paciente->alergias }}
-            </p>
-
-        </div>
-        @endif
-
-        @if(trim((string) $paciente->antecedentes_medicos) !== '')
-        <div class="col-md-6">
-
-            <strong>Antecedentes médicos</strong>
-
-            <p class="mb-0">
-                {{ $paciente->antecedentes_medicos }}
-            </p>
-
-        </div>
-        @endif
-
-        @if(trim((string) $paciente->antecedentes_familiares) !== '')
-        <div class="col-md-6">
-
-            <strong>Antecedentes familiares</strong>
-
-            <p class="mb-0">
-                {{ $paciente->antecedentes_familiares }}
-            </p>
-
-        </div>
-        @endif
-
-        @if(trim((string) $paciente->observaciones_generales) !== '')
-        <div class="col-md-6">
-
-            <strong>Observaciones generales</strong>
-
-            <p class="mb-0">
-                {{ $paciente->observaciones_generales }}
-            </p>
-
-        </div>
-        @endif
-
-    </div>
-
-</div>
-@endif
-
-</div>
-
-<!-- Ingreso actual -->
-<div class="evolucion-card mb-4" id="historial-evoluciones"><h4 class="mb-4"><i class="bi bi-clock-history"></i> Ingresos y evoluciones clínicas</h4>
-
-    <div class="d-flex justify-content-between align-items-center mb-4">
-
-        <h5 class="mb-0">
-            <i class="bi bi-hospital"></i>
-            Ingreso actual
-        </h5>
-
-
-
-    </div>
-
-    @if($ingresoActivo)
-
-    <div class="row g-3 align-items-center">
-
-        <div class="col-md-3">
-
-            <strong>Fecha de ingreso</strong>
-
-            <p class="mb-0">
-                {{ $ingresoActivo->fecha_ingreso->format('d/m/Y H:i') }}
-            </p>
-
-        </div>
-
-        <div class="col-md-4">
-
-            <strong>Motivo</strong>
-
-            <p class="mb-0">
-                {{ $ingresoActivo->motivo_ingreso ?: 'Sin registro' }}
-            </p>
-
-        </div>
-
-        <div class="col-md-2">
-
-            <strong>Estado</strong>
-
-            <p class="mb-0">
-                <span class="badge bg-success">
-                    {{ $ingresoActivo->estado }}
-                </span>
-            </p>
-
-        </div>
-
-                <div class="col-md-3"><strong>Habitación</strong><p class="mb-0">{{ $ingresoActivo->hospitalizacion?->habitacionActual?->habitacion?->numero_habitacion ?? 'Sin habitación asignada' }}</p></div>
-<div class="col-12 text-md-end">
-
-            <a
-                href="{{ route(
-                        'atencion.show',
-                        $ingresoActivo->id_ingreso
-                    ) }}"
-                class="btn btn-primary">
-                <i class="bi bi-clipboard2-pulse"></i>
-                Continuar atención
-            </a>
-
-        </div>
-
-    </div>
-
-    @else
-
-    <div class="alert alert-light border mb-0">
-
-        <i class="bi bi-info-circle"></i>
-
-        El paciente no tiene un ingreso activo.
-
-    </div>
-
-    @endif
-
-
-<!-- Historial de ingresos -->
-<hr class="my-4">
-
-    <h5 class="mb-3">
-        <i class="bi bi-clock-history"></i>
-        Historial de ingresos y evoluciones
-    </h5>
-
-    <div class="table-responsive">
-
-        <table class="table align-middle">
-
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Motivo</th>
-                    <th>Documento firmado</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-
-            <tbody>
-
-                @forelse($ingresos as $ingreso)
-
-                <tr>
-
-                    <td>
-                        {{ $ingreso->fecha_ingreso->format('d/m/Y H:i') }}
-                    </td>
-
-                    <td>
-                        {{ $ingreso->motivo_ingreso ?: 'Sin registro' }}
-                    </td>
-
-                    <td>
-
-                        @if($ingreso->documento_firmado)
-
-                        <span class="badge bg-success">
-                            Sí
-                        </span>
-
-                        @else
-
-                        <span class="badge bg-secondary">
-                            No
-                        </span>
-
-                        @endif
-
-                    </td>
-
-                    <td>
-
-                        @if($ingreso->estado === 'Activo')
-
-                        <span class="badge bg-success">
-                            Activo
-                        </span>
-
-                        @elseif($ingreso->estado === 'Dado de alta')
-
-                        <span class="badge bg-primary">
-                            Dado de alta
-                        </span>
-
-                        @else
-
-                        <span class="badge bg-secondary">
-                            {{ $ingreso->estado }}
-                        </span>
-
-                        @endif
-
-                    </td>
-
-                    <td>
-
-                        <a
-                            href="{{ route(
-                                        'atencion.show',
-                                        $ingreso->id_ingreso
-                                    ) }}#evoluciones"
-                            class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-eye"></i>
-                            Ver evoluciones
-                        </a>
-
-                    </td>
-
-                </tr>
-
-                @empty
-
-                <tr>
-
-                    <td
-                        colspan="5"
-                        class="text-center py-4">
-                        El paciente todavía no tiene ingresos registrados.
-                    </td>
-
-                </tr>
-
-                @endforelse
-
-            </tbody>
-
-        </table>
-
-    </div>
-
-</div>
-
-
-
+    <dl class="row g-4 mb-0">
+        <div class="col-md-3"><dt class="text-muted fw-normal">Expediente</dt><dd class="fw-semibold mb-0">{{ $paciente->numero_expediente }}</dd></div>
+        <div class="col-md-5"><dt class="text-muted fw-normal">Paciente</dt><dd class="fw-semibold mb-0">{{ $paciente->estado_identificacion === 'Identificado' ? trim($paciente->nombres.' '.$paciente->apellidos) : 'Paciente no identificado' }}</dd></div>
+        <div class="col-6 col-md-2"><dt class="text-muted fw-normal">Edad</dt><dd class="fw-semibold mb-0">{{ $paciente->fecha_nacimiento ? $paciente->fecha_nacimiento->age.' años' : 'Sin registro' }}</dd></div>
+        <div class="col-6 col-md-2"><dt class="text-muted fw-normal">Sexo</dt><dd class="fw-semibold mb-0">{{ $paciente->sexo ?: 'Sin registro' }}</dd></div>
+        @if($paciente->codigo_temporal)<div class="col-md-3"><dt>Código temporal</dt><dd class="mb-0">{{ $paciente->codigo_temporal }}</dd></div>@endif
+        <div class="col-sm-6 col-md-3"><dt class="text-muted fw-normal">DPI</dt><dd class="mb-0">{{ $paciente->dpi ?: 'Sin registro' }}</dd></div>
+        <div class="col-sm-6 col-md-3"><dt class="text-muted fw-normal">Fecha de nacimiento</dt><dd class="mb-0">{{ $paciente->fecha_nacimiento?->format('d/m/Y') ?? 'Sin registro' }}</dd></div>
+        <div class="col-sm-6 col-md-3"><dt class="text-muted fw-normal">Teléfono</dt><dd class="mb-0">{{ $paciente->telefono ?: 'Sin registro' }}</dd></div>
+        <div class="col-sm-6 col-md-3"><dt class="text-muted fw-normal">Tipo de sangre</dt><dd class="mb-0">{{ $paciente->tipo_sangre ?: 'Sin registro' }}</dd></div>
+        <div class="col-12"><dt class="text-muted fw-normal">Dirección</dt><dd class="mb-0 text-break">{{ $paciente->direccion ?: 'Sin registro' }}</dd></div>
+    </dl>
+
+@if($paciente->contactos->isNotEmpty())
 <!-- Contactos del paciente -->
-<div class="evolucion-card mb-4">
+<hr class="my-4">
+<section id="contactos-paciente">
 
     <div class="d-flex justify-content-between align-items-center mb-3">
 
@@ -569,8 +178,108 @@
 
     </div>
 
+</section>
+@endif
+
+@if(collect([$paciente->alergias, $paciente->antecedentes_medicos, $paciente->antecedentes_familiares, $paciente->observaciones_generales])->contains(fn ($dato) => trim((string) $dato) !== ''))
+<hr class="my-4">
+<div>
+
+    <h4 class="mb-4">
+        <i class="bi bi-clipboard2-pulse"></i>
+        Información clínica general
+    </h4>
+
+    <div class="row g-4">
+
+        @if(trim((string) $paciente->alergias) !== '')
+        <div class="col-md-6">
+
+            <strong>Alergias</strong>
+
+            <p class="mb-0">
+                {{ $paciente->alergias }}
+            </p>
+
+        </div>
+        @endif
+
+        @if(trim((string) $paciente->antecedentes_medicos) !== '')
+        <div class="col-md-6">
+
+            <strong>Antecedentes médicos</strong>
+
+            <p class="mb-0">
+                {{ $paciente->antecedentes_medicos }}
+            </p>
+
+        </div>
+        @endif
+
+        @if(trim((string) $paciente->antecedentes_familiares) !== '')
+        <div class="col-md-6">
+
+            <strong>Antecedentes familiares</strong>
+
+            <p class="mb-0">
+                {{ $paciente->antecedentes_familiares }}
+            </p>
+
+        </div>
+        @endif
+
+        @if(trim((string) $paciente->observaciones_generales) !== '')
+        <div class="col-md-6">
+
+            <strong>Observaciones generales</strong>
+
+            <p class="mb-0">
+                {{ $paciente->observaciones_generales }}
+            </p>
+
+        </div>
+        @endif
+
+    </div>
+
+</div>
+@endif
+
+
+
+
+
 </div>
 
+<section class="evolucion-card mb-4" id="historial-evoluciones">
+    <h4 class="mb-2"><i class="bi bi-clock-history"></i> Historial de ingresos y egresos</h4>
+    <p class="text-muted mb-4">Consulta la atención y los documentos de cada ingreso.</p>
+    <div class="d-flex flex-column gap-3">
+        @forelse($ingresos as $ingreso)
+        <article class="border rounded-3 overflow-hidden">
+            <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 bg-light border-bottom">
+                <h5 class="mb-0"><i class="bi bi-hospital text-primary me-2"></i>{{ $ingreso->estado === 'Activo' ? 'Ingreso actual' : 'Ingreso' }} #{{ $ingreso->getKey() }}</h5>
+                <span class="badge {{ $ingreso->estado === 'Activo' ? 'bg-success' : ($ingreso->estado === 'Dado de alta' ? 'bg-primary' : 'bg-secondary') }}">{{ $ingreso->estado }}</span>
+            </header>
+            <div class="p-3">
+                <dl class="row g-3 mb-3">
+                    <div class="col-sm-6"><dt class="text-muted fw-normal">Fecha de ingreso</dt><dd class="fw-semibold mb-0">{{ $ingreso->fecha_ingreso->format('d/m/Y H:i') }}</dd></div>
+                    <div class="col-sm-6"><dt class="text-muted fw-normal">Fecha de egreso</dt><dd class="fw-semibold mb-0">{{ $ingreso->altaMedica?->fecha_hora?->format('d/m/Y H:i') ?? ($ingreso->estado === 'Activo' ? 'En atención' : 'Sin egreso médico registrado') }}</dd></div>
+                    <div class="col-12"><dt class="text-muted fw-normal">Motivo de ingreso</dt><dd class="mb-0 text-break">{{ $ingreso->motivo_ingreso ?: 'Sin registro' }}</dd></div>
+
+                </dl>
+                @include('expedientes.partials.habitaciones', ['ingreso'=>$ingreso])
+                <p class="small mb-3 {{ $ingreso->documento_firmado ? 'text-success' : 'text-muted' }}"><i class="bi {{ $ingreso->documento_firmado ? 'bi-check-circle-fill' : 'bi-info-circle' }} me-1"></i>{{ $ingreso->documento_firmado ? 'Documento de ingreso firmado' : 'Documento de ingreso pendiente de firma' }}</p>
+                @include('expedientes.partials.documentos-ingreso', ['ingreso'=>$ingreso])
+            </div>
+        </article>
+        @empty
+        <p class="text-muted border rounded p-3 mb-0">El paciente todavía no tiene ingresos registrados.</p>
+        @endforelse
+    </div>
+</section>
+
+@include('expedientes.partials.modales-documentos')
 
 <!-- Modal agregar contacto -->
 <div
@@ -1005,9 +714,4 @@
 
 @endif
 
-@foreach($ingresos as $episodio)
-@if($episodio->altaMedica)
-<div class="evolucion-card mt-3"><h4>Alta médica — ingreso {{ $episodio->id_ingreso }}</h4><p>{{ $episodio->altaMedica->fecha_hora->format('d/m/Y H:i') }} · {{ $episodio->altaMedica->medico?->nombres }} {{ $episodio->altaMedica->medico?->apellidos }}</p><p><strong>Diagnóstico final:</strong> {{ $episodio->altaMedica->diagnostico_final }}</p><p><strong>Condición de egreso:</strong> {{ $episodio->altaMedica->condicion_egreso }}</p><p><strong>Indicaciones:</strong> {{ $episodio->altaMedica->indicaciones_alta }}</p></div>
-@endif
-@endforeach
 @endsection

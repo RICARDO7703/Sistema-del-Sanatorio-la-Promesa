@@ -408,10 +408,11 @@
         <button type="submit" class="btn btn-outline-success btn-sm w-100"><i class="bi bi-person-check"></i> Activar</button>
     </form>
     @endif
-    @if($paciente->ingresos->contains('tiene_evoluciones', true))
-    <a href="{{ route('pacientes.expediente', $paciente->id_paciente) }}#historial-evoluciones" class="btn btn-outline-success btn-sm"><i class="bi bi-graph-up-arrow"></i> Evolución</a>
+    <?php $ingresoParaAtencion = $paciente->estado === 'Activo' ? $paciente->ingresos->sortByDesc('fecha_ingreso')->firstWhere('estado', 'Activo') : null; ?>
+    @if($ingresoParaAtencion)
+    <a href="{{ route('atencion.show', $ingresoParaAtencion) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-clipboard2-pulse"></i> Atención al paciente</a>
     @else
-    <button type="button" class="btn btn-outline-secondary btn-sm" disabled title="El paciente todavía no tiene evoluciones registradas"><i class="bi bi-graph-up-arrow"></i> Evolución</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" disabled title="El paciente no tiene un ingreso activo"><i class="bi bi-clipboard2-pulse"></i> Atención al paciente</button>
     @endif
     <button type="button" class="btn btn-outline-info btn-sm justify-self-center" style="grid-column: 1 / -1; justify-self: center;" data-bs-toggle="modal" data-bs-target="#modalContactos{{ $paciente->id_paciente }}"><i class="bi bi-person-lines-fill"></i> Contactos</button>
 </div>

@@ -205,7 +205,7 @@ class EvolucionController extends Controller
             ->with(
                 'exito',
                 'Evolución clínica registrada correctamente.'
-            );
+            )->with('borrador_clinico_guardado', is_string($request->input('_formulario')) ? $request->input('_formulario') : null);
     }
 
     public function actualizar(
@@ -366,7 +366,7 @@ class EvolucionController extends Controller
             ->with(
                 'exito',
                 'Evolución clínica actualizada correctamente.'
-            );
+            )->with('borrador_clinico_guardado', is_string($request->input('_formulario')) ? $request->input('_formulario') : null);
     }
 
     public function eliminar(

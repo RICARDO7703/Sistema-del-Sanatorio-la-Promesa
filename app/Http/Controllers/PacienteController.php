@@ -46,7 +46,6 @@ class PacienteController extends Controller
 
         $pacientes = Paciente::with([
             'contactos',
-            'ingresos' => fn ($consulta) => $consulta->withExists(['evoluciones as tiene_evoluciones' => fn ($evoluciones) => $evoluciones->where('estado', 'Activo')]),
             'ingresos.hospitalizacion.habitacionActual.habitacion',
             'ingresos.altaMedica',
         ])
