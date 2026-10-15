@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Mail\ResendHttpTransport;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +21,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Mail::extend('resend_http', fn (array $config) => new ResendHttpTransport);
     }
 }

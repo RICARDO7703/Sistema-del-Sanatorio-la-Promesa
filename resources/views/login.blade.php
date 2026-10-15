@@ -44,6 +44,7 @@
                 Iniciar sesión
             </h2>
 
+            @if(session('status'))<div class="alert alert-success" role="status">{{ session('status') }}</div>@endif
             <form action="{{ route('login.validar') }}" method="POST">
 
                 @csrf
@@ -114,6 +115,9 @@
 
                 </div>
 
+                @if(session('aviso_sesion'))
+                    <div class="alert alert-info" role="status">{{ session('aviso_sesion') }}</div>
+                @endif
                 @if(session('error'))
                     <div class="alert alert-danger">
                         {{ session('error') }}
@@ -129,14 +133,7 @@
 
             </form>
 
-            <!-- Recuperar contraseña -->
-            <div class="text-center mt-4">
-
-                <a href="#" class="text-decoration-none">
-                    ¿Olvidaste tu contraseña?
-                </a>
-
-            </div>
+            {{-- Enlace de recuperación oculto temporalmente mientras se configura el correo. --}}
 
         </div>
 

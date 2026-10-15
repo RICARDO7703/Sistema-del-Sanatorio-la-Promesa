@@ -22,7 +22,7 @@
     <div class="sistema-contenedor">
 
         <!-- Menú lateral -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="barra-lateral" aria-label="Menú principal">
 
             <div class="sidebar-logo">
                 <img
@@ -101,6 +101,7 @@
 
             <!-- Usuario -->
             <div class="barra-superior">
+                <button type="button" class="btn btn-outline-primary sidebar-toggle" aria-controls="barra-lateral" aria-expanded="true"><i class="bi bi-layout-sidebar" aria-hidden="true"></i> <span>Ocultar menú</span></button>
 
                 <div class="usuario">
                     <i class="bi bi-person-circle"></i>

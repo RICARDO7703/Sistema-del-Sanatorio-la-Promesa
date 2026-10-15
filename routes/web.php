@@ -12,12 +12,19 @@ use App\Http\Controllers\InicioController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PacienteController;
 use App\Http\Controllers\PersonalController;
+use App\Http\Controllers\RecuperarContrasenaController;
 use App\Http\Controllers\SignoVitalController;
 use App\Http\Controllers\TratamientoController;
 use App\Http\Middleware\SesionClinica;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LoginController::class, 'index']);
+Route::get('/recuperar-contrasena', [RecuperarContrasenaController::class, 'solicitar'])->name('password.request');
+Route::post('/recuperar-contrasena', [RecuperarContrasenaController::class, 'enviar'])->middleware('throttle:5,1')->name('password.email');
+Route::get('/verificar-codigo', [RecuperarContrasenaController::class, 'codigo'])->name('password.code');
+Route::post('/verificar-codigo', [RecuperarContrasenaController::class, 'verificar'])->middleware('throttle:5,1')->name('password.verify');
+Route::get('/restablecer-contrasena', [RecuperarContrasenaController::class, 'formulario'])->name('password.reset');
+Route::post('/restablecer-contrasena', [RecuperarContrasenaController::class, 'actualizar'])->middleware('throttle:5,1')->name('password.update');
 
 Route::post('/login', [LoginController::class, 'validar'])
     ->middleware('throttle:5,1')->name('login.validar');

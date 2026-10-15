@@ -15,10 +15,13 @@ class SesionClinica
     public function handle(Request $request, Closure $next): Response
     {
         $usuario = $request->session()->get('id_usuario');
-        if (! $usuario || ! DB::table('tbl_usuario')->where('id_usuario', $usuario)->where('estado', 'Activo')->whereIn('id_personal', DB::table('tbl_personal')->select('id_personal')->where('estado', 'Activo'))->whereIn('id_rol', DB::table('tbl_rol')->select('id_rol')->where('estado', 'Activo'))->exists()) {
+        if (! $usuario) {
+            return redirect('/');
+        }
+        if (! DB::table('tbl_usuario')->where('id_usuario', $usuario)->where('estado', 'Activo')->whereIn('id_personal', DB::table('tbl_personal')->select('id_personal')->where('estado', 'Activo'))->whereIn('id_rol', DB::table('tbl_rol')->select('id_rol')->where('estado', 'Activo'))->exists()) {
             $request->session()->forget('id_usuario');
 
-            return redirect('/')->with('error', 'Debe iniciar sesión con un usuario activo.');
+            return redirect('/')->with('aviso_sesion', 'Tu sesión ya no está disponible. Inicia sesión nuevamente.');
         }
 
         if ($request->isMethod('GET') || $request->isMethod('HEAD')) {
