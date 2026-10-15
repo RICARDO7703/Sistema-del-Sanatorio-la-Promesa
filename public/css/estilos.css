@@ -626,3 +626,8 @@ body {
     background-color: #fff3cd;
     color: #8a6d00;
 }
+/* Los enlaces de consulta siguen disponibles cuando el ingreso está cerrado. */
+fieldset.atencion-contenido:disabled a.btn:not(.disabled) {
+    pointer-events: auto;
+    opacity: 1;
+}

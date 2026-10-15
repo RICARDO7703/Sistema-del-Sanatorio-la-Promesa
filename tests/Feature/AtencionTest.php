@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\EvolucionClinica;
 use App\Models\Ingreso;
+use App\Services\ExamenFisico;
 use Database\Factories\IngresoFactory;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -264,13 +265,29 @@ class AtencionTest extends TestCase
         $ingreso = $this->ingreso();
         $this->hospitalizar($ingreso);
         $this->sesion()->post('/evolucion', $this->evolucion($ingreso))->assertSessionHasNoErrors();
+        $this->post('/evolucion', $this->evolucion($ingreso) + $this->ordenesNuevas())->assertSessionHasNoErrors();
         $this->post('/tratamientos', $this->tratamiento($ingreso))->assertSessionHasNoErrors();
         $this->post('/atencion/'.$ingreso->getKey().'/alta', $this->alta())->assertRedirect(route('atencion.show', $ingreso))->assertSessionHasNoErrors();
         $this->assertDatabaseHas('tbl_ingreso', ['id_ingreso' => $ingreso->getKey(), 'estado' => 'Dado de alta']);
         $this->assertDatabaseHas('tbl_hospitalizacion', ['id_ingreso' => $ingreso->getKey(), 'estado' => 'Finalizada']);
         $this->assertDatabaseHas('tbl_hospitalizacion_habitacion', ['id_habitacion' => 1, 'fecha_hora_fin' => '2026-10-11 11:59:00']);
         $this->assertDatabaseHas('tbl_tratamiento', ['id_ingreso' => $ingreso->getKey(), 'estado' => 'Finalizado']);
-        $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()->assertSee('Diagnóstico final de prueba');
+        $respuesta = $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()->assertDontSee('Ver evoluciones')
+            ->assertSee('Fecha de ingreso')->assertSee('Fecha de egreso')->assertSee('11/10/2026 11:59')->assertSee('Documentos del ingreso')->assertSee('Última habitación ocupada')->assertDontSee('Cambios de habitación')
+            ->assertSee('Hoja de ingreso')->assertSee('Valoración inicial')->assertSee('Evolución clínica #')->assertSee('Diagnóstico final de prueba')
+            ->assertSee('data-bs-target="#documento-alta-'.$ingreso->getKey().'"', false)
+            ->assertDontSee('Ver expediente')->assertDontSee('consulta=valoracion', false)->assertDontSee('consulta=alta', false)
+            ->assertDontSee('Alta médica — ingreso');
+        $documento = new \DOMDocument;
+        $documento->loadHTML($respuesta->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new \DOMXPath($documento);
+        $ventanas = $xpath->query('//div[starts-with(@id,"documento-")]');
+        self::assertCount(4, $ventanas);
+        foreach ($ventanas as $ventana) {
+            self::assertSame(0, $xpath->query('.//form | .//input | .//select | .//textarea', $ventana)->length);
+        }
+        $this->get(route('atencion.show', ['ingreso' => $ingreso->getKey(), 'consulta' => 'alta']))->assertOk()->assertSee('getElementById("modalAlta")', false)->assertSee('Diagnóstico final de prueba');
+        $this->get(route('atencion.show', ['ingreso' => $ingreso->getKey(), 'consulta' => 'valoracion']))->assertOk()->assertSee('getElementById("modalValoracion")', false);
         $this->post('/atencion/'.$ingreso->getKey().'/alta', $this->alta())->assertSessionHasErrors('ingreso');
         $this->assertDatabaseCount('tbl_alta_medica', 1);
     }
@@ -386,7 +403,7 @@ class AtencionTest extends TestCase
         $ingreso = $this->ingreso(['motivo_ingreso' => 'Dolor de prueba']);
         $this->sesion()->get('/atencion/'.$ingreso->getKey())->assertOk()
             ->assertSee('value="Dolor de prueba"', false)->assertSee('Signos y síntomas')
-            ->assertSee('Talla (cm)')->assertSee('Peso (kg)')->assertSee('Cabeza')->assertSee('Tronco')->assertSee('Extremidades')
+            ->assertSee('Talla (cm)')->assertSee('Peso (lb)')->assertSee('Cabeza')->assertSee('Tronco')->assertSee('Extremidades')
             ->assertDontSee('Presión sistólica')->assertDontSee('Presión diastólica')->assertDontSee('data-bs-target="#signos"', false);
     }
 
@@ -402,13 +419,24 @@ class AtencionTest extends TestCase
         self::assertSame('120/80', $registro->examen_fisico['presion_arterial']);
         self::assertEquals(165.5, $registro->examen_fisico['talla']);
         self::assertSame('Descripción de cabeza', $registro->examen_fisico['cabeza']);
-        $this->get('/atencion/'.$ingreso->getKey())->assertOk()->assertSee('120/80')->assertSee('Descripción de tronco')->assertSee('Editar valoración inicial');
+        $this->get('/atencion/'.$ingreso->getKey())->assertOk()->assertSee('120/80')->assertSee('Descripción de tronco')->assertSee('Editar valoración inicial')
+            ->assertViewHas('historial', fn ($historial) => $historial->total() === 1)->assertSee('Tipo de registro')->assertSee('Valoración inicial');
+        $this->get('/atencion/'.$ingreso->getKey().'?registro='.$registro->getKey())->assertOk()
+            ->assertSee('getElementById("modalValoracion")', false);
+        $this->post('/evolucion', $this->evolucion($ingreso) + $this->ordenesNuevas())->assertSessionHasNoErrors();
+        $seguimiento = EvolucionClinica::orderByDesc('id_evolucion')->firstOrFail();
+        $this->get('/atencion/'.$ingreso->getKey().'?registro='.$seguimiento->getKey())->assertOk()
+            ->assertViewHas('historial', fn ($historial) => $historial->total() === 2)
+            ->assertSee('getElementById("modalEvolucion")', false)->assertSee('Guardar cambios de evolución y órdenes');
         $datos['examen_fisico']['peso'] = 63;
         $datos['examen_fisico']['presion_arterial'] = '118/78';
         $this->put('/evolucion/'.$registro->getKey(), $datos)->assertSessionHasNoErrors();
         self::assertSame('118/78', $registro->fresh()->examen_fisico['presion_arterial']);
         self::assertEquals(63, $registro->fresh()->examen_fisico['peso']);
-        $this->assertDatabaseCount('tbl_evolucion_clinica', 1);
+        self::assertSame('lb', $registro->fresh()->examen_fisico['unidad_peso']);
+        self::assertEquals(132.28, ExamenFisico::pesoEnLibras(['peso' => 60]));
+        self::assertEquals(150, ExamenFisico::pesoEnLibras(['peso' => 150, 'unidad_peso' => 'lb']));
+        $this->assertDatabaseCount('tbl_evolucion_clinica', 2);
     }
 
     #[DataProvider('examenesInvalidos')]
@@ -464,7 +492,7 @@ class AtencionTest extends TestCase
 
     private function ordenesNuevas(): array
     {
-        return ['modo_ordenes' => 'actualizar', 'id_personal_medico' => 1, 'estado_mejoria' => 'Mejoró', 'ordenes' => [
+        return ['id_personal_medico' => 1, 'estado_mejoria' => 'Mejoró', 'ordenes' => [
             'dieta' => 'Blanda', 'soluciones' => [['tipo' => 'Salina', 'volumen' => 500, 'velocidad' => 'Indicación de prueba']],
             'medicamentos' => [['nombre' => 'Medicamento de prueba', 'dosis' => 'Dosis de prueba', 'via' => 'Oral', 'frecuencia' => 'Frecuencia de prueba']],
             'indicaciones' => 'Vigilar según indicación de prueba',
@@ -482,30 +510,71 @@ class AtencionTest extends TestCase
         $this->get('/atencion/'.$ingreso->getKey().'?registro='.$registro->getKey())->assertOk()->assertSee('Guardar cambios de evolución y órdenes')->assertSee('Registrar alta médica')->assertDontSee('Diagnóstico anterior');
     }
 
-    public function test_sigue_igual_guarda_copia_independiente(): void
+    public function test_ordenes_de_cada_evolucion_son_independientes(): void
     {
         $ingreso = $this->ingreso();
         $this->sesion()->post('/evolucion', $this->evolucion($ingreso) + $this->ordenesNuevas())->assertSessionHasNoErrors();
         $primera = EvolucionClinica::firstOrFail();
         $siguiente = array_replace($this->evolucion($ingreso), ['fecha_hora' => '2026-10-11 11:00:00']);
-        $this->post('/evolucion', $siguiente + ['modo_ordenes' => 'igual', 'id_personal_medico' => 1, 'estado_mejoria' => 'Sin cambios', 'origen_ordenes' => $primera->getKey()])->assertSessionHasNoErrors();
+        $this->post('/evolucion', $siguiente + $this->ordenesNuevas())->assertSessionHasNoErrors();
         $segunda = EvolucionClinica::orderByDesc('id_evolucion')->firstOrFail();
         $cambio = $this->ordenesNuevas();
         $cambio['ordenes']['dieta'] = 'Líquida';
         $this->put('/evolucion/'.$primera->getKey(), $this->evolucion($ingreso) + $cambio)->assertSessionHasNoErrors();
         self::assertSame('Blanda', $segunda->fresh()->ordenes_medicas['dieta']);
-        self::assertSame($primera->getKey(), $segunda->ordenes_medicas['origen_evolucion']);
+        self::assertArrayNotHasKey('modo', $segunda->ordenes_medicas);
+        self::assertArrayNotHasKey('origen_evolucion', $segunda->ordenes_medicas);
     }
 
-    public function test_sigue_igual_rechaza_origen_de_otro_ingreso_y_ordenes_futuras(): void
+    public function test_migracion_quita_opcion_de_copia_y_conserva_indicaciones(): void
     {
         $ingreso = $this->ingreso();
-        $otro = $this->ingreso();
-        $this->sesion()->post('/evolucion', $this->evolucion($otro) + $this->ordenesNuevas())->assertSessionHasNoErrors();
-        $igual = ['modo_ordenes' => 'igual', 'id_personal_medico' => 1, 'estado_mejoria' => 'Sin cambios', 'origen_ordenes' => 1];
-        $this->post('/evolucion', $this->evolucion($ingreso) + $igual)->assertSessionHasErrors('origen_ordenes');
-        $this->post('/evolucion', array_replace($this->evolucion($otro), ['fecha_hora' => '2026-10-11 09:00:00']) + $igual)->assertSessionHasErrors('origen_ordenes');
+        $this->sesion()->post('/evolucion', $this->evolucion($ingreso) + $this->ordenesNuevas())->assertSessionHasNoErrors();
+        $registro = EvolucionClinica::firstOrFail();
+        $original = $registro->ordenes_medicas;
+        $registro->update(['ordenes_medicas' => $original + ['modo' => 'igual', 'origen_evolucion' => 99]]);
+        (require database_path('migrations/2026_10_15_022136_remove_order_copy_metadata_from_evoluciones.php'))->up();
+        self::assertSame($original, $registro->fresh()->ordenes_medicas);
+        $this->get('/atencion/'.$ingreso->getKey().'?registro='.$registro->getKey())->assertOk()
+            ->assertDontSee('Órdenes de este registro')->assertDontSee('name="modo_ordenes"', false);
+    }
+
+    public function test_evolucion_no_se_guarda_sin_ordenes_medicas(): void
+    {
+        $ingreso = $this->ingreso();
+        $this->sesion()->post('/evolucion', $this->evolucion($ingreso) + ['_formulario' => 'valoracion'])->assertSessionHasNoErrors();
+        $this->post('/evolucion', $this->evolucion($ingreso) + ['_formulario' => 'evolucion-nueva'])->assertSessionHasErrors('ordenes');
+        $this->post('/evolucion', $this->evolucion($ingreso))->assertSessionHasErrors('ordenes');
+        $datos = $this->evolucion($ingreso) + $this->ordenesNuevas();
+        unset($datos['ordenes']);
+        $this->post('/evolucion', $datos)->assertSessionHasErrors('ordenes');
+        $datos['ordenes'] = ['dieta' => ''];
+        $this->post('/evolucion', $datos)->assertSessionHasErrors('ordenes.dieta');
         $this->assertDatabaseCount('tbl_evolucion_clinica', 1);
+        $datos['ordenes'] = ['dieta' => 'Blanda'];
+        $this->post('/evolucion', $datos)->assertSessionHasNoErrors();
+        $registro = EvolucionClinica::orderByDesc('id_evolucion')->firstOrFail();
+        $this->put('/evolucion/'.$registro->getKey(), $this->evolucion($ingreso))->assertSessionHasErrors('ordenes');
+        self::assertSame('Blanda', $registro->fresh()->ordenes_medicas['dieta']);
+        $this->assertDatabaseCount('tbl_evolucion_clinica', 2);
+    }
+
+    public function test_solo_admite_una_solucion_y_varios_medicamentos(): void
+    {
+        $ingreso = $this->ingreso();
+        $datos = $this->evolucion($ingreso) + $this->ordenesNuevas();
+        $datos['ordenes']['soluciones'][] = $datos['ordenes']['soluciones'][0];
+        $this->sesion()->post('/evolucion', $datos)->assertSessionHasErrors('ordenes.soluciones');
+        $this->assertDatabaseCount('tbl_evolucion_clinica', 0);
+        array_pop($datos['ordenes']['soluciones']);
+        $datos['ordenes']['medicamentos'][] = ['nombre' => 'Segundo medicamento de prueba', 'dosis' => 'Otra dosis', 'via' => 'Oral', 'frecuencia' => 'Otra frecuencia'];
+        $this->post('/evolucion', $datos)->assertSessionHasNoErrors();
+        $registro = EvolucionClinica::firstOrFail();
+        self::assertCount(1, $registro->ordenes_medicas['soluciones']);
+        self::assertCount(2, $registro->ordenes_medicas['medicamentos']);
+        $datos['ordenes']['soluciones'][] = $datos['ordenes']['soluciones'][0];
+        $this->put('/evolucion/'.$registro->getKey(), $datos)->assertSessionHasErrors('ordenes.soluciones');
+        self::assertCount(1, $registro->fresh()->ordenes_medicas['soluciones']);
     }
 
     public function test_orden_invalida_no_guarda_evolucion_parcial(): void
@@ -568,7 +637,7 @@ class AtencionTest extends TestCase
         $ingreso = $this->ingreso();
         $this->sesion()->post('/evolucion', $this->evolucion($ingreso) + $this->ordenesNuevas())->assertSessionHasNoErrors();
         $this->post('/atencion/'.$ingreso->getKey().'/alta', $this->alta())->assertRedirect(route('atencion.show', $ingreso))->assertSessionHasNoErrors();
-        $this->get('/atencion/'.$ingreso->getKey().'?registro=1')->assertOk()->assertSee('modo consulta')->assertSee('Alta médica registrada')->assertSee('Blanda')->assertSee('<fieldset disabled>', false);
+        $this->get('/atencion/'.$ingreso->getKey().'?registro=1')->assertOk()->assertSee('modo consulta')->assertSee('Alta médica registrada')->assertSee('Blanda')->assertSee('<fieldset class="atencion-contenido" disabled>', false)->assertSee('href="#modalAlta"', false)->assertSee('Ver alta médica');
         $this->put('/evolucion/1', $this->evolucion($ingreso) + $this->ordenesNuevas())->assertSessionHasErrors('ingreso');
     }
 
