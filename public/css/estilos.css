@@ -652,3 +652,46 @@ fieldset.atencion-contenido:disabled a.btn:not(.disabled) {
         padding-right: 48px;
     }
 }
+
+/* Barra lateral independiente de la longitud del contenido. */
+.sidebar {
+    position: sticky;
+    top: 15px;
+    height: calc(100dvh - 30px);
+    min-height: 0;
+    flex: 0 0 310px;
+    align-self: flex-start;
+    overflow-y: auto;
+}
+.sidebar[hidden] { display: none; }
+.sidebar-logo, .sidebar-menu, .sidebar-footer { flex-shrink: 0; }
+.sidebar-footer { padding-top: 30px; }
+.contenido-principal { min-width: 0; }
+.barra-superior { align-items: center; justify-content: space-between; gap: 12px; }
+.sidebar-toggle { min-height: 44px; }
+@media (max-width: 767.98px) {
+    .sistema-contenedor { padding: 8px; }
+    .sidebar {
+        position: fixed;
+        top: 76px;
+        left: 8px;
+        width: min(310px, calc(100vw - 16px));
+        height: calc(100dvh - 84px);
+        border-radius: 16px;
+        z-index: 1040;
+    }
+    .contenido-principal { padding: 16px 12px 30px; }
+    .barra-superior { margin-bottom: 24px; }
+    .usuario { padding: 8px; gap: 6px; }
+    .inicio-encabezado { gap: 12px; margin-bottom: 24px; }
+    .inicio-encabezado h1 { font-size: 32px; overflow-wrap: anywhere; }
+    .inicio-icono { flex-shrink: 0; width: 56px; height: 56px; }
+    .inicio-icono i { font-size: 28px; }
+}
+
+/* El pie permanece visible; solo las opciones se desplazan en pantallas bajas. */
+.sidebar { overflow: hidden; }
+.sidebar-logo { margin-bottom: 24px; }
+.sidebar-menu { flex: 1 1 auto; flex-wrap: nowrap; min-height: 0; overflow-x: hidden; overflow-y: auto; padding-bottom: 16px; }
+.sidebar-footer { padding-top: 20px; }
+

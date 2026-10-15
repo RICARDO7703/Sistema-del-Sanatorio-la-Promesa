@@ -22,7 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->expectsJson()) {
                 return null;
             }
-            $entrada = $request->except(['contrasena', 'password', 'password_confirmation', 'current_password']);
+            $entrada = $request->except(['contrasena', 'password', 'password_confirmation', 'current_password', 'token', 'codigo']);
             foreach ($exception->validator->failed() as $campo => $reglas) {
                 if (isset($reglas['Array']) || is_array(data_get($entrada, $campo))) {
                     Arr::forget($entrada, $campo);
