@@ -81,8 +81,8 @@ class BitacoraAccesoTest extends TestCase
         $this->post('/login', ['usuario' => '<script>alert(1)</script>', 'contrasena' => 'incorrecta']);
         $this->withSession(['id_usuario' => 1])->get('/bitacora?fecha=2026-10-15&resultado=Fallido')
             ->assertOk()->assertSee('15/10/2026 20:30:00')->assertSee('&lt;script&gt;', false)->assertDontSee('<script>alert(1)</script>', false);
-        $this->get('/bitacora?fecha=2026-10-16')->assertOk()->assertSee('No hay accesos registrados');
-        $this->get('/bitacora?resultado=Exitoso')->assertOk()->assertSee('No hay accesos registrados');
+        $this->get('/bitacora?fecha=2026-10-16')->assertOk()->assertSee('No hay registros');
+        $this->get('/bitacora?resultado=Exitoso')->assertOk()->assertSee('No hay registros');
         $this->assertDatabaseCount('tbl_bitacora', 1);
     }
 

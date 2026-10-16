@@ -4,7 +4,7 @@
 @section('content')
 <div class="inicio-encabezado">
     <div class="inicio-icono"><i class="bi bi-clipboard-data"></i></div>
-    <div><h1>Bitácora</h1><p>Inicios de sesión e intentos fallidos. Hora de Guatemala.</p></div>
+    <div><h1>Bitácora</h1><p>Inicios de sesión y recuperación de contraseña. Hora de Guatemala.</p></div>
 </div>
 <form method="GET" action="{{ url('/bitacora') }}" class="mb-4">
     <div class="row g-3 align-items-end">
@@ -15,7 +15,7 @@
     @foreach($errors->all() as $error)<p class="text-danger mt-2">{{ $error }}</p>@endforeach
 </form>
 <div class="bitacora-card">
-    <h2 class="h4">Registro de accesos</h2>
+    <h2 class="h4">Registro de accesos y recuperación</h2>
     <p>{{ $registros->total() }} registros. El nombre intentado no acredita la identidad de quien intentó entrar.</p>
     <div class="table-responsive"><table class="table align-middle bitacora-tabla">
         <thead><tr><th>ID bitácora</th><th>Fecha y hora</th><th>Usuario autenticado</th><th>Usuario intentado</th><th>Acción</th><th>Resultado</th><th>IP</th><th>Navegador</th><th>Sistema operativo</th><th>Tabla</th><th>ID registro</th><th>Detalle</th></tr></thead>
@@ -30,7 +30,7 @@
             <td>{{ $registro->ip ?: 'Sin registro' }}</td><td>{{ $registro->navegador ?: 'Sin registro' }}</td><td>{{ $registro->sistema_operativo ?: 'Sin registro' }}</td>
             <td>{{ $registro->tabla ?: '—' }}</td><td>{{ $registro->id_registro ?? '—' }}</td><td>{{ $registro->descripcion }}</td>
         </tr>
-        @empty<tr><td colspan="12" class="text-center">No hay accesos registrados para estos filtros.</td></tr>@endforelse</tbody>
+        @empty<tr><td colspan="12" class="text-center">No hay registros para estos filtros.</td></tr>@endforelse</tbody>
     </table></div>
     {{ $registros->links('pagination::bootstrap-5') }}
 </div>
