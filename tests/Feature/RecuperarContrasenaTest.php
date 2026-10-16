@@ -171,4 +171,56 @@ class RecuperarContrasenaTest extends TestCase
         $this->post('/restablecer-contrasena', $this->datos())->assertStatus(419);
         Mail::assertNothingSent();
     }
+
+    public function test_bitacora_distingue_solicitud_verificacion_y_recuperacion(): void
+    {
+        $this->get('/recuperar-contrasena')->assertOk();
+        $this->assertDatabaseCount('tbl_bitacora', 0);
+        $codigo = $this->solicitar();
+        $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Solicitud de recuperación', 'resultado' => 'Exitoso', 'id_usuario' => null, 'id_registro' => 1, 'usuario_intentado' => 'prueba']);
+        self::assertSame(0, DB::table('tbl_bitacora')->where('accion', 'Recuperación de contraseña')->count());
+        $this->post('/verificar-codigo', ['codigo' => $codigo])->assertRedirect(route('password.reset'));
+        $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Verificación de recuperación', 'resultado' => 'Exitoso']);
+        $this->post('/restablecer-contrasena', $this->datos())->assertRedirect('/');
+        $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Recuperación de contraseña', 'resultado' => 'Exitoso', 'id_registro' => 1, 'usuario_intentado' => 'prueba']);
+        $this->assertDatabaseCount('tbl_bitacora', 3);
+        $contenido = json_encode(DB::table('tbl_bitacora')->get());
+        foreach ([$codigo, 'Nueva-Segura123!', 'Anterior-12345', hash_hmac('sha256', $codigo, config('app.key'))] as $secreto) {
+            self::assertStringNotContainsString($secreto, $contenido);
+        }
+    }
+
+    public function test_bitacora_registra_intentos_invalidos_y_codigos_rechazados(): void
+    {
+        $this->post('/recuperar-contrasena', ['usuario' => 'inexistente', 'correo' => 'persona@example.com']);
+        $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Solicitud de recuperación', 'resultado' => 'Fallido', 'usuario_intentado' => 'inexistente', 'id_usuario' => null, 'id_registro' => null]);
+        $codigo = $this->solicitar();
+        $incorrecto = $codigo === '111111' ? '222222' : '111111';
+        $this->post('/verificar-codigo', ['codigo' => $incorrecto])->assertSessionHasErrors('codigo');
+        $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Verificación de recuperación', 'resultado' => 'Fallido', 'id_registro' => 1]);
+        $this->post('/restablecer-contrasena', $this->datos())->assertRedirect(route('password.request'));
+        $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Recuperación de contraseña', 'resultado' => 'Fallido']);
+        self::assertSame(0, DB::table('tbl_bitacora')->where('accion', 'Recuperación de contraseña')->where('resultado', 'Exitoso')->count());
+    }
+
+    public function test_bitacora_registra_error_correo_y_reenvio_bloqueado(): void
+    {
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('Error ficticio sin guardar en bitácora'));
+        $this->post('/recuperar-contrasena', ['usuario' => 'prueba', 'correo' => 'persona@example.com']);
+        $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Solicitud de recuperación', 'resultado' => 'Fallido', 'descripcion' => 'El servicio de correo no pudo aceptar el envío.']);
+        $this->post('/recuperar-contrasena', ['usuario' => 'prueba', 'correo' => 'persona@example.com']);
+        $this->assertDatabaseHas('tbl_bitacora', ['resultado' => 'Fallido', 'descripcion' => 'Solicitud repetida antes del plazo de reenvío.']);
+        self::assertStringNotContainsString('Error ficticio', json_encode(DB::table('tbl_bitacora')->get()));
+    }
+
+    public function test_recuperacion_y_bitacora_se_guardan_en_la_misma_transaccion(): void
+    {
+        $codigo = $this->solicitar();
+        $this->post('/verificar-codigo', ['codigo' => $codigo]);
+        DB::unprepared("CREATE TRIGGER impedir_auditoria BEFORE INSERT ON tbl_bitacora WHEN NEW.accion = 'Recuperación de contraseña' AND NEW.resultado = 'Exitoso' BEGIN SELECT RAISE(ABORT, 'Fallo de auditoría simulado'); END");
+        $this->post('/restablecer-contrasena', $this->datos())->assertStatus(500);
+        self::assertTrue(Hash::check('Anterior-12345', DB::table('tbl_usuario')->value('contrasena')));
+        $this->assertDatabaseCount('recuperacion_contrasenas', 1);
+        self::assertSame(0, DB::table('tbl_bitacora')->where('accion', 'Recuperación de contraseña')->where('resultado', 'Exitoso')->count());
+    }
 }
