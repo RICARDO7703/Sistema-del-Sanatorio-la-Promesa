@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'bitacora_railway' => (bool) env('RAILWAY_PROJECT_ID', false),
 
     /*
     |--------------------------------------------------------------------------

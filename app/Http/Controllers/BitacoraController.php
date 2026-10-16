@@ -2,10 +2,31 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\View\View;
+
 class BitacoraController extends Controller
 {
-    public function index()
+    public function index(Request $request): View
     {
-        return view('bitacora.index');
+        $filtros = $request->validate([
+            'fecha' => ['nullable', 'date_format:Y-m-d'],
+            'resultado' => ['nullable', 'in:Exitoso,Fallido'],
+        ]);
+        $consulta = DB::table('tbl_bitacora as b')
+            ->leftJoin('tbl_usuario as u', 'u.id_usuario', '=', 'b.id_usuario')
+            ->select('b.*', 'u.nombre_usuario');
+        if (! empty($filtros['fecha'])) {
+            $inicio = Carbon::parse($filtros['fecha'], 'America/Guatemala')->startOfDay()->utc();
+            $consulta->where('b.fecha_hora', '>=', $inicio)->where('b.fecha_hora', '<', $inicio->copy()->addDay());
+        }
+        if (! empty($filtros['resultado'])) {
+            $consulta->where('b.resultado', $filtros['resultado']);
+        }
+        $registros = $consulta->orderByDesc('b.fecha_hora')->orderByDesc('b.id_bitacora')->paginate(20)->withQueryString();
+
+        return view('bitacora.index', compact('registros'));
     }
 }
