@@ -113,6 +113,12 @@ CREATE TABLE tbl_rol_permiso (
 );
 
 CREATE TABLE tbl_bitacora (
+    ip VARCHAR(45) NULL,
+    navegador VARCHAR(150) NULL,
+    sistema_operativo VARCHAR(100) NULL,
+    agente_usuario VARCHAR(1024) NULL,
+    tabla VARCHAR(100) NULL,
+    id_registro BIGINT NULL,
     id_bitacora INTEGER PRIMARY KEY AUTOINCREMENT,
     id_usuario INT NULL,
     id_modulo INT NULL,

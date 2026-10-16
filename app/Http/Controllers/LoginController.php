@@ -49,6 +49,7 @@ class LoginController extends Controller
             return back()->with('error', 'Usuario o contraseña incorrectos.');
         }
 
+        $request->attributes->set('bitacora_usuario_autenticado', $usuario->id_usuario);
         $request->session()->regenerate();
 
         session([
