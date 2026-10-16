@@ -695,3 +695,49 @@ fieldset.atencion-contenido:disabled a.btn:not(.disabled) {
 .sidebar-menu { flex: 1 1 auto; flex-wrap: nowrap; min-height: 0; overflow-x: hidden; overflow-y: auto; padding-bottom: 16px; }
 .sidebar-footer { padding-top: 20px; }
 
+
+
+/* Los listados se leen como fichas en teléfono, sin reducir la escala. */
+.etiqueta-movil { display: none; }
+@media screen and (max-width: 767.98px) {
+    .contenido-principal, .modal-content { font-size: 16px; line-height: 1.5; }
+    .contenido-principal .row > *, .modal .row > * { min-width: 0; }
+    .contenido-principal form .row > [class*="col-"],
+    .modal form .row > [class*="col-"] { width: 100%; flex: 0 0 100%; }
+    .form-control, .form-select { font-size: 16px; min-height: 48px; min-width: 0; max-width: 100%; }
+    textarea.form-control { min-height: 110px; resize: vertical; }
+    .form-check { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
+    .btn { min-height: 44px; white-space: normal; }
+    .btn-close { min-width: 24px; min-height: 24px; padding: 10px; }
+    .barra-superior { flex-wrap: wrap; }
+    .inicio-encabezado { align-items: flex-start; }
+    .inicio-encabezado > div { min-width: 0; }
+    .inicio-encabezado h1 { font-size: 30px; }
+    .inicio-encabezado p { font-size: 16px; }
+    .contenido-principal .d-flex:not(.flex-column), .modal-body .d-flex:not(.flex-column) { flex-wrap: wrap; }
+    .contenido-principal .text-nowrap, .modal .text-nowrap { white-space: normal !important; }
+    .contenido-principal dd, .modal dd { overflow-wrap: anywhere; }
+    .evolucion-card, .bitacora-card { padding: 16px; }
+    .evolucion-acciones { flex-wrap: wrap; }
+    .evolucion-acciones .btn { flex: 1 1 100%; min-width: 0; }
+    .bitacora-fecha { flex-wrap: wrap; min-width: 0; }
+    .table-responsive:has(> .tabla-adaptable) { overflow: visible; }
+    .tabla-adaptable { display: block; width: 100%; }
+    .tabla-adaptable > thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
+    .tabla-adaptable > tbody { display: block; }
+    .tabla-adaptable > tbody > tr { display: block; margin-bottom: 16px; padding: 8px 16px; background: white; border: 1px solid #dce3ec; border-radius: 12px; }
+    .tabla-adaptable > tbody > tr > td { display: block; width: 100%; padding: 12px 0; white-space: normal; overflow-wrap: anywhere; box-shadow: none; border-bottom: 1px solid #edf1f5; }
+    .tabla-adaptable > tbody > tr > td:last-child { border-bottom: 0; }
+    .tabla-adaptable .etiqueta-movil { display: block; font-weight: 600; color: #53627a; margin-bottom: 4px; }
+    .tabla-adaptable td > .d-grid { grid-template-columns: 1fr !important; min-width: 0 !important; }
+    .tabla-adaptable td .btn { margin: 4px 0; width: 100%; font-size: 16px; }
+    .tabla-adaptable td .badge { white-space: normal; font-size: 14px; }
+    .modal-dialog { margin: 0; max-width: 100%; width: 100%; }
+    .modal-content { border: 0; border-radius: 0; min-height: 100dvh; }
+    .modal-dialog-scrollable { height: 100dvh; }
+    .modal-dialog-scrollable .modal-content { height: 100%; }
+    .modal-body { padding: 16px; }
+    .modal-header { gap: 12px; }
+    .modal-footer { gap: 8px; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+    .modal-footer .btn { flex: 1 1 100%; margin: 0; }
+}
