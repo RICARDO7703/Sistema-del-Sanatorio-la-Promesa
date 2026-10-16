@@ -133,7 +133,9 @@
 
             </form>
 
-            {{-- Enlace de recuperación oculto temporalmente mientras se configura el correo. --}}
+            <div class="text-center mt-4">
+                <a href="{{ route('password.request') }}">¿Olvidaste tu contraseña?</a>
+            </div>
 
         </div>
 

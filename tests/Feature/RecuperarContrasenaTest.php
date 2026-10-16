@@ -45,7 +45,7 @@ class RecuperarContrasenaTest extends TestCase
 
     public function test_solicita_verifica_y_cambia_la_contrasena(): void
     {
-        $this->get('/')->assertDontSee(route('password.request'), false);
+        $this->get('/')->assertSee(route('password.request'), false);
         $this->get('/recuperar-contrasena')->assertOk()->assertSee('Paso 1 de 3');
         $codigo = $this->solicitar();
         self::assertSame(hash_hmac('sha256', $codigo, config('app.key')), DB::table('recuperacion_contrasenas')->value('token'));
