@@ -24,3 +24,32 @@
         }
     });
 })();
+
+
+// Conserva las tablas de escritorio y prepara etiquetas para las fichas móviles.
+(() => {
+    document.querySelectorAll('table.table').forEach(table => {
+        const headers = Array.from(table.tHead?.rows[0]?.cells || []);
+        if (!headers.length || headers.some(cell => cell.colSpan !== 1)) return;
+        table.classList.add('tabla-adaptable');
+        table.setAttribute('role', 'table');
+        table.tHead.setAttribute('role', 'rowgroup');
+        Array.from(table.tHead.rows).forEach(row => row.setAttribute('role', 'row'));
+        headers.forEach(header => header.setAttribute('role', 'columnheader'));
+        Array.from(table.tBodies).forEach(body => {
+            body.setAttribute('role', 'rowgroup');
+            Array.from(body.rows).forEach(row => {
+                row.setAttribute('role', 'row');
+                Array.from(row.cells).forEach((cell, index) => {
+                    cell.setAttribute('role', 'cell');
+                    if (cell.colSpan !== 1) return;
+                    const label = document.createElement('span');
+                    label.className = 'etiqueta-movil';
+                    label.setAttribute('aria-hidden', 'true');
+                    label.textContent = headers[index]?.textContent.trim() || '';
+                    cell.prepend(label);
+                });
+            });
+        });
+    });
+})();
