@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\AltaMedicaController;
+use App\Http\Controllers\ArchivoClinicoController;
 use App\Http\Controllers\AtencionController;
 use App\Http\Controllers\BitacoraController;
+use App\Http\Controllers\CirugiaController;
 use App\Http\Controllers\EmergenciaController;
 use App\Http\Controllers\EvolucionController;
 use App\Http\Controllers\ExpedienteController;
@@ -13,6 +15,7 @@ use App\Http\Controllers\InicioController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\NotaEnfermeriaController;
 use App\Http\Controllers\PacienteController;
+use App\Http\Controllers\PerfilController;
 use App\Http\Controllers\PersonalController;
 use App\Http\Controllers\RecuperarContrasenaController;
 use App\Http\Controllers\SeguimientoController;
@@ -36,6 +39,13 @@ Route::post('/logout', [LoginController::class, 'cerrarSesion'])
     ->name('logout');
 
 Route::middleware(SesionClinica::class)->group(function () {
+
+    Route::get('/mi-perfil', [PerfilController::class, 'show'])->name('perfil.show');
+    Route::patch('/mi-perfil/contacto', [PerfilController::class, 'contacto'])->name('perfil.contacto');
+    Route::post('/mi-perfil/foto', [PerfilController::class, 'foto'])->name('perfil.foto');
+    Route::delete('/mi-perfil/foto', [PerfilController::class, 'quitarFoto'])->name('perfil.quitar-foto');
+    Route::post('/mi-perfil/contrasena', [PerfilController::class, 'contrasena'])->middleware('throttle:5,1')->name('perfil.contrasena');
+    Route::get('/personal/{personaFoto}/foto', [PerfilController::class, 'imagen'])->name('personal.foto');
 
     Route::get('/inicio', [InicioController::class, 'index']);
 
@@ -147,6 +157,16 @@ Route::middleware(SesionClinica::class)->group(function () {
     Route::delete('/tratamientos/{tratamiento}', [TratamientoController::class, 'eliminar'])
         ->name('tratamientos.eliminar');
 
+    Route::get('/atencion/{ingreso}/cirugias/nueva', [CirugiaController::class, 'formulario'])->name('cirugias.formulario');
+    Route::post('/atencion/{ingreso}/cirugias', [CirugiaController::class, 'guardar'])->name('cirugias.guardar');
+    Route::get('/cirugias/{cirugia}', [CirugiaController::class, 'show'])->name('cirugias.show');
+    Route::post('/cirugias/{cirugia}/estado', [CirugiaController::class, 'estado'])->name('cirugias.estado');
+    Route::post('/cirugias/{cirugia}/controles', [CirugiaController::class, 'control'])->name('cirugias.control');
+    // Archivar una hoja en papel también está permitido tras el alta; no modifica la atención.
+    Route::get('/hojas/{atencionArchivo}/subir', [ArchivoClinicoController::class, 'formulario'])->name('archivos.formulario');
+    Route::post('/hojas/{atencionArchivo}/subir', [ArchivoClinicoController::class, 'guardar'])->name('archivos.guardar');
+    Route::get('/archivos-clinicos/{archivoClinico}', [ArchivoClinicoController::class, 'show'])->name('archivos.show');
+    Route::get('/archivos-clinicos/{archivoClinico}/contenido', [ArchivoClinicoController::class, 'contenido'])->name('archivos.contenido');
     // El origen está cerrado; RegistroIngreso protege la creación nueva con sus propios bloqueos.
     Route::get('/atencion/{origen}/seguimiento', [SeguimientoController::class, 'crear'])->name('seguimientos.crear');
     Route::post('/atencion/{origen}/seguimiento', [SeguimientoController::class, 'guardar'])->name('seguimientos.guardar');

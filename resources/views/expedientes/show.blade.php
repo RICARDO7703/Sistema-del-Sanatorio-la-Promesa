@@ -161,6 +161,7 @@
                 @include('expedientes.partials.habitaciones', ['ingreso'=>$ingreso])
                 @endunless
                 <p class="small mb-3 {{ $ingreso->documento_firmado ? 'text-success' : 'text-muted' }}"><i class="bi {{ $ingreso->documento_firmado ? 'bi-check-circle-fill' : 'bi-info-circle' }} me-1"></i>{{ $ingreso->documento_firmado ? 'Documento de ingreso firmado' : 'Documento de ingreso pendiente de firma' }}</p>
+                @include('cirugias.panel', ['soloLecturaCirugia'=>true])
                 @include('expedientes.partials.documentos-ingreso', ['ingreso'=>$ingreso])
 
             </div>

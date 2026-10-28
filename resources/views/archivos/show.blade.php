@@ -1,0 +1,11 @@
+@extends('layouts.app')
+@section('content')
+<div class="inicio-encabezado"><div class="inicio-icono"><i class="bi bi-file-earmark-medical" aria-hidden="true"></i></div><div><h1>{{ $documento->titulo }}</h1><p>{{ $documento->paciente->numero_expediente }} · {{ $documento->paciente->estado_identificacion === 'Identificado' ? trim($documento->paciente->nombres.' '.$documento->paciente->apellidos) : 'Paciente no identificado' }}</p></div></div>
+@if(session('exito'))<div class="alert alert-success">{{ session('exito') }}</div>@endif
+<div class="d-flex flex-wrap gap-2 mb-3"><a class="btn btn-outline-secondary" href="{{ route('pacientes.expediente',$documento->id_paciente) }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al expediente</a><a class="btn btn-primary" href="{{ route('archivos.contenido',$documento) }}" target="_blank" rel="noopener"><i class="bi bi-arrows-fullscreen" aria-hidden="true"></i> Abrir archivo completo</a><a class="btn btn-outline-primary" href="{{ route('archivos.formulario',[$documento->id_ingreso,'tipo'=>$documento->tipo_documento,'referencia'=>$documento->id_registro_origen]) }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> Agregar otra página o archivo</a></div>
+<section class="evolucion-card mb-3"><dl class="row g-3 mb-0"><div class="col-12 col-md-6"><dt><i class="bi bi-calendar-event" aria-hidden="true"></i> Fecha de la hoja</dt><dd>{{ $documento->fecha_documento?->format('d/m/Y H:i') }}</dd></div><div class="col-12 col-md-6"><dt><i class="bi bi-person" aria-hidden="true"></i> Subido por</dt><dd>{{ $documento->personalResponsable?->nombres }} {{ $documento->personalResponsable?->apellidos }}</dd></div>@if($documento->descripcion)<div class="col-12"><dt>Observaciones</dt><dd class="text-break" style="white-space:pre-wrap">{{ $documento->descripcion }}</dd></div>@endif</dl></section>
+<section class="evolucion-card archivo-clinico-visor" aria-label="Hoja escaneada">
+@if($documento->tipo_archivo === 'pdf')<iframe src="{{ route('archivos.contenido',$documento) }}" title="{{ $documento->titulo }} en PDF"></iframe><p class="mt-2 mb-0">Si su teléfono no muestra el PDF, pulse «Abrir archivo completo».</p>
+@else<img src="{{ route('archivos.contenido',$documento) }}" alt="{{ $documento->titulo }} escaneada">@endif
+</section>
+@endsection

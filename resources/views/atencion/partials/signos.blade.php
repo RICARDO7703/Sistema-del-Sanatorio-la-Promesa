@@ -40,3 +40,5 @@
 
 @endforeach
 </div>
+
+<a class="btn btn-outline-primary mt-3" href="{{ route('archivos.formulario',[$ingreso,'tipo'=>'Control de signos vitales']) }}"><i class="bi bi-camera" aria-hidden="true"></i> Subir control de signos en papel</a>

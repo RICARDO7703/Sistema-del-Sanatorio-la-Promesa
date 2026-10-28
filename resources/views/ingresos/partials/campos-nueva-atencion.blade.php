@@ -27,9 +27,9 @@
 </div>
 
 <div class="mb-3">
-    <label class="form-label" for="{{ $prefijo }}-habitacion">Habitación</label>
-    <select id="{{ $prefijo }}-habitacion" name="id_habitacion" class="form-select @if($recuperar) @error('id_habitacion') is-invalid @enderror @endif" data-mensaje-requerido="Seleccione la habitación donde se internará." required>
-        <option value="">Seleccione una habitación</option>
+    <label class="form-label" for="{{ $prefijo }}-habitacion">Habitación (opcional)</label>
+    <select id="{{ $prefijo }}-habitacion" name="id_habitacion" class="form-select @if($recuperar) @error('id_habitacion') is-invalid @enderror @endif" >
+        <option value="">Asignar habitación después</option>
         @foreach($habitacionesDisponibles as $habitacion)
         <option value="{{ $habitacion->id_habitacion }}" @selected($recuperar && old('id_habitacion') == $habitacion->id_habitacion)>
             Habitación {{ $habitacion->numero_habitacion }}@if($habitacion->tipo) - {{ $habitacion->tipo }}@endif

@@ -30,6 +30,11 @@ return [
 
     'disks' => [
 
+        'documentos_clinicos' => [
+            'driver' => 'local',
+            'root' => env('CLINICAL_DOCUMENTS_PATH', storage_path('app/clinical-private')),
+            'throw' => true,
+        ],
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),

@@ -1,3 +1,6 @@
+@if(isset($ingreso) && $ingreso->exists)
+<div class="alert alert-info d-flex flex-wrap align-items-center gap-2"><i class="bi bi-heart-pulse" aria-hidden="true"></i><span>Consulte las cirugías y los controles de recuperación sin cerrar esta evolución.</span><a href="{{ route('atencion.show',$ingreso) }}#cirugias-paciente-{{ $ingreso->getKey() }}" target="_blank" rel="noopener" class="btn btn-outline-primary">Ver controles de recuperación <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a></div>
+@endif
 @php
     $recuperar = old('_formulario') === $formulario;
     $valorCampo = fn ($campo, $defecto = '') => $recuperar ? old($campo) : ($registro?->{$campo} ?? $defecto);

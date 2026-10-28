@@ -50,7 +50,7 @@ class ExpedienteController extends Controller
     {
         $paciente->load('contactos');
 
-        $ingresos = $paciente->ingresos()->with(['atencionAnterior', 'altaMedica.medico', 'altaMedica.medicamentos', 'personalRegistra', 'hospitalizacion.habitacionActual.habitacion', 'hospitalizacion.historialHabitaciones' => fn ($consulta) => $consulta->with('habitacion')->orderBy('fecha_hora_inicio')->orderBy('id_hospitalizacion_habitacion'), 'evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')->with('personal')->orderBy('fecha_hora')->orderBy('id_evolucion'), 'notasEnfermeria' => fn ($consulta) => $consulta->with(['personal', 'actividades', 'signosVitales'])->orderBy('fecha_hora')->orderBy('id_atencion_enfermeria')])->withCount(['evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')])
+        $ingresos = $paciente->ingresos()->with(['documentosClinicos.personalResponsable', 'atencionAnterior', 'altaMedica.medico', 'altaMedica.medicamentos', 'personalRegistra', 'hospitalizacion.habitacionActual.habitacion', 'hospitalizacion.historialHabitaciones' => fn ($consulta) => $consulta->with('habitacion')->orderBy('fecha_hora_inicio')->orderBy('id_hospitalizacion_habitacion'), 'evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')->with('personal')->orderBy('fecha_hora')->orderBy('id_evolucion'), 'notasEnfermeria' => fn ($consulta) => $consulta->with(['personal', 'actividades', 'signosVitales'])->orderBy('fecha_hora')->orderBy('id_atencion_enfermeria')])->withCount(['evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')])
             ->orderBy('fecha_ingreso', 'desc')
             ->orderByDesc('id_ingreso')
             ->get();

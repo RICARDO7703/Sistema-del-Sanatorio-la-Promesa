@@ -17,16 +17,16 @@ class Personal extends Model
         'apellidos',
         'dpi',
         'telefono',
-        'correo',
+        'correo', 'foto_perfil',
         'id_cargo',
         'id_especialidad',
         'numero_colegiado',
         'es_externo',
-        'estado'
+        'estado',
     ];
 
     protected $casts = [
-        'es_externo' => 'boolean'
+        'es_externo' => 'boolean',
     ];
 
     public function cargo()

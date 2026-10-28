@@ -85,3 +85,5 @@
 })();
 </script>
 @endif
+
+@include('archivos.adjuntos',['tipoHojaArchivo'=>'Alta médica','referenciaArchivo'=>$ingreso->altaMedica?->getKey()])

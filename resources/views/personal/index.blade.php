@@ -188,6 +188,7 @@
 
                         <td>
 
+                            @include('perfil.avatar',['personaAvatar'=>$persona])
                             <strong>
                                 {{ $persona->nombres }}
                                 {{ $persona->apellidos }}

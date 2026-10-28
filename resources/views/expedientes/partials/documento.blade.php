@@ -77,3 +77,9 @@
     @endif
 </div>
 @endif
+
+<?php
+    $tipoHojaArchivo = match($tipo) { 'ingreso'=>'Hoja de ingreso', 'valoracion'=>($ingreso->esConsultaExterna()?'Consulta externa':'Valoración inicial'), 'evolucion'=>'Evolución clínica', 'nota'=>'Nota de enfermería', 'alta'=>'Alta médica', default=>'Otro documento' };
+    $referenciaArchivo = match($tipo) { 'ingreso'=>$ingreso->getKey(), 'valoracion','evolucion'=>$registro->getKey(), 'nota'=>$nota->getKey(), 'alta'=>$ingreso->altaMedica->getKey(), default=>null };
+?>
+@include('archivos.adjuntos',['tipoHojaArchivo'=>$tipoHojaArchivo,'referenciaArchivo'=>$referenciaArchivo])

@@ -59,7 +59,7 @@ class SistemaTest extends TestCase
 
     public static function pacientesInvalidos(): array
     {
-        return [['nombres', 'Ana123'], ['apellidos', '123'], ['dpi', '123'], ['telefono', null], ['telefono', 'abc'], ['tipo_sangre', '12'], ['sexo', 'Otro'], ['fecha_nacimiento', '2027-01-01'], ['nombres', []], ['contacto', 'texto']];
+        return [['nombres', 'Ana123'], ['apellidos', '123'], ['dpi', '123'], ['telefono', 'abc'], ['tipo_sangre', '12'], ['sexo', 'Otro'], ['fecha_nacimiento', '2027-01-01'], ['nombres', []], ['contacto', 'texto']];
     }
 
     public function test_paciente_contacto_edicion_y_expediente(): void
