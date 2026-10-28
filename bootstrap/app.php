@@ -19,12 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*', headers: Request::HEADER_X_FORWARDED_PROTO);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->dontFlash(['contrasena']);
+        $exceptions->dontFlash(['contrasena', 'contrasena_actual', 'nueva_contrasena', 'nueva_contrasena_confirmation', 'clave_contacto']);
         $exceptions->render(function (ValidationException $exception, Request $request) {
             if ($request->expectsJson()) {
                 return null;
             }
-            $entrada = $request->except(['contrasena', 'password', 'password_confirmation', 'current_password', 'token', 'codigo']);
+            $entrada = $request->except(['contrasena_actual', 'nueva_contrasena', 'nueva_contrasena_confirmation', 'clave_contacto', 'contrasena', 'password', 'password_confirmation', 'current_password', 'token', 'codigo']);
             foreach ($exception->validator->failed() as $campo => $reglas) {
                 if (isset($reglas['Array']) || is_array(data_get($entrada, $campo))) {
                     Arr::forget($entrada, $campo);

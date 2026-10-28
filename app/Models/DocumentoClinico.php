@@ -18,7 +18,7 @@ class DocumentoClinico extends Model
         'id_personal_responsable',
         'categoria',
         'titulo',
-        'tipo_documento',
+        'tipo_documento', 'tabla_origen', 'id_registro_origen',
         'descripcion',
         'ruta_archivo',
         'nombre_archivo',
@@ -26,13 +26,13 @@ class DocumentoClinico extends Model
         'fecha_documento',
         'estado',
         'id_usuario_creacion',
-        'id_usuario_modificacion'
+        'id_usuario_modificacion',
     ];
 
     protected $casts = [
         'fecha_documento' => 'datetime',
         'fecha_registro' => 'datetime',
-        'fecha_actualizacion' => 'datetime'
+        'fecha_actualizacion' => 'datetime',
     ];
 
     public function paciente()

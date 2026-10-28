@@ -108,10 +108,21 @@
             <div class="barra-superior">
                 <button type="button" class="btn btn-outline-primary sidebar-toggle" aria-controls="barra-lateral" aria-expanded="true"><i class="bi bi-layout-sidebar" aria-hidden="true"></i> <span>Ocultar menú</span></button>
 
-                <div class="usuario">
-                    <i class="bi bi-person-circle"></i>
-                    <span>Usuario</span>
-                    <i class="bi bi-chevron-down"></i>
+                <div class="dropdown cuenta-menu">
+                    <button class="usuario cuenta-boton" type="button" id="menu-cuenta" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Abrir menú de mi cuenta">
+                        @include('perfil.avatar',['personaAvatar'=>$cuentaActual])
+                        <span class="cuenta-nombre">{{ $cuentaActual ? trim($cuentaActual->nombres.' '.$cuentaActual->apellidos) : 'Mi cuenta' }}</span>
+                        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end cuenta-opciones" aria-labelledby="menu-cuenta">
+                        <li class="px-3 py-2"><strong class="d-block">{{ $cuentaActual?->nombre_usuario }}</strong><small class="text-muted">{{ $cuentaActual?->nombre_cargo }}</small></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ route('perfil.show') }}"><i class="bi bi-person" aria-hidden="true"></i> Mi perfil</a></li>
+                        <li><a class="dropdown-item" href="{{ route('perfil.show') }}#foto"><i class="bi bi-camera" aria-hidden="true"></i> Cambiar foto</a></li>
+                        <li><a class="dropdown-item" href="{{ route('perfil.show') }}#contrasena"><i class="bi bi-key" aria-hidden="true"></i> Cambiar contraseña</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><form action="{{ route('logout') }}" method="POST">@csrf<button type="submit" class="dropdown-item text-danger"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Cerrar sesión</button></form></li>
+                    </ul>
                 </div>
 
             </div>

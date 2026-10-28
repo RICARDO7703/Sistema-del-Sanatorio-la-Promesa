@@ -317,7 +317,9 @@
 
                         <td>
 
-                            @if(
+                            @if($paciente->situacion_actual === 'En cirugía')
+                                <span class="badge bg-danger"><i class="bi bi-hospital" aria-hidden="true"></i> En cirugía</span>
+                            @elseif(
                                 $paciente->situacion_actual
                                 === 'Hospitalizado'
                             )
@@ -2170,7 +2172,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (
                     campo.name === 'nombres'
                     || campo.name === 'apellidos'
-                    || campo.name === 'telefono'
+                    
                 ) {
                     campo.required = identificado;
                 }
@@ -2242,7 +2244,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (
                             campo.name === 'nombres'
                             || campo.name === 'apellidos'
-                    || campo.name === 'telefono'
+                    
                         ) {
                             campo.required =
                                 identificado;

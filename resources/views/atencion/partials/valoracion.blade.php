@@ -28,3 +28,9 @@
     </div>
     @endif
 </div>
+
+@if($valoracionInicial)
+@include('archivos.adjuntos',['tipoHojaArchivo'=>$ingreso->esConsultaExterna()?'Consulta externa':'Valoración inicial','referenciaArchivo'=>$valoracionInicial->getKey()])
+@else
+<a class="btn btn-outline-primary mt-3" href="{{ route('archivos.formulario',[$ingreso,'tipo'=>'Valoración inicial']) }}"><i class="bi bi-camera" aria-hidden="true"></i> Subir valoración en papel</a>
+@endif

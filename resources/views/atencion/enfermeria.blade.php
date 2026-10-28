@@ -26,6 +26,7 @@
     </div>
 </div>
 
+<div class="mb-3"><a class="btn btn-outline-primary" href="{{ route('archivos.formulario',[$ingreso,'tipo'=>'Nota de enfermería']) }}"><i class="bi bi-camera" aria-hidden="true"></i> Subir hoja en papel (imagen o PDF)</a></div>
 @if(session('exito'))<div class="alert alert-success">{{ session('exito') }}</div>@endif
 @if(session('error'))<div class="alert alert-danger">{{ session('error') }}</div>@endif
 
@@ -60,6 +61,7 @@
     @endif
 </section>
 
+@include('cirugias.panel')
 {{-- Órdenes médicas vigentes --}}
 <section class="evolucion-card mb-3" aria-labelledby="titulo-ordenes" id="enfermeria-ordenes">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">

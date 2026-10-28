@@ -87,7 +87,7 @@ class IngresoController extends Controller
                 'id_habitacion' => [
                     'exclude_if:tipo_atencion,'.Ingreso::TIPO_CONSULTA_EXTERNA,
                     'bail',
-                    'required',
+                    'nullable',
                     'integer',
                     'exists:tbl_habitacion,id_habitacion',
                 ],

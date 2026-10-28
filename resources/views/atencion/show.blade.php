@@ -45,6 +45,7 @@
 
 
 <!-- Mensajes -->
+<div class="mb-3"><a class="btn btn-outline-primary" href="{{ route('archivos.formulario',[$ingreso,'tipo'=>'Evolución clínica']) }}"><i class="bi bi-camera" aria-hidden="true"></i> Subir hoja en papel (imagen o PDF)</a></div>
 @if(session('exito'))
 <div class="alert alert-success">
     {{ session('exito') }}
@@ -155,11 +156,14 @@
                 data-bs-toggle="modal"
                 data-bs-target="#modalCambiarHabitacion">
                 <i class="bi bi-arrow-left-right"></i>
-                Cambiar habitación
+                {{ $ingreso->hospitalizacion?->habitacionActual ? 'Cambiar habitación' : 'Asignar habitación' }}
             </button>
 
             @endif
 
+            @elseif($ingreso->hospitalizacion && $ingreso->hospitalizacion->estado === 'Activa')
+                <p class="text-muted">Pendiente de habitación</p>
+                @if($ingreso->estado === 'Activo')<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCambiarHabitacion"><i class="bi bi-door-open" aria-hidden="true"></i> Asignar habitación</button>@endif
             @elseif(!$ingreso->hospitalizacion)
 
             <p class="text-muted mb-2">
@@ -209,6 +213,7 @@
 @endif
 @if($ingreso->esConsultaExterna())
 @include('atencion.partials.consulta-emergencia')
+@include('cirugias.panel')
 @else
 <div class="evolucion-card mb-3">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -235,8 +240,10 @@
 
 <div class="modal fade" id="modalValoracion" tabindex="-1" aria-labelledby="modalValoracion-titulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="modalValoracion-titulo">{{ $ingreso->esConsultaExterna() ? 'Consulta externa' : 'Valoración inicial' }}</h5><a href="#" role="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></a></div><div class="modal-body">@if($errors->any())<div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 @include('atencion.partials.valoracion')</div></div></div></div>
+@include('cirugias.panel')
 @if($ingreso->evoluciones->isNotEmpty())
 @unless($ingreso->esConsultaExterna())
+
 <section id="evoluciones">@include('atencion.partials.evoluciones')</section>
 @endunless
 @if($ingreso->tratamientos->isNotEmpty() && ! $ingreso->esConsultaExterna())
@@ -397,8 +404,7 @@
 <!-- Modal cambiar habitación -->
 @if(
 $ingreso->hospitalizacion &&
-$ingreso->hospitalizacion->estado === 'Activa' &&
-$ingreso->hospitalizacion->habitacionActual
+$ingreso->hospitalizacion->estado === 'Activa'
 )
 
 <div
@@ -424,7 +430,7 @@ $ingreso->hospitalizacion->habitacionActual
                 <div class="modal-header">
 
                     <h5 class="modal-title">
-                        Cambiar habitación
+                        {{ $ingreso->hospitalizacion?->habitacionActual ? 'Cambiar habitación' : 'Asignar habitación' }}
                     </h5>
 
                     <button
@@ -446,7 +452,7 @@ $ingreso->hospitalizacion->habitacionActual
                         <input
                             type="text"
                             class="form-control"
-                            value="Habitación {{ $ingreso->hospitalizacion->habitacionActual->habitacion->numero_habitacion }}"
+                            value="Habitación {{ $ingreso->hospitalizacion->habitacionActual?->habitacion?->numero_habitacion ?? 'Pendiente de asignar' }}"
                             readonly>
 
                     </div>
@@ -528,7 +534,7 @@ $ingreso->hospitalizacion->habitacionActual
                         {{ $habitacionesDisponibles->isEmpty()
                                     ? 'disabled'
                                     : '' }}>
-                        Cambiar habitación
+                        {{ $ingreso->hospitalizacion?->habitacionActual ? 'Cambiar habitación' : 'Asignar habitación' }}
                     </button>
 
                 </div>

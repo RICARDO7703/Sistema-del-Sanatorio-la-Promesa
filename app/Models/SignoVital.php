@@ -13,7 +13,7 @@ class SignoVital extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'id_ingreso',
+        'id_ingreso', 'id_cirugia',
         'id_personal',
         'tipo_control',
         'fecha_hora',
@@ -25,14 +25,14 @@ class SignoVital extends Model
         'saturacion_oxigeno',
         'observaciones',
         'id_usuario_creacion',
-        'id_usuario_modificacion'
+        'id_usuario_modificacion',
     ];
 
     protected $casts = [
         'fecha_hora' => 'datetime',
         'temperatura' => 'decimal:1',
         'fecha_registro' => 'datetime',
-        'fecha_actualizacion' => 'datetime'
+        'fecha_actualizacion' => 'datetime',
     ];
 
     public function ingreso()

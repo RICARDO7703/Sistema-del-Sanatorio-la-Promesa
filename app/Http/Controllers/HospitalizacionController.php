@@ -7,6 +7,7 @@ use App\Models\Hospitalizacion;
 use App\Models\HospitalizacionHabitacion;
 use App\Models\Ingreso;
 use App\Services\ReglasAtencion;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -52,7 +53,7 @@ class HospitalizacionController extends Controller
             }
             $habitacion = $this->habitacionDisponible((int) $datos['id_habitacion']);
             $asignacion = $actual->habitacionActual;
-            $fecha = now();
+            $fecha = $asignacion ? now() : Carbon::parse(now('America/Guatemala')->format('Y-m-d H:i:s'));
             if ($asignacion) {
                 ReglasAtencion::validarCierre($fecha, $asignacion->fecha_hora_inicio);
                 $asignacion->update(['fecha_hora_fin' => $fecha]);

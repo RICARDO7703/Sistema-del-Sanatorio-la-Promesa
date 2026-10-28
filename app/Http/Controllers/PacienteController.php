@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Cirugia;
 use App\Models\ContactoPaciente;
 use App\Models\Habitacion;
 use App\Models\Ingreso;
@@ -204,6 +205,13 @@ class PacienteController extends Controller
             }
         }
 
+        $ingresosEnCirugia = Cirugia::where('estado', 'En cirugía')->pluck('id_ingreso')->all();
+        foreach ($pacientes as $paciente) {
+            if ($paciente->ingresos->contains(fn ($ingreso) => $ingreso->estado === 'Activo' && in_array($ingreso->getKey(), $ingresosEnCirugia))) {
+                $paciente->situacion_actual = 'En cirugía';
+            }
+        }
+
         $habitacionesDisponibles = Habitacion::where('estado_operativo', 'Activa')
             ->whereDoesntHave('asignacionesHospitalizacion', fn ($consulta) => $consulta->whereNull('fecha_hora_fin'))
             ->orderBy('numero_habitacion')
@@ -246,7 +254,7 @@ class PacienteController extends Controller
             [
                 'hospitalizar' => ['nullable', 'boolean'],
                 'fecha_ingreso' => ['exclude_unless:hospitalizar,1', 'required', 'date', 'before_or_equal:'.now('America/Guatemala')->format('Y-m-d H:i:s')],
-                'id_habitacion' => ['exclude_unless:hospitalizar,1', 'bail', 'required', 'integer', 'exists:tbl_habitacion,id_habitacion'],
+                'id_habitacion' => ['exclude_unless:hospitalizar,1', 'bail', 'nullable', 'integer', 'exists:tbl_habitacion,id_habitacion'],
                 'motivo_ingreso' => ['exclude_unless:hospitalizar,1', 'nullable', 'string', 'max:255'],
                 'documento_firmado' => ['exclude_unless:hospitalizar,1', 'nullable', 'boolean'],
             ],
@@ -344,7 +352,7 @@ class PacienteController extends Controller
                         'fecha_ingreso' => Carbon::parse($hospitalizacion['fecha_ingreso'])->format('Y-m-d H:i:s'),
                         'motivo_ingreso' => $hospitalizacion['motivo_ingreso'] ?? null,
                         'documento_firmado' => (bool) ($hospitalizacion['documento_firmado'] ?? false),
-                        'id_habitacion' => (int) $hospitalizacion['id_habitacion'],
+                        'id_habitacion' => isset($hospitalizacion['id_habitacion']) ? (int) $hospitalizacion['id_habitacion'] : null,
                     ], (int) $idUsuario, (int) $idPersonal);
                 } catch (RuntimeException $error) {
                     throw ValidationException::withMessages(['id_habitacion' => $error->getMessage()]);
@@ -746,7 +754,6 @@ class PacienteController extends Controller
                 ],
 
                 'telefono' => [
-                    'required_if:estado_identificacion,Identificado',
                     'nullable',
                     'regex:/^(?:[0-9]{8}|[0-9]{4}-[0-9]{4})$/',
                 ],

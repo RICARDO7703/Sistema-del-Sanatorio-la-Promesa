@@ -18,6 +18,7 @@ CREATE TABLE tbl_especialidad (
 );
 
 CREATE TABLE tbl_personal (
+    foto_perfil VARCHAR(255) NULL,
     id_personal INTEGER PRIMARY KEY AUTOINCREMENT,
     id_cargo INT NOT NULL,
     id_especialidad INT NULL,
@@ -175,8 +176,7 @@ CREATE TABLE tbl_paciente (
     CONSTRAINT chk_paciente_identificacion CHECK (
         (estado_identificacion = 'Identificado'
             AND nombres IS NOT NULL
-            AND apellidos IS NOT NULL
-            AND telefono IS NOT NULL)
+            AND apellidos IS NOT NULL)
         OR
         (estado_identificacion = 'No identificado'
             AND codigo_temporal IS NOT NULL)
@@ -360,6 +360,7 @@ CREATE TABLE tbl_evolucion_clinica (
 );
 
 CREATE TABLE tbl_signos_vitales (
+    id_cirugia INT NULL,
     id_signos_vitales INTEGER PRIMARY KEY AUTOINCREMENT,
     id_ingreso INT NOT NULL,
     id_personal INT NOT NULL,
@@ -568,6 +569,8 @@ CREATE TABLE tbl_alta_medicamento (
 );
 
 CREATE TABLE tbl_documento_clinico (
+    tabla_origen VARCHAR(50) NULL,
+    id_registro_origen BIGINT NULL,
     id_documento INTEGER PRIMARY KEY AUTOINCREMENT,
     id_paciente INT NULL,
     id_ingreso INT NULL,
@@ -606,10 +609,15 @@ CREATE TABLE tbl_cirugia (
     id_cirugia INTEGER PRIMARY KEY AUTOINCREMENT,
     id_ingreso INT NOT NULL,
     id_evolucion INT NULL,
-    id_personal_indica INT NOT NULL,
+    id_personal_indica INT NULL,
     tipo_operacion VARCHAR(150) NOT NULL,
-    fecha_programada DATETIME NOT NULL,
-    estado TEXT CHECK (estado IN ('Programada', 'Evaluación preoperatoria', 'Aprobada', 'Realizada', 'Cancelada')) NOT NULL DEFAULT 'Programada',
+    fecha_programada DATETIME NULL,
+    fecha_fin_programada DATETIME NULL,
+    fecha_inicio_real DATETIME NULL,
+    fecha_fin_real DATETIME NULL,
+    motivo_cancelacion VARCHAR(255) NULL,
+    motivo_registro_posterior VARCHAR(500) NULL,
+    estado TEXT CHECK (estado IN ('Indicada', 'Programada', 'Evaluación preoperatoria', 'Aprobada', 'En cirugía', 'Realizada', 'Cancelada')) NOT NULL DEFAULT 'Programada',
     observaciones TEXT NULL,
     id_usuario_creacion INT NOT NULL,
     id_usuario_modificacion INT NULL,

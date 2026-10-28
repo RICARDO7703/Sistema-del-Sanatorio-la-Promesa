@@ -288,17 +288,13 @@ class EmergenciaTest extends TestCase
             ->assertSee('Consulta externa')->assertSee('bi-person-walking', false)->assertDontSee('bi-heart-pulse', false)->assertSee('Atención sin internamiento')->assertSee('Internar paciente')->assertSee('Editar atención')->assertSee('Consulta externa');
     }
 
-    public function test_hospitalizacion_sigue_exigiendo_habitacion(): void
+    public function test_hospitalizacion_permite_habitacion_pendiente(): void
     {
         $idPaciente = $this->pacienteSinIngreso();
-
-        $this->sesion()->post('/ingresos', $this->emergencia($idPaciente, ['tipo_atencion' => 'Hospitalización']))->assertSessionHasErrors('id_habitacion');
+        $this->sesion()->post('/ingresos', $this->emergencia($idPaciente, ['tipo_atencion' => 'Hospitalización']))->assertSessionHasNoErrors();
         $this->post('/ingresos', $this->emergencia($idPaciente, ['tipo_atencion' => 'Consulta']))->assertSessionHasErrors('tipo_atencion');
-        $this->assertDatabaseCount('tbl_ingreso', 1);
-
-        $this->post('/ingresos', $this->emergencia($idPaciente, ['tipo_atencion' => 'Hospitalización', 'id_habitacion' => 1]))->assertSessionHasNoErrors();
         $this->assertDatabaseHas('tbl_ingreso', ['id_paciente' => $idPaciente, 'estado' => 'Activo', 'tipo_atencion' => 'Hospitalización']);
-        $this->assertDatabaseCount('tbl_hospitalizacion_habitacion', 1);
+        $this->assertDatabaseCount('tbl_hospitalizacion_habitacion', 0);
     }
 
     public function test_paciente_con_atencion_activa_no_puede_abrir_otra(): void
@@ -357,7 +353,7 @@ class EmergenciaTest extends TestCase
     {
         $datos = ['estado_identificacion' => 'Identificado', 'nombres' => 'Luis', 'apellidos' => 'García', 'telefono' => '55555555', 'form_context' => 'nuevo', 'hospitalizar' => '1', 'fecha_ingreso' => '2026-10-11 11:30:00'];
 
-        $this->sesion()->post('/pacientes', $datos)->assertSessionHasErrors(['id_habitacion' => 'Seleccione la habitación donde se internará.']);
+        $this->sesion()->post('/pacientes', array_replace($datos, ['id_habitacion' => 99999]))->assertSessionHasErrors('id_habitacion');
         $this->post('/pacientes', array_replace($datos, ['id_habitacion' => 1, 'fecha_ingreso' => '2026-10-11 13:00:00']))->assertSessionHasErrors('fecha_ingreso');
         $this->assertDatabaseCount('tbl_paciente', 0);
 

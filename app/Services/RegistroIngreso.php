@@ -49,7 +49,7 @@ class RegistroIngreso
             }
 
             $hospitalizar = $datos['tipo_atencion'] === Ingreso::TIPO_HOSPITALIZACION;
-            $habitacion = $hospitalizar ? self::habitacionDisponible((int) ($datos['id_habitacion'] ?? 0)) : null;
+            $habitacion = $hospitalizar && ! empty($datos['id_habitacion']) ? self::habitacionDisponible((int) $datos['id_habitacion']) : null;
 
             $ingreso = Ingreso::create([
                 'id_paciente' => $paciente->id_paciente,
@@ -63,7 +63,7 @@ class RegistroIngreso
                 'id_usuario_creacion' => $idUsuario,
             ]);
 
-            if ($habitacion) {
+            if ($hospitalizar) {
                 $hospitalizacion = Hospitalizacion::create([
                     'id_ingreso' => $ingreso->id_ingreso,
                     'fecha_inicio' => $datos['fecha_ingreso'],
@@ -72,12 +72,14 @@ class RegistroIngreso
                     'id_usuario_creacion' => $idUsuario,
                 ]);
 
-                HospitalizacionHabitacion::create([
-                    'id_hospitalizacion' => $hospitalizacion->id_hospitalizacion,
-                    'id_habitacion' => $habitacion->id_habitacion,
-                    'fecha_hora_inicio' => $datos['fecha_ingreso'],
-                    'id_usuario_creacion' => $idUsuario,
-                ]);
+                if ($habitacion) {
+                    HospitalizacionHabitacion::create([
+                        'id_hospitalizacion' => $hospitalizacion->id_hospitalizacion,
+                        'id_habitacion' => $habitacion->id_habitacion,
+                        'fecha_hora_inicio' => $datos['fecha_ingreso'],
+                        'id_usuario_creacion' => $idUsuario,
+                    ]);
+                }
             }
 
             return $ingreso;
