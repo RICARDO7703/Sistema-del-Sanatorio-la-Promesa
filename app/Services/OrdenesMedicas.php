@@ -11,6 +11,17 @@ use Illuminate\Validation\ValidationException;
 
 class OrdenesMedicas
 {
+    /** @var list<string> */
+    public const DIETAS = ['Libre', 'Blanda', 'Líquida', 'NPO (nada por vía oral)', 'HNO (hasta nueva orden)'];
+
+    public const DIETA_OTRA = 'Otra';
+
+    /** @var list<string> */
+    public const VIAS = ['Oral', 'Intravenosa', 'Intramuscular', 'Rectal'];
+
+    /** @var list<string> */
+    public const UNIDADES_GOTEO = ['gotas/min', 'microgotas/min'];
+
     public static function validar(Request $request, Ingreso $ingreso, ?EvolucionClinica $registro = null): array
     {
         $formulario = $request->input('_formulario');
@@ -24,7 +35,7 @@ class OrdenesMedicas
         $datos = $request->validate([
             'estado_mejoria' => ['required', Rule::in(['Mejoró', 'Sin cambios', 'Empeoró'])],
             'id_personal_medico' => ['required', 'integer'],
-            'ordenes' => ['required', 'array:dieta,soluciones,medicamentos,indicaciones'],
+            'ordenes' => ['required', 'array:dieta,dieta_otra,soluciones,medicamentos,indicaciones,plan_educacional'],
         ], [
             'ordenes.required' => 'Debe completar las órdenes médicas antes de guardar la evolución.',
         ]);
@@ -34,32 +45,65 @@ class OrdenesMedicas
             throw ValidationException::withMessages(['id_personal_medico' => 'Seleccione un médico activo.']);
         }
         $validado = $request->validate([
-            'ordenes' => ['required', 'array:dieta,soluciones,medicamentos,indicaciones'],
-            'ordenes.dieta' => ['required', Rule::in(['Libre', 'Blanda', 'Líquida'])],
+            'ordenes' => ['required', 'array:dieta,dieta_otra,soluciones,medicamentos,indicaciones,plan_educacional'],
+            'ordenes.dieta' => ['required', 'string', Rule::in([...self::DIETAS, self::DIETA_OTRA])],
+            'ordenes.dieta_otra' => ['nullable', 'required_if:ordenes.dieta,'.self::DIETA_OTRA, 'string', 'max:100'],
             'ordenes.indicaciones' => ['nullable', 'string', 'max:2000'],
+            'ordenes.plan_educacional' => ['nullable', 'string', 'max:2000'],
             'ordenes.soluciones' => ['nullable', 'array', 'max:1'],
-            'ordenes.soluciones.*' => ['array:tipo,volumen,velocidad'],
+            'ordenes.soluciones.*' => ['array:tipo,volumen,velocidad,unidad'],
             'ordenes.soluciones.*.tipo' => ['required', Rule::in(['Mixta', 'Salina', 'Glucosada', 'Hartmann', 'Otra'])],
             'ordenes.soluciones.*.volumen' => ['required', 'numeric', 'gt:0', 'max:99999'],
-            'ordenes.soluciones.*.velocidad' => ['required', 'string', 'max:100'],
+            'ordenes.soluciones.*.velocidad' => ['bail', 'required', 'integer', 'between:1,999'],
+            'ordenes.soluciones.*.unidad' => ['required', Rule::in(self::UNIDADES_GOTEO)],
             'ordenes.medicamentos' => ['nullable', 'array', 'max:50'],
             'ordenes.medicamentos.*' => ['array:nombre,dosis,via,frecuencia'],
             'ordenes.medicamentos.*.nombre' => ['required', 'string', 'max:255'],
-            'ordenes.medicamentos.*.dosis' => ['required', 'string', 'max:100'],
-            'ordenes.medicamentos.*.via' => ['required', 'string', 'max:80'],
-            'ordenes.medicamentos.*.frecuencia' => ['required', 'string', 'max:100'],
+            'ordenes.medicamentos.*.dosis' => ['bail', 'required', 'numeric', 'gt:0', 'max:100000'],
+            'ordenes.medicamentos.*.via' => ['required', Rule::in(self::VIAS)],
+            'ordenes.medicamentos.*.frecuencia' => ['bail', 'required', 'integer', 'between:1,168'],
         ], [
             'required' => 'El campo :attribute es obligatorio.',
             'ordenes.soluciones.max' => 'Solo puede registrar una solución por evolución.',
             'ordenes.required' => 'Debe completar las órdenes médicas antes de guardar la evolución.',
             'ordenes.dieta.required' => 'Seleccione la dieta en las órdenes médicas antes de guardar la evolución.',
+            'ordenes.dieta_otra.required_if' => 'Escriba la dieta indicada.',
             'in' => 'Seleccione una opción válida en :attribute.',
             'ordenes.medicamentos.*.nombre.required' => 'Escriba el nombre del medicamento.',
             'ordenes.medicamentos.*.nombre.max' => 'El nombre del medicamento no puede superar los 255 caracteres.',
+            'ordenes.medicamentos.*.dosis.numeric' => 'La dosis debe ser un número en miligramos.',
+            'ordenes.medicamentos.*.dosis.gt' => 'La dosis debe ser mayor que cero.',
+            'ordenes.medicamentos.*.frecuencia.integer' => 'La frecuencia debe indicarse en horas enteras.',
+            'ordenes.medicamentos.*.frecuencia.between' => 'La frecuencia debe estar entre 1 y 168 horas.',
+            'ordenes.soluciones.*.velocidad.integer' => 'El goteo debe ser un número entero.',
+            'ordenes.soluciones.*.velocidad.between' => 'El goteo debe estar entre 1 y 999.',
             'gt' => 'El volumen debe ser mayor que cero.',
             'max' => 'El campo :attribute supera el límite permitido.',
+        ], [
+            'ordenes.dieta' => 'dieta',
+            'ordenes.medicamentos.*.dosis' => 'dosis',
+            'ordenes.medicamentos.*.via' => 'vía',
+            'ordenes.medicamentos.*.frecuencia' => 'frecuencia',
+            'ordenes.soluciones.*.tipo' => 'tipo de suero',
+            'ordenes.soluciones.*.volumen' => 'volumen',
+            'ordenes.soluciones.*.velocidad' => 'goteo',
+            'ordenes.soluciones.*.unidad' => 'unidad de goteo',
         ]);
         $ordenes = $validado['ordenes'];
+        if ($ordenes['dieta'] === self::DIETA_OTRA) {
+            $ordenes['dieta'] = trim($ordenes['dieta_otra']);
+        }
+        unset($ordenes['dieta_otra']);
+        foreach ($ordenes['soluciones'] ?? [] as $indice => $solucion) {
+            $ordenes['soluciones'][$indice]['velocidad'] = (int) $solucion['velocidad'];
+        }
+        foreach ($ordenes['medicamentos'] ?? [] as $indice => $medicamento) {
+            $ordenes['medicamentos'][$indice]['dosis'] = $medicamento['dosis'] + 0;
+            $ordenes['medicamentos'][$indice]['frecuencia'] = (int) $medicamento['frecuencia'];
+        }
+        if (blank($ordenes['plan_educacional'] ?? null)) {
+            unset($ordenes['plan_educacional']);
+        }
 
         return ['ordenes_medicas' => $ordenes, 'estado_mejoria' => $datos['estado_mejoria'], 'id_personal' => $medico->getKey()];
     }

@@ -66,8 +66,8 @@ class SistemaTest extends TestCase
     {
         $this->withSession(['id_usuario' => 1])->post('/pacientes', $this->pacienteValido() + ['contacto' => ['nombre' => 'María López', 'parentesco' => 'Madre', 'telefono' => '44444444']])->assertSessionHasNoErrors();
         $paciente = Paciente::firstOrFail();
-        $this->get('/pacientes')->assertOk()->assertSee('Atención al paciente');
-        $this->get('/pacientes/'.$paciente->getKey().'/expediente')->assertOk()->assertSee('Nuevo ingreso')->assertDontSee('Información clínica general');
+        $this->get('/pacientes')->assertOk()->assertSee('Iniciar consulta')->assertSee('Hospitalizar')->assertSee('data-iniciar-atencion="'.$paciente->getKey().'"', false);
+        $this->get('/pacientes/'.$paciente->getKey().'/expediente')->assertOk()->assertSee('Primera consulta')->assertSee('Hospitalizar paciente')->assertDontSee('Información clínica general');
         DB::table('tbl_paciente')->where('id_paciente', $paciente->getKey())->update(['alergias' => 'Alergia de prueba']);
         $this->get('/pacientes/'.$paciente->getKey().'/expediente')->assertOk()->assertSee('Información clínica general')->assertSee('Alergia de prueba')
             ->assertSeeInOrder(['id="datos-paciente"', 'id="contactos-paciente"', 'Información clínica general', 'id="historial-evoluciones"'], false);
@@ -230,7 +230,7 @@ class SistemaTest extends TestCase
         $ingreso = Ingreso::firstOrFail();
         $this->get('/pacientes')->assertOk()->assertSee('href="'.route('atencion.show', $ingreso).'"', false);
         $this->get(route('pacientes.expediente', $paciente))->assertOk()->assertSee('Habitación actual')->assertDontSee('Cambios de habitación');
-        $datos = ['id_ingreso' => $ingreso->getKey(), 'fecha_hora' => '2026-10-11 09:00:00', 'motivo_atencion' => 'Control de prueba', 'diagnostico' => 'Diagnóstico de prueba', 'examen_fisico' => ['presion_arterial' => '120/80', 'frecuencia_cardiaca' => 80], 'estado_mejoria' => 'Sin cambios', 'id_personal_medico' => 1, 'ordenes' => ['dieta' => 'Libre', 'medicamentos' => [['nombre' => 'Medicina escrita libremente', 'dosis' => 'Dosis de prueba', 'via' => 'Oral', 'frecuencia' => 'Según indicación']]]];
+        $datos = ['id_ingreso' => $ingreso->getKey(), 'fecha_hora' => '2026-10-11 09:00:00', 'motivo_atencion' => 'Control de prueba', 'diagnostico' => 'Diagnóstico de prueba', 'examen_fisico' => ['presion_arterial' => '120/80', 'frecuencia_cardiaca' => 80], 'estado_mejoria' => 'Sin cambios', 'id_personal_medico' => 1, 'ordenes' => ['dieta' => 'Libre', 'medicamentos' => [['nombre' => 'Medicina escrita libremente', 'dosis' => 75, 'via' => 'Intramuscular', 'frecuencia' => 8]]]];
         $this->post('/evolucion', $datos)->assertSessionHasNoErrors();
         $id = EvolucionClinica::firstOrFail()->getKey();
         $this->get('/atencion/'.$ingreso->getKey().'?registro='.$id)->assertOk()->assertSee('Medicina escrita libremente');
@@ -241,8 +241,51 @@ class SistemaTest extends TestCase
         $this->get('/atencion/'.$ingreso->getKey().'?registro='.$id)->assertOk()->assertSee('modo consulta');
         $this->get(route('pacientes.expediente', $paciente))->assertOk()->assertSee('Última habitación ocupada')->assertSee('Cambios de habitación')->assertSee('102');
         self::assertSame('Dado de alta', $ingreso->fresh()->estado);
-        $this->get('/pacientes')->assertOk()->assertSee('Atención al paciente')->assertSee('El paciente no tiene un ingreso activo')
+        $this->get('/pacientes')->assertOk()->assertSee('Iniciar consulta')->assertSee('Hospitalizar')->assertSee('data-iniciar-atencion="'.$paciente->getKey().'"', false)
             ->assertDontSee('href="'.route('atencion.show', $ingreso).'"', false);
         self::assertSame(0, DB::table('tbl_hospitalizacion_habitacion')->whereNull('fecha_hora_fin')->count());
+    }
+
+    public function test_varios_contactos_se_crean_y_editan_con_el_paciente(): void
+    {
+        $this->withSession(['id_usuario' => 1])->post('/pacientes', $this->pacienteValido() + ['contactos' => [
+            ['nombre' => 'María López', 'parentesco' => 'Madre', 'telefono' => '44444444'],
+            ['nombre' => 'Juan López', 'parentesco' => 'Padre', 'telefono' => '33333333'],
+            ['nombre' => null, 'telefono' => null],
+        ]])->assertSessionHasNoErrors();
+        $paciente = Paciente::firstOrFail();
+        $this->assertDatabaseCount('tbl_contacto_paciente', 2);
+        $contacto = $paciente->contactos()->firstOrFail();
+        $this->put('/pacientes/'.$paciente->getKey(), $this->pacienteValido() + ['contactos' => [
+            ['id_contacto' => $contacto->getKey(), 'nombre' => 'María Pérez', 'telefono' => '22222222'],
+            ['nombre' => 'Ana López', 'parentesco' => 'Hermana'],
+        ]])->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('tbl_contacto_paciente', 3);
+        $this->assertDatabaseHas('tbl_contacto_paciente', ['id_contacto' => $contacto->getKey(), 'nombre' => 'María Pérez', 'telefono' => '2222-2222']);
+        $this->get('/pacientes')->assertOk()->assertSee('Agregar otro contacto')->assertSee('contactos[0][id_contacto]', false);
+    }
+
+    public function test_contactos_invalidos_no_guardan_parcialmente_el_paciente(): void
+    {
+        $this->withSession(['id_usuario' => 1])->post('/pacientes', $this->pacienteValido() + ['contactos' => [
+            ['nombre' => 'María López'], ['telefono' => '44444444'],
+        ]])->assertSessionHasErrors('contactos.1.nombre');
+        $this->assertDatabaseCount('tbl_paciente', 0);
+        $this->assertDatabaseCount('tbl_contacto_paciente', 0);
+    }
+
+    public function test_edicion_rechaza_contactos_de_otro_paciente(): void
+    {
+        $this->withSession(['id_usuario' => 1])->post('/pacientes', $this->pacienteValido() + ['contactos' => [['nombre' => 'María López']]])->assertSessionHasNoErrors();
+        $primero = Paciente::firstOrFail();
+        $contacto = $primero->contactos()->firstOrFail();
+        $datos = array_replace($this->pacienteValido(), ['dpi' => '3234567890123']);
+        $this->post('/pacientes', $datos)->assertSessionHasNoErrors();
+        $segundo = Paciente::orderByDesc('id_paciente')->firstOrFail();
+        $this->put('/pacientes/'.$segundo->getKey(), array_replace($datos, ['nombres' => 'Otro', 'contactos' => [
+            ['id_contacto' => $contacto->getKey(), 'nombre' => 'Modificado'],
+        ]]))->assertSessionHasErrors('contactos.0.id_contacto');
+        $this->assertDatabaseHas('tbl_contacto_paciente', ['id_contacto' => $contacto->getKey(), 'nombre' => 'María López']);
+        $this->assertDatabaseHas('tbl_paciente', ['id_paciente' => $segundo->getKey(), 'nombres' => 'Ana María']);
     }
 }

@@ -85,7 +85,9 @@ class AtencionTest extends TestCase
     public function test_listado_solo_muestra_ingresos_activos_y_filtra(): void
     {
         $activo = $this->ingreso();
-        $cerrado = $this->ingreso(['estado' => 'Dado de alta']);
+        $this->hospitalizar($activo);
+        $this->ingreso(['estado' => 'Dado de alta']);
+        $this->ingreso(['tipo_atencion' => 'Consulta externa']);
         $this->sesion()->get('/atencion')->assertOk()->assertViewHas('ingresos', fn ($lista) => $lista->modelKeys() === [$activo->getKey()]);
         $this->get('/atencion?buscar=NO-EXISTE')->assertOk()->assertViewHas('ingresos', fn ($lista) => $lista->isEmpty());
         $this->get('/atencion?buscar='.$activo->paciente->numero_expediente)->assertOk()->assertViewHas('ingresos', fn ($lista) => $lista->modelKeys() === [$activo->getKey()]);
@@ -106,7 +108,7 @@ class AtencionTest extends TestCase
     public function test_detalle_renderiza_todos_los_formularios(): void
     {
         $ingreso = $this->ingreso();
-        $this->sesion()->get('/atencion/'.$ingreso->getKey())->assertOk()->assertSee('Signos y síntomas')->assertSee('Presión arterial (PA, mmHg)')->assertDontSee('id="signos-tab"', false)->assertDontSee('id="form-evolucion"', false)->assertDontSee('Registrar alta médica');
+        $this->sesion()->get('/atencion/'.$ingreso->getKey())->assertOk()->assertSee('Síntomas')->assertSee('Presión arterial (PA, mmHg)')->assertDontSee('id="signos-tab"', false)->assertDontSee('id="form-evolucion"', false)->assertDontSee('Registrar alta médica');
         $this->post('/evolucion', $this->evolucion($ingreso))->assertSessionHasNoErrors();
         $this->get('/atencion/'.$ingreso->getKey())->assertOk()->assertSee('id="form-evolucion"', false)->assertSee('Órdenes médicas')->assertSee('Registrar alta médica');
     }
@@ -402,7 +404,7 @@ class AtencionTest extends TestCase
     {
         $ingreso = $this->ingreso(['motivo_ingreso' => 'Dolor de prueba']);
         $this->sesion()->get('/atencion/'.$ingreso->getKey())->assertOk()
-            ->assertSee('value="Dolor de prueba"', false)->assertSee('Signos y síntomas')
+            ->assertSee('value="Dolor de prueba"', false)->assertSee('Síntomas')
             ->assertSee('Talla (cm)')->assertSee('Peso (lb)')->assertSee('Cabeza')->assertSee('Tronco')->assertSee('Extremidades')
             ->assertDontSee('Presión sistólica')->assertDontSee('Presión diastólica')->assertDontSee('data-bs-target="#signos"', false);
     }
@@ -493,8 +495,8 @@ class AtencionTest extends TestCase
     private function ordenesNuevas(): array
     {
         return ['id_personal_medico' => 1, 'estado_mejoria' => 'Mejoró', 'ordenes' => [
-            'dieta' => 'Blanda', 'soluciones' => [['tipo' => 'Salina', 'volumen' => 500, 'velocidad' => 'Indicación de prueba']],
-            'medicamentos' => [['nombre' => 'Medicamento de prueba', 'dosis' => 'Dosis de prueba', 'via' => 'Oral', 'frecuencia' => 'Frecuencia de prueba']],
+            'dieta' => 'Blanda', 'soluciones' => [['tipo' => 'Salina', 'volumen' => 500, 'velocidad' => 40, 'unidad' => 'gotas/min']],
+            'medicamentos' => [['nombre' => 'Medicamento de prueba', 'dosis' => 500, 'via' => 'Oral', 'frecuencia' => 8]],
             'indicaciones' => 'Vigilar según indicación de prueba',
         ]];
     }
@@ -567,7 +569,7 @@ class AtencionTest extends TestCase
         $this->sesion()->post('/evolucion', $datos)->assertSessionHasErrors('ordenes.soluciones');
         $this->assertDatabaseCount('tbl_evolucion_clinica', 0);
         array_pop($datos['ordenes']['soluciones']);
-        $datos['ordenes']['medicamentos'][] = ['nombre' => 'Segundo medicamento de prueba', 'dosis' => 'Otra dosis', 'via' => 'Oral', 'frecuencia' => 'Otra frecuencia'];
+        $datos['ordenes']['medicamentos'][] = ['nombre' => 'Segundo medicamento de prueba', 'dosis' => 250, 'via' => 'Intravenosa', 'frecuencia' => 12];
         $this->post('/evolucion', $datos)->assertSessionHasNoErrors();
         $registro = EvolucionClinica::firstOrFail();
         self::assertCount(1, $registro->ordenes_medicas['soluciones']);
@@ -650,7 +652,7 @@ class AtencionTest extends TestCase
         $this->sesion()->post('/evolucion', $this->evolucion($ingreso) + $datos)->assertSessionHasNoErrors();
         $registro = EvolucionClinica::firstOrFail();
         self::assertSame('Nombre libre 500 mg / 5 ml', $registro->ordenes_medicas['medicamentos'][0]['nombre']);
-        $this->get('/atencion/'.$ingreso->getKey().'?registro='.$registro->getKey())->assertOk()->assertSee('Nombre libre 500 mg / 5 ml')->assertSee('placeholder="Escriba el nombre y presentación"', false);
+        $this->get('/atencion/'.$ingreso->getKey().'?registro='.$registro->getKey())->assertOk()->assertSee('Nombre libre 500 mg / 5 ml')->assertSee('placeholder="Ej. Diclofenaco"', false);
         $datos['ordenes']['medicamentos'][0]['nombre'] = 'Otro nombre escrito';
         $this->put('/evolucion/'.$registro->getKey(), $this->evolucion($ingreso) + $datos)->assertSessionHasNoErrors();
         self::assertSame('Otro nombre escrito', $registro->fresh()->ordenes_medicas['medicamentos'][0]['nombre']);

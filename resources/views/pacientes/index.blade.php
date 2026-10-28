@@ -166,7 +166,7 @@
                 <tr>
                     <th>Expediente</th>
                     <th>Paciente</th>
-                    <th>Identificación</th>
+                    <th class="d-none d-xxl-table-cell">Identificación</th>
                     <th>Edad</th>
                     <th>Teléfono</th>
                     <th>Situación actual</th>
@@ -271,7 +271,7 @@
                         </td>
 
 
-                        <td>
+                        <td class="d-none d-xxl-table-cell">
 
                             @if(
                                 $paciente->estado_identificacion
@@ -328,6 +328,15 @@
 
                             @elseif(
                                 $paciente->situacion_actual
+                                === 'En consulta'
+                            )
+
+                                <span class="badge bg-consulta">
+                                    En consulta
+                                </span>
+
+                            @elseif(
+                                $paciente->situacion_actual
                                 === 'En atención'
                             )
 
@@ -341,7 +350,7 @@
                             )
 
                                 <span class="badge bg-success">
-                                    Dado de alta
+                                    {{ $paciente->ultima_alta_emergencia ? 'Atención finalizada' : 'Dado de alta' }}
                                 </span>
 
                             @else
@@ -375,6 +384,13 @@
 
                             @elseif(
                                 $paciente->situacion_actual
+                                === 'En consulta'
+                            )
+
+                                Sin internamiento
+
+                            @elseif(
+                                $paciente->situacion_actual
                                 === 'Dado de alta'
                                 && $paciente->fecha_ultima_alta
                             )
@@ -394,9 +410,24 @@
 
                         <td>
 
-                            <div class="d-grid gap-1" style="grid-template-columns: repeat(2, minmax(110px, 1fr)); min-width: 230px;">
+                            <div class="d-grid gap-1 acciones-paciente">
+    <?php $ingresoParaAtencion = $paciente->estado === 'Activo' ? $paciente->ingresos->sortByDesc('fecha_ingreso')->firstWhere('estado', 'Activo') : null; ?>
+    @if($ingresoParaAtencion)
+    <a href="{{ route('atencion.show', $ingresoParaAtencion) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-clipboard2-pulse"></i> Atención al paciente</a>
+    @else
+    @if($paciente->estado === 'Activo')
+    <form action="{{ route('consultas.iniciar', $paciente->id_paciente) }}" method="POST" class="m-0">
+        @csrf
+        <button type="submit" class="btn btn-consulta btn-sm w-100"><i class="bi bi-person-walking"></i> Iniciar consulta</button>
+    </form>
+    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalIniciarAtencion" data-iniciar-atencion="{{ $paciente->id_paciente }}" data-nombre-paciente="{{ $paciente->estado_identificacion === 'Identificado' ? $paciente->nombres.' '.$paciente->apellidos : 'No identificado - '.$paciente->codigo_temporal }}"><i class="bi bi-hospital"></i> Hospitalizar</button>
+    @else
+    <button type="button" class="btn btn-outline-secondary btn-sm" disabled title="El paciente está inactivo"><i class="bi bi-clipboard2-pulse"></i> Atención al paciente</button>
+    @endif
+    @endif
+    <a href="{{ route('pacientes.expediente', ['paciente' => $paciente->id_paciente, 'desde' => 'pacientes']) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-folder2-open"></i> Expediente</a>
     <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#modalEditar{{ $paciente->id_paciente }}" @disabled($paciente->estado !== 'Activo')><i class="bi bi-pencil"></i> Editar</button>
-    <a href="{{ route('pacientes.expediente', $paciente->id_paciente) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-folder2-open"></i> Expediente</a>
+    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalContactos{{ $paciente->id_paciente }}"><i class="bi bi-person-lines-fill"></i> Contactos</button>
     @if($paciente->estado === 'Activo')
     <form action="{{ route('pacientes.desactivar', $paciente->id_paciente) }}" method="POST" class="m-0" onsubmit="return confirm('¿Desea desactivar este paciente?');">
         @csrf @method('PATCH')
@@ -408,13 +439,7 @@
         <button type="submit" class="btn btn-outline-success btn-sm w-100"><i class="bi bi-person-check"></i> Activar</button>
     </form>
     @endif
-    <?php $ingresoParaAtencion = $paciente->estado === 'Activo' ? $paciente->ingresos->sortByDesc('fecha_ingreso')->firstWhere('estado', 'Activo') : null; ?>
-    @if($ingresoParaAtencion)
-    <a href="{{ route('atencion.show', $ingresoParaAtencion) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-clipboard2-pulse"></i> Atención al paciente</a>
-    @else
-    <button type="button" class="btn btn-outline-secondary btn-sm" disabled title="El paciente no tiene un ingreso activo"><i class="bi bi-clipboard2-pulse"></i> Atención al paciente</button>
-    @endif
-    <button type="button" class="btn btn-outline-info btn-sm justify-self-center" style="grid-column: 1 / -1; justify-self: center;" data-bs-toggle="modal" data-bs-target="#modalContactos{{ $paciente->id_paciente }}"><i class="bi bi-person-lines-fill"></i> Contactos</button>
+
 </div>
 
                         </td>
@@ -441,7 +466,7 @@
                                             'pacientes.actualizar',
                                             $paciente->id_paciente
                                         ) }}"
-                                        method="POST"
+                                        method="POST" novalidate data-validar-en-linea data-validar-al-enviar
                                     >
 
                                         @csrf
@@ -579,7 +604,7 @@
 
                                                         <input
                                                             type="text"
-                                                            name="nombres"
+                                                            name="nombres" data-mensaje-requerido="Escriba los nombres del paciente."
                                                             class="form-control solo-letras
                                                                 @if($editarConError)
                                                                     @error('nombres')
@@ -615,7 +640,7 @@
 
                                                         <input
                                                             type="text"
-                                                            name="apellidos"
+                                                            name="apellidos" data-mensaje-requerido="Escriba los apellidos del paciente."
                                                             class="form-control solo-letras
                                                                 @if($editarConError)
                                                                     @error('apellidos')
@@ -651,7 +676,7 @@
 
                                                         <input
                                                             type="text"
-                                                            name="dpi"
+                                                            name="dpi" data-mensaje-formato="El DPI debe tener exactamente 13 números."
                                                             class="form-control solo-dpi
                                                                 @if($editarConError)
                                                                     @error('dpi')
@@ -689,7 +714,7 @@
 
                                                         <input
                                                             type="date"
-                                                            name="fecha_nacimiento"
+                                                            name="fecha_nacimiento" data-mensaje-maximo="La fecha de nacimiento no puede ser futura."
                                                             class="form-control
                                                                 @if($editarConError)
                                                                     @error('fecha_nacimiento')
@@ -793,7 +818,7 @@
 
                                                         <input
                                                             type="text"
-                                                            name="telefono"
+                                                            name="telefono" pattern="[0-9]{4}-?[0-9]{4}" data-mensaje-requerido="Escriba el número de teléfono." data-mensaje-formato="El teléfono debe tener 8 números, por ejemplo 5555-1234."
                                                             class="form-control telefono
                                                                 @if($editarConError)
                                                                     @error('telefono')
@@ -1060,6 +1085,9 @@
                                         </div>
 
 
+                                        <div class="px-3 pb-3">
+                                            @include('pacientes.partials.contactos', ['filasContactos' => $editarConError ? old('contactos', $paciente->contactos->toArray()) : $paciente->contactos->toArray(), 'erroresContactos' => $editarConError])
+                                        </div>
                                         <div class="modal-footer">
 
                                             <button
@@ -1159,7 +1187,7 @@
                                                     'pacientes.contactos.actualizar',
                                                     $contacto->id_contacto
                                                 ) }}"
-                                                method="POST"
+                                                method="POST" novalidate data-validar-en-linea data-validar-al-enviar
                                             >
 
                                                 @csrf
@@ -1181,7 +1209,7 @@
 
                                                         <input
                                                             type="text"
-                                                            name="nombre"
+                                                            name="nombre" data-mensaje-requerido="Escriba el nombre del contacto."
                                                             class="form-control solo-letras
                                                                 @if($contactoEditarConError)
                                                                     @error('nombre')
@@ -1254,7 +1282,7 @@
 
                                                         <input
                                                             type="text"
-                                                            name="telefono"
+                                                            name="telefono" pattern="[0-9]{4}-?[0-9]{4}" data-mensaje-requerido="Escriba el número de teléfono." data-mensaje-formato="El teléfono debe tener 8 números, por ejemplo 5555-1234."
                                                             class="form-control telefono
                                                                 @if($contactoEditarConError)
                                                                     @error('telefono')
@@ -1348,7 +1376,7 @@
                                             'pacientes.contactos.guardar',
                                             $paciente->id_paciente
                                         ) }}"
-                                        method="POST"
+                                        method="POST" novalidate data-validar-en-linea data-validar-al-enviar
                                     >
 
                                         @csrf
@@ -1369,7 +1397,7 @@
 
                                                 <input
                                                     type="text"
-                                                    name="nombre"
+                                                    name="nombre" data-mensaje-requerido="Escriba el nombre del contacto."
                                                     class="form-control solo-letras
                                                         @if($contactosConError)
                                                             @error('nombre')
@@ -1440,7 +1468,7 @@
 
                                                 <input
                                                     type="text"
-                                                    name="telefono"
+                                                    name="telefono" pattern="[0-9]{4}-?[0-9]{4}" data-mensaje-requerido="Escriba el número de teléfono." data-mensaje-formato="El teléfono debe tener 8 números, por ejemplo 5555-1234."
                                                     class="form-control telefono
                                                         @if($contactosConError)
                                                             @error('telefono')
@@ -1516,6 +1544,45 @@
 
 
 <!-- Modal nuevo paciente -->
+<!-- Modal iniciar atención -->
+@php($recuperarAtencion = old('form_context') === 'iniciar-atencion')
+<div class="modal fade" id="modalIniciarAtencion" tabindex="-1" aria-labelledby="modalIniciarAtencion-titulo" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ route('ingresos.guardar') }}" method="POST" novalidate data-validar-en-linea data-validar-al-enviar>
+                @csrf
+                <input type="hidden" name="form_context" value="iniciar-atencion">
+                <input type="hidden" name="id_paciente" value="{{ $recuperarAtencion ? old('id_paciente') : '' }}" data-campo-paciente>
+                <input type="hidden" name="nombre_paciente" value="{{ $recuperarAtencion ? old('nombre_paciente') : '' }}" data-campo-nombre>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalIniciarAtencion-titulo">Hospitalizar paciente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    @if($recuperarAtencion && session('error'))
+                    <div class="alert alert-danger">{{ session('error') }}</div>
+                    @endif
+                    @if($recuperarAtencion)
+                    @error('id_paciente')
+                    <div class="alert alert-danger">{{ $message }}</div>
+                    @enderror
+                    @endif
+                    <div class="mb-3">
+                        <label class="form-label" for="iniciar-paciente">Paciente</label>
+                        <input type="text" id="iniciar-paciente" class="form-control" value="{{ $recuperarAtencion ? old('nombre_paciente') : '' }}" readonly data-texto-paciente>
+                    </div>
+                    @include('ingresos.partials.campos-nueva-atencion', ['prefijo' => 'iniciar', 'recuperar' => $recuperarAtencion])
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-hospital" aria-hidden="true"></i> Hospitalizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
 <div
     class="modal fade"
     id="modalPaciente"
@@ -1529,7 +1596,7 @@
 
             <form
                 action="{{ route('pacientes.guardar') }}"
-                method="POST"
+                method="POST" novalidate data-validar-en-linea data-validar-al-enviar
             >
 
                 @csrf
@@ -1636,7 +1703,7 @@
 
                             <input
                                 type="text"
-                                name="nombres"
+                                name="nombres" data-mensaje-requerido="Escriba los nombres del paciente."
                                 class="form-control solo-letras
                                     @error('nombres')
                                         is-invalid
@@ -1664,7 +1731,7 @@
 
                             <input
                                 type="text"
-                                name="apellidos"
+                                name="apellidos" data-mensaje-requerido="Escriba los apellidos del paciente."
                                 class="form-control solo-letras
                                     @error('apellidos')
                                         is-invalid
@@ -1692,7 +1759,7 @@
 
                             <input
                                 type="text"
-                                name="dpi"
+                                name="dpi" data-mensaje-formato="El DPI debe tener exactamente 13 números."
                                 class="form-control solo-dpi
                                     @error('dpi')
                                         is-invalid
@@ -1722,7 +1789,7 @@
 
                             <input
                                 type="date"
-                                name="fecha_nacimiento"
+                                name="fecha_nacimiento" data-mensaje-maximo="La fecha de nacimiento no puede ser futura."
                                 class="form-control
                                     @error('fecha_nacimiento')
                                         is-invalid
@@ -1801,7 +1868,7 @@
 
                             <input
                                 type="text"
-                                name="telefono"
+                                name="telefono" pattern="[0-9]{4}-?[0-9]{4}" data-mensaje-requerido="Escriba el número de teléfono." data-mensaje-formato="El teléfono debe tener 8 números, por ejemplo 5555-1234."
                                 class="form-control telefono
                                     @error('telefono')
                                         is-invalid
@@ -2009,107 +2076,22 @@
                         </div>
 
 
-                        <!-- Contacto opcional -->
+                        @include('pacientes.partials.contactos', ['filasContactos' => old('form_context') === 'nuevo' ? old('contactos', [old('contacto', [])]) : [[]], 'erroresContactos' => old('form_context') === 'nuevo'])
+
+                        <!-- Atención inmediata -->
                         <div class="col-12 mt-4">
-
-                            <hr>
-
-                            <h5 class="mb-1">
-                                <i class="bi bi-person-lines-fill"></i>
-                                Contacto del paciente
-                            </h5>
-
-                            <small class="text-muted">
-                                Opcional. Puede registrarse después.
-                            </small>
-
-                        </div>
-
-
-                        <div class="col-md-6">
-
-                            <label class="form-label">
-                                Nombre del contacto
-                            </label>
-
-                            <input
-                                type="text"
-                                name="contacto[nombre]"
-                                class="form-control solo-letras
-                                    @error('contacto.nombre')
-                                        is-invalid
-                                    @enderror
-                                "
-                                value="{{ old('contacto.nombre') }}"
-                                maxlength="150"
-                                autocomplete="off"
-                            >
-
-                            @error('contacto.nombre')
-                                <div class="invalid-feedback">
-                                    {{ $message }}
+                            <div class="border border-danger-subtle rounded-3 p-3 bg-danger-subtle bg-opacity-25">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="hospitalizar" value="1" id="nuevo-hospitalizar" @checked(old('form_context') === 'nuevo' && old('hospitalizar')) data-alternar="#nuevo-hospitalizar-bloque">
+                                    <label class="form-check-label fw-semibold" for="nuevo-hospitalizar">
+                                        <i class="bi bi-hospital text-danger" aria-hidden="true"></i> Hospitalizar al guardar
+                                    </label>
                                 </div>
-                            @enderror
-
-                        </div>
-
-
-                        <div class="col-md-6">
-
-                            <label class="form-label">
-                                Parentesco
-                            </label>
-
-                            <input
-                                type="text"
-                                name="contacto[parentesco]"
-                                class="form-control solo-letras
-                                    @error('contacto.parentesco')
-                                        is-invalid
-                                    @enderror
-                                "
-                                value="{{ old('contacto.parentesco') }}"
-                                maxlength="50"
-                                autocomplete="off"
-                                placeholder="Ej. Madre, padre, esposo"
-                            >
-
-                            @error('contacto.parentesco')
-                                <div class="invalid-feedback">
-                                    {{ $message }}
+                                <small class="text-muted d-block">Márquelo si el paciente se queda internado. Para una consulta externa, guarde el paciente y use <strong>Iniciar consulta</strong> en el listado.</small>
+                                <div class="mt-3" id="nuevo-hospitalizar-bloque" @unless(old('form_context') === 'nuevo' && old('hospitalizar')) hidden @endunless>
+                                    @include('ingresos.partials.campos-nueva-atencion', ['prefijo' => 'nuevo', 'recuperar' => old('form_context') === 'nuevo', 'mostrarAviso' => false])
                                 </div>
-                            @enderror
-
-                        </div>
-
-
-                        <div class="col-md-6">
-
-                            <label class="form-label">
-                                Teléfono del contacto
-                            </label>
-
-                            <input
-                                type="text"
-                                name="contacto[telefono]"
-                                class="form-control telefono
-                                    @error('contacto.telefono')
-                                        is-invalid
-                                    @enderror
-                                "
-                                value="{{ old('contacto.telefono') }}"
-                                maxlength="9"
-                                inputmode="numeric"
-                                autocomplete="off"
-                                placeholder="0000-0000"
-                            >
-
-                            @error('contacto.telefono')
-                                <div class="invalid-feedback">
-                                    {{ $message }}
-                                </div>
-                            @enderror
-
+                            </div>
                         </div>
 
                     </div>
@@ -2386,6 +2368,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
         });
 
+
+    // Paciente elegido para iniciar atención
+    const modalIniciarAtencion =
+        document.getElementById('modalIniciarAtencion');
+
+    if (modalIniciarAtencion) {
+
+        modalIniciarAtencion.addEventListener('show.bs.modal', evento => {
+            const boton = evento.relatedTarget?.closest('[data-iniciar-atencion]');
+            if (!boton) return;
+            modalIniciarAtencion.querySelector('[data-campo-paciente]').value = boton.dataset.iniciarAtencion;
+            modalIniciarAtencion.querySelector('[data-campo-nombre]').value = boton.dataset.nombrePaciente;
+            modalIniciarAtencion.querySelector('[data-texto-paciente]').value = boton.dataset.nombrePaciente;
+        });
+
+        @if(old('form_context') === 'iniciar-atencion' && ($errors->any() || session('error')))
+            new bootstrap.Modal(modalIniciarAtencion).show();
+        @endif
+    }
+
+    // Datos de hospitalización al registrar paciente
+    document.querySelectorAll('[data-alternar]').forEach(casilla => {
+        const bloque = document.querySelector(casilla.dataset.alternar);
+        if (!bloque) return;
+        casilla.addEventListener('change', () => { bloque.hidden = !casilla.checked; });
+    });
 
     // Abrir modal correcto
     @if($errors->any())

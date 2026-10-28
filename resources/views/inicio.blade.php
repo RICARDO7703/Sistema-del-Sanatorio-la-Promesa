@@ -24,6 +24,21 @@
     </div>
 
 
+    @if($emergenciasPendientes->isNotEmpty())
+    <div class="alert alert-warning" role="alert">
+        <h2 class="h5"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Consultas externas abiertas de días anteriores</h2>
+        <p class="mb-2">Estas consultas externas siguen activas. Finalícelas si el paciente ya se retiró o interne al paciente si se quedó.</p>
+        <ul class="mb-0">
+            @foreach($emergenciasPendientes as $emergencia)
+            <li>
+                <a href="{{ route('atencion.show', $emergencia) }}">{{ $emergencia->paciente->estado_identificacion === 'Identificado' ? $emergencia->paciente->nombres.' '.$emergencia->paciente->apellidos : 'No identificado - '.$emergencia->paciente->codigo_temporal }}</a>
+                · llegó el {{ $emergencia->fecha_ingreso->format('d/m/Y H:i') }}
+            </li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
+
     <!-- Tarjetas -->
     <div class="row g-4">
 
@@ -87,7 +102,7 @@
                         <h3>Atención del paciente</h3>
 
                         <p>
-                            Evoluciones, órdenes médicas y alta del paciente.
+                            Pacientes internados: órdenes médicas y signos vitales.
                         </p>
                     </div>
 

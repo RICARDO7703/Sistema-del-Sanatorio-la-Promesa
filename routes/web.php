@@ -3,6 +3,7 @@
 use App\Http\Controllers\AltaMedicaController;
 use App\Http\Controllers\AtencionController;
 use App\Http\Controllers\BitacoraController;
+use App\Http\Controllers\EmergenciaController;
 use App\Http\Controllers\EvolucionController;
 use App\Http\Controllers\ExpedienteController;
 use App\Http\Controllers\HabitacionController;
@@ -10,9 +11,11 @@ use App\Http\Controllers\HospitalizacionController;
 use App\Http\Controllers\IngresoController;
 use App\Http\Controllers\InicioController;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\NotaEnfermeriaController;
 use App\Http\Controllers\PacienteController;
 use App\Http\Controllers\PersonalController;
 use App\Http\Controllers\RecuperarContrasenaController;
+use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\SignoVitalController;
 use App\Http\Controllers\TratamientoController;
 use App\Http\Middleware\SesionClinica;
@@ -60,6 +63,7 @@ Route::middleware(SesionClinica::class)->group(function () {
     Route::delete('/pacientes/contactos/{contacto}', [PacienteController::class, 'eliminarContacto'])
         ->name('pacientes.contactos.eliminar');
 
+    Route::get('/expedientes', [ExpedienteController::class, 'index'])->name('expedientes.index');
     Route::get('/pacientes/{paciente}/expediente', [ExpedienteController::class, 'show'])->name('pacientes.expediente');
 
     Route::get('/evolucion', [EvolucionController::class, 'index'])
@@ -143,11 +147,25 @@ Route::middleware(SesionClinica::class)->group(function () {
     Route::delete('/tratamientos/{tratamiento}', [TratamientoController::class, 'eliminar'])
         ->name('tratamientos.eliminar');
 
+    // El origen está cerrado; RegistroIngreso protege la creación nueva con sus propios bloqueos.
+    Route::get('/atencion/{origen}/seguimiento', [SeguimientoController::class, 'crear'])->name('seguimientos.crear');
+    Route::post('/atencion/{origen}/seguimiento', [SeguimientoController::class, 'guardar'])->name('seguimientos.guardar');
+
     Route::get('/atencion', [AtencionController::class, 'index'])
         ->name('atencion.index');
+
+    Route::get('/atencion/{ingreso}/enfermeria', [AtencionController::class, 'enfermeria'])
+        ->name('atencion.enfermeria');
+
+    Route::post('/pacientes/{paciente}/consulta', [IngresoController::class, 'iniciarConsulta'])
+        ->name('consultas.iniciar');
+
+    Route::post('/atencion/{ingreso}/notas-enfermeria', [NotaEnfermeriaController::class, 'guardar'])
+        ->name('notas-enfermeria.guardar');
 
     Route::get('/atencion/{ingreso}', [AtencionController::class, 'show'])
         ->name('atencion.show');
 
     Route::post('/atencion/{ingreso}/alta', [AltaMedicaController::class, 'guardar'])->name('alta.guardar');
+    Route::post('/atencion/{ingreso}/emergencia', [EmergenciaController::class, 'guardar'])->name('emergencia.guardar');
 });

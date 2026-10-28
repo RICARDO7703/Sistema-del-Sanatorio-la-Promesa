@@ -5,7 +5,7 @@
     const guardado = @json(session('borrador_clinico_guardado'));
     const formularioConErrores = @json(old('_formulario'));
     const ingresoActivo = @json($ingreso->estado === 'Activo');
-    const formularios = [...document.querySelectorAll('#form-evolucion, #modalValoracion form')];
+    const formularios = [...document.querySelectorAll('#form-evolucion, #modalValoracion form, form[data-borrador]')];
     const leer = clave => {
         try { return JSON.parse(sessionStorage.getItem(clave)); } catch { return null; }
     };
@@ -41,12 +41,14 @@
                 });
             });
             campos().forEach(campo => {
-                const anterior = borrador.campos.find(dato => dato.nombre === campo.name && dato.tipo === campo.type && (campo.type !== 'radio' || dato.valor === campo.value));
+                const anterior = borrador.campos.find(dato => dato.nombre === campo.name && dato.tipo === campo.type && ((campo.type !== 'radio' && campo.type !== 'checkbox') || dato.valor === campo.value));
                 if (!anterior || typeof anterior.valor !== 'string') return;
                 if (campo.type === 'radio' || campo.type === 'checkbox') campo.checked = anterior.marcado === true;
                 else if (campo.name === 'examen_fisico[peso]' && borrador.unidadPeso !== 'lb' && anterior.valor.trim() !== '' && Number.isFinite(Number(anterior.valor))) campo.value = (Number(anterior.valor) * 2.2046226218).toFixed(2);
                 else campo.value = anterior.valor;
             });
+            const aviso = form.querySelector('[data-aviso-borrador]');
+            if (aviso) aviso.hidden = false;
         }
         let modificado = formularioConErrores === identificador || Boolean(borrador);
         const conservar = () => {
@@ -69,6 +71,19 @@
                 queueMicrotask(conservar);
             }
         });
+        form.querySelector('[data-descartar-borrador]')?.addEventListener('click', () => {
+            form.reset();
+            form.querySelectorAll('input[type="checkbox"], input[type="radio"]').forEach(campo => campo.dispatchEvent(new Event('change', {bubbles: true})));
+            form.querySelectorAll('.is-invalid').forEach(campo => campo.classList.remove('is-invalid'));
+            form.querySelectorAll('.invalid-feedback').forEach(aviso => aviso.classList.remove('d-block'));
+            modificado = false;
+            eliminar(clave);
+            form.querySelectorAll('[data-aviso-borrador]').forEach(aviso => { aviso.hidden = true; });
+            document.querySelectorAll('[data-aviso-borrador-pagina="' + identificador + '"]').forEach(aviso => { aviso.hidden = true; });
+        });
+        if (borrador && formularioConErrores !== identificador) {
+            document.querySelectorAll('[data-aviso-borrador-pagina="' + identificador + '"]').forEach(aviso => { aviso.hidden = false; });
+        }
         form.closest('.modal')?.addEventListener('hide.bs.modal', conservar);
         window.addEventListener('pagehide', conservar);
         if (formularioConErrores === identificador) conservar();
