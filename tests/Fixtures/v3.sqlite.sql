@@ -195,8 +195,10 @@ CREATE TABLE tbl_contacto_paciente (
 );
 
 CREATE TABLE tbl_ingreso (
+    id_ingreso_anterior INT NULL,
     id_ingreso INTEGER PRIMARY KEY AUTOINCREMENT,
     id_paciente INT NOT NULL,
+    tipo_atencion TEXT CHECK (tipo_atencion IN ('Hospitalización', 'Consulta externa')) NOT NULL DEFAULT 'Hospitalización',
     id_personal_registra INT NOT NULL,
     fecha_ingreso DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     motivo_ingreso VARCHAR(255) NULL,
@@ -489,8 +491,11 @@ CREATE TABLE tbl_atencion_enfermeria (
     id_ingreso INT NOT NULL,
     id_personal INT NOT NULL,
     fecha_hora DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    actividad VARCHAR(180) NOT NULL,
+    estado_paciente VARCHAR(20) NULL CHECK (estado_paciente IN ('Mejoró', 'Sin cambios', 'Empeoró')),
+    id_signos_vitales INTEGER NULL,
+    actividad VARCHAR(180) NULL,
     observaciones TEXT NULL,
+    aviso_medico TINYINT(1) NOT NULL DEFAULT 0,
     id_usuario_creacion INT NOT NULL,
     id_usuario_modificacion INT NULL,
     fecha_registro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -506,6 +511,18 @@ CREATE TABLE tbl_atencion_enfermeria (
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_atencion_enfermeria_usuario_modificacion FOREIGN KEY (id_usuario_modificacion)
         REFERENCES tbl_usuario (id_usuario)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_atencion_enfermeria_signos FOREIGN KEY (id_signos_vitales)
+        REFERENCES tbl_signos_vitales (id_signos_vitales)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE TABLE tbl_atencion_enfermeria_actividad (
+    id_actividad INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_atencion_enfermeria INTEGER NOT NULL,
+    actividad VARCHAR(100) NOT NULL,
+    CONSTRAINT fk_actividad_atencion_enfermeria FOREIGN KEY (id_atencion_enfermeria)
+        REFERENCES tbl_atencion_enfermeria (id_atencion_enfermeria)
         ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
@@ -534,6 +551,19 @@ CREATE TABLE tbl_alta_medica (
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_alta_usuario_modificacion FOREIGN KEY (id_usuario_modificacion)
         REFERENCES tbl_usuario (id_usuario)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE TABLE tbl_alta_medicamento (
+    id_alta_medicamento INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_alta INT NOT NULL,
+    medicamento VARCHAR(255) NOT NULL,
+    dosis VARCHAR(100) NOT NULL,
+    via_administracion VARCHAR(80) NULL,
+    frecuencia VARCHAR(100) NOT NULL,
+    duracion VARCHAR(100) NULL,
+    CONSTRAINT fk_alta_medicamento_alta FOREIGN KEY (id_alta)
+        REFERENCES tbl_alta_medica (id_alta)
         ON UPDATE CASCADE ON DELETE RESTRICT
 );
 

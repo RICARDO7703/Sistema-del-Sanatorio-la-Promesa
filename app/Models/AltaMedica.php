@@ -21,13 +21,13 @@ class AltaMedica extends Model
         'indicaciones_alta',
         'observaciones',
         'id_usuario_creacion',
-        'id_usuario_modificacion'
+        'id_usuario_modificacion',
     ];
 
     protected $casts = [
         'fecha_hora' => 'datetime',
         'fecha_registro' => 'datetime',
-        'fecha_actualizacion' => 'datetime'
+        'fecha_actualizacion' => 'datetime',
     ];
 
     public function ingreso()
@@ -46,5 +46,14 @@ class AltaMedica extends Model
             'id_personal_medico',
             'id_personal'
         );
+    }
+
+    public function medicamentos()
+    {
+        return $this->hasMany(
+            AltaMedicamento::class,
+            'id_alta',
+            'id_alta'
+        )->orderBy('id_alta_medicamento');
     }
 }

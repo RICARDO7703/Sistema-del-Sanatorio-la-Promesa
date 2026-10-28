@@ -17,6 +17,7 @@ class HospitalizacionController extends Controller
     public function guardar(Request $request, Ingreso $ingreso): RedirectResponse
     {
         $datos = $this->validar($request);
+        $eraEmergencia = $ingreso->esConsultaExterna();
         DB::transaction(function () use ($ingreso, $datos): void {
             $actual = Ingreso::whereKey($ingreso->getKey())->lockForUpdate()->firstOrFail();
             ReglasAtencion::exigirActivo($actual->estado);
@@ -33,9 +34,10 @@ class HospitalizacionController extends Controller
                 'id_hospitalizacion' => $hospitalizacion->getKey(), 'id_habitacion' => $habitacion->getKey(),
                 'fecha_hora_inicio' => now(), 'id_usuario_creacion' => session('id_usuario'),
             ]);
+            $actual->update(['tipo_atencion' => Ingreso::TIPO_HOSPITALIZACION, 'id_usuario_modificacion' => session('id_usuario')]);
         });
 
-        return redirect()->route('atencion.show', $ingreso)->with('exito', 'Habitación asignada correctamente.');
+        return redirect()->route('atencion.show', $ingreso)->with('exito', $eraEmergencia ? 'Paciente internado: la consulta externa ahora es una hospitalización.' : 'Habitación asignada correctamente.');
     }
 
     public function cambiarHabitacion(Request $request, Hospitalizacion $hospitalizacion): RedirectResponse

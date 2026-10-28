@@ -5,8 +5,18 @@
 @section('menu-atencion', 'activo')
 
 @section('content')
+@if($ingreso->atencionAnterior && !$ingreso->esConsultaExterna())
+@include('seguimientos.resumen', ['anterior' => $ingreso->atencionAnterior])
+@endif
+@if($ingreso->estado !== 'Activo')
+<div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <span><i class="bi bi-lock" aria-hidden="true"></i> {{ $ingreso->esConsultaExterna() ? 'Consulta externa finalizada.' : 'Ingreso dado de alta.' }} Historia clínica disponible en modo consulta.</span>
+    @if($ingreso->estado === 'Dado de alta' && $ingreso->paciente->estado === 'Activo' && !$ingreso->paciente->ingresos()->where('estado', 'Activo')->exists())
+    <a href="{{ route('seguimientos.crear', $ingreso) }}" class="btn btn-primary"><i class="bi bi-arrow-return-right" aria-hidden="true"></i> Nuevo seguimiento (el paciente regresó)</a>
+    @endif
+</div>
+@endif
 <fieldset class="atencion-contenido" @disabled($ingreso->estado !== 'Activo')>
-@if($ingreso->estado !== 'Activo')<div class="alert alert-info">Ingreso dado de alta. Historia clínica disponible en modo consulta.</div>@endif
 @if($errors->any())
 <div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
 @endif
@@ -19,8 +29,16 @@
     </div>
 
     <div>
-        <h1>Atención del paciente</h1>
-        <p>Expediente y seguimiento clínico del ingreso</p>
+        <h1>{{ $ingreso->id_ingreso_anterior ? 'Seguimiento' : 'Atención del paciente' }}</h1>
+        <p>
+            @if($ingreso->esConsultaExterna())
+            <span class="badge bg-consulta fs-6"><i class="bi bi-person-walking" aria-hidden="true"></i> Consulta externa</span>
+            Atención sin internamiento
+            @else
+            <span class="badge bg-danger fs-6"><i class="bi bi-hospital" aria-hidden="true"></i> Hospitalización</span>
+            Expediente y seguimiento clínico del ingreso
+            @endif
+        </p>
     </div>
 
 </div>
@@ -40,25 +58,30 @@
 @endif
 
 
-<!-- Regresar -->
-<div class="d-flex gap-2 mb-4">
+<!-- Acciones del ingreso -->
+<div class="d-flex flex-wrap align-items-center gap-2 mb-4">
 
     <a
-        href="{{ route('atencion.index') }}"
+        href="{{ $ingreso->esConsultaExterna() ? route('pacientes.index') : route('atencion.index') }}"
         class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i>
-        Volver a pacientes en atención
+        {{ $ingreso->esConsultaExterna() ? 'Volver a pacientes' : 'Volver a pacientes en atención' }}
     </a>
 
+    @if($ingreso->estado === 'Activo')
     <button
         type="button"
         class="btn btn-outline-primary"
         data-bs-toggle="modal"
         data-bs-target="#modalEditarIngreso">
         <i class="bi bi-pencil"></i>
-        Editar ingreso
+        {{ $ingreso->esConsultaExterna() ? 'Editar atención' : 'Editar ingreso' }}
     </button>
+    @endif
 
+    @if(! $ingreso->esConsultaExterna() && $ingreso->evoluciones->isNotEmpty() && ($ingreso->estado === 'Activo' || $ingreso->altaMedica))
+    <a href="#modalAlta" role="button" class="btn btn-success accion-alta-medica" data-bs-toggle="modal" data-bs-target="#modalAlta"><i class="bi bi-clipboard2-check me-2" aria-hidden="true"></i>{{ $ingreso->altaMedica ? 'Ver alta médica' : 'Alta médica' }}</a>
+    @endif
 </div>
 
 
@@ -95,6 +118,7 @@
 <!-- Datos del ingreso -->
 <div class="evolucion-card mb-3">
     <div class="row g-4">
+        @unless($ingreso->esConsultaExterna())
         <!-- Habitación -->
         <div class="col-md-3">
 
@@ -139,17 +163,19 @@
             @elseif(!$ingreso->hospitalizacion)
 
             <p class="text-muted mb-2">
-                Sin habitación asignada
+                {{ $ingreso->esConsultaExterna() ? 'Sin internamiento' : 'Sin habitación asignada' }}
             </p>
 
+            @if($ingreso->estado === 'Activo')
             <button
                 type="button"
                 class="btn btn-primary btn-sm"
                 data-bs-toggle="modal"
                 data-bs-target="#modalAsignarHabitacion">
                 <i class="bi bi-door-open"></i>
-                Asignar habitación
+                {{ $ingreso->esConsultaExterna() ? 'Internar paciente' : 'Asignar habitación' }}
             </button>
+            @endif
 
             @else
 
@@ -160,19 +186,20 @@
             @endif
 
         </div>
+        @endunless
 
-        <div class="col-md-6">
-            <strong>Motivo de ingreso</strong>
-            <p class="mb-0 text-break">{{ $ingreso->motivo_ingreso ?: 'Sin registro' }}</p>
+        <div class="{{ $ingreso->esConsultaExterna() ? 'col-md-9' : 'col-md-6' }}">
+            <strong>{{ $ingreso->esConsultaExterna() ? 'Motivo de consulta' : 'Motivo de ingreso' }}</strong>
+            <p class="mb-0 text-break">{{ $ingreso->motivo_ingreso ?: ($ingreso->esConsultaExterna() && $ingreso->estado === 'Activo' ? 'Se anota en la consulta, abajo' : 'Sin registro') }}</p>
         </div>
         <div class="col-md-3">
-            <strong>Fecha de ingreso</strong>
+            <strong>{{ $ingreso->esConsultaExterna() ? 'Llegada' : 'Fecha de ingreso' }}</strong>
             <p class="mb-0">{{ $ingreso->fecha_ingreso->format('d/m/Y H:i') }}</p>
         </div>
     </div>
 </div>
 @php($ultimoExamen = $ingreso->evoluciones->sortByDesc('fecha_hora')->first())
-@if($ultimoExamen && $ultimoExamen->examen_fisico)
+@if(! $ingreso->esConsultaExterna() && $ultimoExamen && $ultimoExamen->examen_fisico)
 <div class="alert alert-info d-flex flex-wrap gap-3">
     <strong>Últimos signos registrados · {{ $ultimoExamen->fecha_hora->format('d/m/Y H:i') }}</strong>
     @foreach(['presion_arterial'=>'PA (mmHg)', 'frecuencia_cardiaca'=>'FC (lpm)', 'frecuencia_respiratoria'=>'FR (rpm)', 'temperatura'=>'T (°C)', 'saturacion_oxigeno'=>'SpO₂ (%)'] as $campo=>$etiqueta)
@@ -180,18 +207,21 @@
     @endforeach
 </div>
 @endif
+@if($ingreso->esConsultaExterna())
+@include('atencion.partials.consulta-emergencia')
+@else
 <div class="evolucion-card mb-3">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
         <div>
             @if($ingreso->evoluciones->isNotEmpty())
-                <h5 class="mb-2"><i class="bi bi-check-circle-fill text-success me-2" aria-hidden="true"></i>Valoración inicial registrada</h5>
+                <h5 class="mb-2"><i class="bi bi-check-circle-fill text-success me-2" aria-hidden="true"></i>{{ $ingreso->esConsultaExterna() ? 'Consulta externa registrada' : 'Valoración inicial registrada' }}</h5>
                 <p class="text-muted mb-0">
                     {{ $ingreso->evoluciones->first()->fecha_hora->format('d/m/Y H:i') }}
                     · {{ $ingreso->evoluciones->first()->personal?->nombres }} {{ $ingreso->evoluciones->first()->personal?->apellidos }}
                 </p>
             @else
                 <div class="d-flex align-items-center gap-3 mb-2">
-                    <h5 class="mb-0">Valoración inicial</h5>
+                    <h5 class="mb-0">{{ $ingreso->esConsultaExterna() ? 'Consulta externa' : 'Valoración inicial' }}</h5>
                     <span class="badge bg-warning text-dark">Pendiente</span>
                 </div>
                 <p class="text-muted mb-0">Registra la primera evaluación del paciente.</p>
@@ -202,20 +232,19 @@
         </a>
     </div>
 </div>
-@if($ingreso->evoluciones->isNotEmpty())
-<div class="d-flex justify-content-end mb-3">
-    <a href="#modalAlta" class="btn btn-outline-success" role="button" data-bs-toggle="modal">{{ $ingreso->altaMedica ? 'Ver alta médica' : 'Alta médica' }}</a>
-</div>
-@endif
-<div class="modal fade" id="modalValoracion" tabindex="-1" aria-labelledby="modalValoracion-titulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="modalValoracion-titulo">Valoración inicial</h5><a href="#" role="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></a></div><div class="modal-body">@if($errors->any())<div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+
+<div class="modal fade" id="modalValoracion" tabindex="-1" aria-labelledby="modalValoracion-titulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="modalValoracion-titulo">{{ $ingreso->esConsultaExterna() ? 'Consulta externa' : 'Valoración inicial' }}</h5><a href="#" role="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></a></div><div class="modal-body">@if($errors->any())<div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 @include('atencion.partials.valoracion')</div></div></div></div>
 @if($ingreso->evoluciones->isNotEmpty())
+@unless($ingreso->esConsultaExterna())
 <section id="evoluciones">@include('atencion.partials.evoluciones')</section>
-@if($ingreso->tratamientos->isNotEmpty())
+@endunless
+@if($ingreso->tratamientos->isNotEmpty() && ! $ingreso->esConsultaExterna())
 <details class="my-3"><summary>Tratamientos registrados anteriormente</summary>@include('atencion.partials.tratamientos')</details>
 @endif
-<section id="alta"><div class="modal fade" id="modalAlta" tabindex="-1" aria-labelledby="modalAlta-titulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="modalAlta-titulo">Alta médica</h5><a href="#" role="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></a></div><div class="modal-body">@if($errors->any())<div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+<section id="alta"><div class="modal fade" id="modalAlta" tabindex="-1" aria-labelledby="modalAlta-titulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="modalAlta-titulo">{{ $ingreso->esConsultaExterna() ? 'Finalizar consulta externa' : 'Alta médica' }}</h5><a href="#" role="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></a></div><div class="modal-body">@if($errors->any())<div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 @include('atencion.partials.alta')</div></div></div></div></section>
+@endif
 @endif
 <!-- Modal asignar habitación -->
 @if(!$ingreso->hospitalizacion)
@@ -242,7 +271,7 @@
                 <div class="modal-header">
 
                     <h5 class="modal-title">
-                        Asignar habitación
+                        {{ $ingreso->esConsultaExterna() ? 'Internar paciente' : 'Asignar habitación' }}
                     </h5>
 
                     <button
@@ -254,6 +283,9 @@
 
                 <div class="modal-body">@if($errors->any())<div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
+                    @if($ingreso->esConsultaExterna())
+                    <p class="text-muted">La consulta externa pasará a ser una hospitalización. Se conservan los signos, valoraciones y medicamentos ya registrados.</p>
+                    @endif
 
                     <div class="mb-3">
 
@@ -310,7 +342,7 @@
                             name="motivo"
                             class="form-control"
                             rows="3"
-                            maxlength="255">{{ old('motivo') }}</textarea>
+                            maxlength="255">{{ old('motivo', $ingreso->esConsultaExterna() ? \Illuminate\Support\Str::limit((string) $ingreso->evoluciones->first()?->diagnostico, 255, '') : '') }}</textarea>
 
                     </div>
 
@@ -346,7 +378,7 @@
                         {{ $habitacionesDisponibles->isEmpty()
                                     ? 'disabled'
                                     : '' }}>
-                        Asignar habitación
+                        {{ $ingreso->esConsultaExterna() ? 'Internar paciente' : 'Asignar habitación' }}
                     </button>
 
                 </div>
@@ -534,7 +566,7 @@ $ingreso->hospitalizacion->habitacionActual
                 <div class="modal-header">
 
                     <h5 class="modal-title">
-                        Editar ingreso
+                        {{ $ingreso->esConsultaExterna() ? 'Editar atención' : 'Editar ingreso' }}
                     </h5>
 
                     <button
@@ -550,7 +582,7 @@ $ingreso->hospitalizacion->habitacionActual
                     <div class="mb-3">
 
                         <label class="form-label">
-                            Fecha y hora de ingreso
+                            {{ $ingreso->esConsultaExterna() ? 'Fecha y hora de llegada' : 'Fecha y hora de ingreso' }}
                         </label>
 
                         <input
@@ -565,7 +597,7 @@ $ingreso->hospitalizacion->habitacionActual
                     <div class="mb-3">
 
                         <label class="form-label">
-                            Motivo de ingreso
+                            {{ $ingreso->esConsultaExterna() ? 'Motivo de consulta' : 'Motivo de ingreso' }}
                         </label>
 
                         <textarea
@@ -630,9 +662,9 @@ $ingreso->hospitalizacion->habitacionActual
 @include('atencion.partials.ordenes-scripts')
 <?php
     $formularioAnterior = old('_formulario', '');
-    $modalAbierto = (str_starts_with($formularioAnterior, 'valoracion') || request('consulta') === 'valoracion' || ($registroSeleccionado && $registroSeleccionado->getKey() === $ingreso->evoluciones->first()?->getKey() && $registroSeleccionado->ordenes_medicas === null)) ? 'modalValoracion'
+    $modalAbierto = session('abrir_internamiento') && ! $ingreso->hospitalizacion ? 'modalAsignarHabitacion' : ((str_starts_with($formularioAnterior, 'valoracion') || request('consulta') === 'valoracion' || ($registroSeleccionado && $registroSeleccionado->getKey() === $ingreso->evoluciones->first()?->getKey() && $registroSeleccionado->ordenes_medicas === null)) ? 'modalValoracion'
         : ($formularioAnterior === 'alta' || request('consulta') === 'alta' ? 'modalAlta'
-        : (str_starts_with($formularioAnterior, 'evolucion-') || $registroSeleccionado || request('nuevo') === '1' ? 'modalEvolucion' : null));
+        : (str_starts_with($formularioAnterior, 'evolucion-') || $registroSeleccionado || request('nuevo') === '1' ? 'modalEvolucion' : null)));
 ?>
 @if($modalAbierto)
 <script>

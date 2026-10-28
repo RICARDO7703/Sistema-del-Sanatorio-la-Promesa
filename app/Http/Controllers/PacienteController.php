@@ -3,10 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\ContactoPaciente;
+use App\Models\Habitacion;
+use App\Models\Ingreso;
 use App\Models\Paciente;
+use App\Services\RegistroIngreso;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class PacienteController extends Controller
 {
@@ -115,6 +121,8 @@ class PacienteController extends Controller
             $paciente->fecha_ultima_alta =
                 null;
 
+            $paciente->ultima_alta_emergencia = false;
+
             if ($ingresoActivo) {
 
                 $hospitalizacion =
@@ -145,6 +153,10 @@ class PacienteController extends Controller
                                 ->habitacion
                                 ->numero_habitacion;
                     }
+                } elseif ($ingresoActivo->esConsultaExterna()) {
+
+                    $paciente->situacion_actual =
+                        'En consulta';
                 } else {
 
                     $paciente->situacion_actual =
@@ -182,6 +194,8 @@ class PacienteController extends Controller
                 $paciente->situacion_actual =
                     'Dado de alta';
 
+                $paciente->ultima_alta_emergencia = $ultimoIngresoConAlta->esConsultaExterna();
+
                 $paciente
                     ->fecha_ultima_alta =
                     $ultimoIngresoConAlta
@@ -190,12 +204,18 @@ class PacienteController extends Controller
             }
         }
 
+        $habitacionesDisponibles = Habitacion::where('estado_operativo', 'Activa')
+            ->whereDoesntHave('asignacionesHospitalizacion', fn ($consulta) => $consulta->whereNull('fecha_hora_fin'))
+            ->orderBy('numero_habitacion')
+            ->get();
+
         return view(
             'pacientes.index',
             compact(
                 'pacientes',
                 'buscar',
-                'estado'
+                'estado',
+                'habitacionesDisponibles'
             )
         );
     }
@@ -220,10 +240,36 @@ class PacienteController extends Controller
                 $request
             );
 
-        $contacto =
-            $this->validarContactoOpcional(
-                $request
-            );
+        $contactos = $this->validarContactos($request);
+
+        $hospitalizacion = $request->validate(
+            [
+                'hospitalizar' => ['nullable', 'boolean'],
+                'fecha_ingreso' => ['exclude_unless:hospitalizar,1', 'required', 'date', 'before_or_equal:'.now('America/Guatemala')->format('Y-m-d H:i:s')],
+                'id_habitacion' => ['exclude_unless:hospitalizar,1', 'bail', 'required', 'integer', 'exists:tbl_habitacion,id_habitacion'],
+                'motivo_ingreso' => ['exclude_unless:hospitalizar,1', 'nullable', 'string', 'max:255'],
+                'documento_firmado' => ['exclude_unless:hospitalizar,1', 'nullable', 'boolean'],
+            ],
+            [
+                'fecha_ingreso.required' => 'Indique la fecha y hora de llegada.',
+                'fecha_ingreso.before_or_equal' => 'La fecha y hora de llegada no pueden ser futuras.',
+                'id_habitacion.required' => 'Seleccione la habitación donde se internará.',
+                'id_habitacion.exists' => 'La habitación seleccionada no existe.',
+                'motivo_ingreso.max' => 'El motivo de ingreso no puede superar los 255 caracteres.',
+            ]
+        );
+
+        $hospitalizar = $request->boolean('hospitalizar');
+
+        $idPersonal = $hospitalizar
+            ? DB::table('tbl_usuario')->where('id_usuario', $idUsuario)->value('id_personal')
+            : null;
+
+        if ($hospitalizar && ! $idPersonal) {
+            return back()
+                ->withInput()
+                ->with('error', 'El usuario no tiene personal asociado para hospitalizar al paciente.');
+        }
 
         $datos['nombres'] =
             $this->formatearNombre(
@@ -243,36 +289,20 @@ class PacienteController extends Controller
                     ?? null
             );
 
-        if (! empty($contacto['nombre'])) {
-
-            $contacto['nombre'] =
-                $this->formatearNombre(
-                    $contacto['nombre']
-                );
-
-            $contacto['parentesco'] =
-                $this->formatearNombre(
-                    $contacto['parentesco']
-                        ?? null
-                );
-
-            $contacto['telefono'] =
-                $this->formatearTelefono(
-                    $contacto['telefono']
-                        ?? null
-                );
-        }
-
         $datos['estado'] =
             'Activo';
 
         $datos['id_usuario_creacion'] =
             $idUsuario;
 
-        DB::transaction(
+        $ingreso = DB::transaction(
             function () use (
                 &$datos,
-                $contacto
+                $contactos,
+                $hospitalizar,
+                $hospitalizacion,
+                $idUsuario,
+                $idPersonal
             ) {
 
                 $datos['numero_expediente'] =
@@ -299,31 +329,34 @@ class PacienteController extends Controller
                         $datos
                     );
 
-                if (
-                    ! empty(
-                        $contacto['nombre']
-                    )
-                ) {
+                foreach ($contactos as $contacto) {
+                    $paciente->contactos()->create($contacto);
+                }
 
-                    ContactoPaciente::create([
-                        'id_paciente' => $paciente
-                            ->id_paciente,
+                if (! $hospitalizar) {
+                    return null;
+                }
 
-                        'nombre' => $contacto[
-                                'nombre'
-                            ],
-
-                        'parentesco' => $contacto[
-                                'parentesco'
-                            ] ?? null,
-
-                        'telefono' => $contacto[
-                                'telefono'
-                            ] ?? null,
-                    ]);
+                try {
+                    return RegistroIngreso::registrar([
+                        'id_paciente' => $paciente->id_paciente,
+                        'tipo_atencion' => Ingreso::TIPO_HOSPITALIZACION,
+                        'fecha_ingreso' => Carbon::parse($hospitalizacion['fecha_ingreso'])->format('Y-m-d H:i:s'),
+                        'motivo_ingreso' => $hospitalizacion['motivo_ingreso'] ?? null,
+                        'documento_firmado' => (bool) ($hospitalizacion['documento_firmado'] ?? false),
+                        'id_habitacion' => (int) $hospitalizacion['id_habitacion'],
+                    ], (int) $idUsuario, (int) $idPersonal);
+                } catch (RuntimeException $error) {
+                    throw ValidationException::withMessages(['id_habitacion' => $error->getMessage()]);
                 }
             }
         );
+
+        if ($ingreso) {
+            return redirect()
+                ->route('atencion.show', $ingreso)
+                ->with('exito', 'Paciente registrado y hospitalizado.');
+        }
 
         return redirect()
             ->route(
@@ -396,9 +429,19 @@ class PacienteController extends Controller
             'id_usuario_modificacion'
         ] = $idUsuario;
 
-        $paciente->update(
-            $datos
-        );
+        $contactos = $this->validarContactos($request, $paciente);
+        DB::transaction(function () use ($paciente, $datos, $contactos) {
+            $paciente->update($datos);
+            foreach ($contactos as $contacto) {
+                $id = $contacto['id_contacto'] ?? null;
+                unset($contacto['id_contacto']);
+                if ($id) {
+                    $paciente->contactos()->whereKey($id)->firstOrFail()->update($contacto);
+                } else {
+                    $paciente->contactos()->create($contacto);
+                }
+            }
+        });
 
         return redirect()
             ->route(
@@ -826,6 +869,38 @@ class PacienteController extends Controller
                 'telefono.regex' => 'El teléfono debe contener 8 dígitos.',
             ]
         );
+    }
+
+    private function validarContactos(Request $request, ?Paciente $paciente = null): array
+    {
+        // Mantener compatibilidad con formularios que envían un solo contacto.
+        if (! $request->has('contactos')) {
+            $contacto = $this->validarContactoOpcional($request);
+            $request->merge(['contactos' => $contacto ? [$contacto] : []]);
+        }
+        $datos = $request->validate([
+            'contactos' => ['nullable', 'array', 'max:20'],
+            'contactos.*' => ['array:id_contacto,nombre,parentesco,telefono'],
+            'contactos.*.id_contacto' => ['nullable', 'integer', 'distinct', Rule::exists('tbl_contacto_paciente', 'id_contacto')->where('id_paciente', $paciente?->id_paciente ?? 0)],
+            'contactos.*.nombre' => ['nullable', 'required_with:contactos.*.id_contacto,contactos.*.parentesco,contactos.*.telefono', 'string', 'max:150', "regex:/^(?=.*\pL)[\pL\s'-]+$/u"],
+            'contactos.*.parentesco' => ['nullable', 'string', 'max:50', "regex:/^(?=.*\pL)[\pL\s'-]+$/u"],
+            'contactos.*.telefono' => ['nullable', 'regex:/^(?:[0-9]{8}|[0-9]{4}-[0-9]{4})$/'],
+        ], [
+            'contactos.*.nombre.required_with' => 'Indique el nombre del contacto.',
+            'contactos.*.nombre.regex' => 'El nombre del contacto solo admite letras, espacios, apóstrofes y guiones.',
+            'contactos.*.telefono.regex' => 'El teléfono del contacto debe contener 8 dígitos.',
+            'contactos.*.id_contacto.exists' => 'El contacto no pertenece a este paciente.',
+            'contactos.max' => 'Puede guardar hasta 20 contactos por formulario.',
+        ]);
+
+        return collect($datos['contactos'] ?? [])->filter(fn ($contacto) => ! empty($contacto['nombre']))
+            ->map(function ($contacto) {
+                $contacto['nombre'] = $this->formatearNombre($contacto['nombre']);
+                $contacto['parentesco'] = $this->formatearNombre($contacto['parentesco'] ?? null);
+                $contacto['telefono'] = $this->formatearTelefono($contacto['telefono'] ?? null);
+
+                return $contacto;
+            })->values()->all();
     }
 
     private function validarContactoOpcional(

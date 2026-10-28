@@ -43,6 +43,11 @@
                     <span>Pacientes</span>
                 </a>
 
+                <a class="nav-link @yield('menu-expedientes')" href="{{ route('expedientes.index') }}">
+                    <i class="bi bi-folder2-open"></i>
+                    <span>Expedientes</span>
+                </a>
+
                 <a class="nav-link @yield('menu-atencion')" href="{{ route('atencion.index') }}">
                     <i class="bi bi-clipboard2-pulse"></i>
                     <span>Atención del paciente</span>

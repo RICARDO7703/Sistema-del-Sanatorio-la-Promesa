@@ -16,21 +16,36 @@ class AltaMedicaController extends Controller
 {
     public function guardar(Request $request, Ingreso $ingreso): RedirectResponse
     {
+        $request->merge(['medicamentos_casa' => $this->filasConDatos($request->input('medicamentos_casa'))]);
         $datos = $request->validate([
+            'medicamentos_casa' => ['nullable', 'array', 'max:20'],
+            'medicamentos_casa.*' => ['array:medicamento,dosis,via_administracion,frecuencia,duracion'],
+            'medicamentos_casa.*.medicamento' => ['required', 'string', 'max:255'],
+            'medicamentos_casa.*.dosis' => ['required', 'string', 'max:100'],
+            'medicamentos_casa.*.via_administracion' => ['nullable', 'string', 'max:80'],
+            'medicamentos_casa.*.frecuencia' => ['required', 'string', 'max:100'],
+            'medicamentos_casa.*.duracion' => ['nullable', 'string', 'max:100'],
             'id_personal_medico' => ['required', 'integer', Rule::exists('tbl_personal', 'id_personal')->where('estado', 'Activo')],
             'fecha_hora' => ['required', 'date', 'before_or_equal:now'],
             'diagnostico_final' => ['required', 'string', 'max:2000'],
             'condicion_egreso' => ['required', 'string', 'max:150'],
             'indicaciones_alta' => ['nullable', 'string', 'max:2000'],
             'observaciones' => ['nullable', 'string', 'max:2000'],
+        ], [
+            'medicamentos_casa.max' => 'Puede indicar como máximo 20 medicamentos para casa.',
+            'medicamentos_casa.*.medicamento.required' => 'Escriba el nombre de cada medicamento para casa.',
+            'medicamentos_casa.*.dosis.required' => 'Indique la dosis de cada medicamento para casa.',
+            'medicamentos_casa.*.frecuencia.required' => 'Indique la frecuencia de cada medicamento para casa.',
         ]);
+        $medicamentosCasa = $datos['medicamentos_casa'] ?? [];
+        unset($datos['medicamentos_casa']);
         $esMedico = DB::table('tbl_personal')->join('tbl_cargo', 'tbl_cargo.id_cargo', '=', 'tbl_personal.id_cargo')
             ->where('tbl_personal.id_personal', $datos['id_personal_medico'])
             ->whereIn('tbl_cargo.nombre_cargo', ['Médico general', 'Médico especialista', 'Cirujano', 'Cirujano externo', 'Anestesiólogo'])->exists();
         if (! $esMedico) {
             throw ValidationException::withMessages(['id_personal_medico' => 'Seleccione personal con cargo médico.']);
         }
-        DB::transaction(function () use ($ingreso, $datos): void {
+        DB::transaction(function () use ($ingreso, $datos, $medicamentosCasa): void {
             $actual = Ingreso::whereKey($ingreso->getKey())->lockForUpdate()->firstOrFail();
             ReglasAtencion::exigirActivo($actual->estado);
             $fecha = Carbon::parse($datos['fecha_hora']);
@@ -49,11 +64,31 @@ class AltaMedicaController extends Controller
                 }
                 $hospitalizacion->update(['estado' => 'Finalizada', 'fecha_fin' => $fecha, 'id_usuario_modificacion' => session('id_usuario')]);
             }
-            AltaMedica::create($datos + ['id_ingreso' => $actual->getKey(), 'id_usuario_creacion' => session('id_usuario')]);
+            $alta = AltaMedica::create($datos + ['id_ingreso' => $actual->getKey(), 'id_usuario_creacion' => session('id_usuario')]);
+            foreach ($medicamentosCasa as $fila) {
+                $alta->medicamentos()->create(array_map(fn ($valor) => is_string($valor) ? trim($valor) : $valor, $fila));
+            }
             $actual->tratamientos()->where('estado', 'Activo')->update(['estado' => 'Finalizado', 'id_usuario_modificacion' => session('id_usuario')]);
             $actual->update(['estado' => 'Dado de alta', 'id_usuario_modificacion' => session('id_usuario')]);
         });
 
-        return redirect()->route('atencion.show', $ingreso)->with('exito', 'Alta médica registrada; habitación liberada.');
+        return redirect()->route('atencion.show', $ingreso)->with('exito', $ingreso->esConsultaExterna() ? 'Consulta externa finalizada.' : 'Alta médica registrada; habitación liberada.');
+    }
+
+    /**
+     * Descarta las filas de medicamentos para casa que llegaron completamente vacías.
+     *
+     * @return array<int, mixed>|mixed
+     */
+    private function filasConDatos(mixed $filas): mixed
+    {
+        if (! is_array($filas)) {
+            return $filas;
+        }
+
+        return array_values(array_filter(
+            $filas,
+            fn ($fila) => ! is_array($fila) || collect($fila)->contains(fn ($valor) => $valor !== null && (! is_string($valor) || trim($valor) !== ''))
+        ));
     }
 }

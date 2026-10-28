@@ -204,7 +204,9 @@ class EvolucionController extends Controller
             )
             ->with(
                 'exito',
-                'Evolución clínica registrada correctamente.'
+                $ingreso->esConsultaExterna()
+                    ? 'Consulta externa registrada correctamente.'
+                    : 'Evolución clínica registrada correctamente.'
             )->with('borrador_clinico_guardado', is_string($request->input('_formulario')) ? $request->input('_formulario') : null);
     }
 
@@ -365,7 +367,9 @@ class EvolucionController extends Controller
             )
             ->with(
                 'exito',
-                'Evolución clínica actualizada correctamente.'
+                $evolucion->ingreso?->esConsultaExterna()
+                    ? 'Consulta externa actualizada correctamente.'
+                    : 'Evolución clínica actualizada correctamente.'
             )->with('borrador_clinico_guardado', is_string($request->input('_formulario')) ? $request->input('_formulario') : null);
     }
 
