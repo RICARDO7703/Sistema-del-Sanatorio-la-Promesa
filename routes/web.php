@@ -21,6 +21,7 @@ use App\Http\Controllers\RecuperarContrasenaController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\SignoVitalController;
 use App\Http\Controllers\TratamientoController;
+use App\Http\Middleware\RegistrarOperaciones;
 use App\Http\Middleware\SesionClinica;
 use Illuminate\Support\Facades\Route;
 
@@ -38,9 +39,13 @@ Route::post('/login', [LoginController::class, 'validar'])
 Route::post('/logout', [LoginController::class, 'cerrarSesion'])
     ->name('logout');
 
-Route::middleware(SesionClinica::class)->group(function () {
+Route::middleware([SesionClinica::class, RegistrarOperaciones::class])->group(function () {
+
+    Route::post('/sesion/salida-pagina', [LoginController::class, 'salidaPagina'])->middleware('throttle:60,1')->name('sesion.salida-pagina');
 
     Route::get('/mi-perfil', [PerfilController::class, 'show'])->name('perfil.show');
+    Route::get('/mi-perfil/foto', [PerfilController::class, 'editarFoto'])->name('perfil.foto.editar');
+    Route::get('/mi-perfil/contrasena', [PerfilController::class, 'editarContrasena'])->name('perfil.contrasena.editar');
     Route::patch('/mi-perfil/contacto', [PerfilController::class, 'contacto'])->name('perfil.contacto');
     Route::post('/mi-perfil/foto', [PerfilController::class, 'foto'])->name('perfil.foto');
     Route::delete('/mi-perfil/foto', [PerfilController::class, 'quitarFoto'])->name('perfil.quitar-foto');

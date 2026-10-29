@@ -25,7 +25,7 @@ class ExampleTest extends TestCase
 
         $response->assertOk()
             ->assertSee('href="https://sanatorio.example/css/estilos.css"', false)
-            ->assertSee('src="https://sanatorio.example/imagenes/logo-sanatorio.jpg"', false)
+            ->assertSee('src="https://sanatorio.example/imagenes/emblema-sanatorio.png"', false)
             ->assertSee('action="https://sanatorio.example/login"', false);
     }
 

@@ -6,6 +6,7 @@ use App\Models\Cirugia;
 use App\Models\Ingreso;
 use App\Models\Personal;
 use App\Models\SignoVital;
+use App\Support\RegistroBitacora;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -129,7 +130,10 @@ class CirugiaController extends Controller
             }
             $cirugia->save();
             if (in_array($modo, ['agendar', 'realizada'], true)) {
-                $cirugia->equipo()->syncWithPivotValues($datos['personal'] ?? [], ['rol_quirurgico' => 'Otro', 'estado' => $modo === 'realizada' ? 'Participó' : 'Asignado']);
+                $cambiosEquipo = $cirugia->equipo()->syncWithPivotValues($datos['personal'] ?? [], ['rol_quirurgico' => 'Otro', 'estado' => $modo === 'realizada' ? 'Participó' : 'Asignado']);
+                if (array_filter($cambiosEquipo)) {
+                    app(RegistroBitacora::class)->registrar(request(), 'Asignación de equipo quirúrgico', 'Exitoso', 'Se actualizó el personal asignado a la cirugía.', (int) session('id_usuario'), (int) $cirugia->getKey(), null, 'tbl_cirugia');
+                }
             }
 
             return $cirugia->getKey();

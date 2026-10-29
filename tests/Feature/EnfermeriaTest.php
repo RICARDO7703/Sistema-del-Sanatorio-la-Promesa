@@ -362,4 +362,18 @@ class EnfermeriaTest extends TestCase
             ->assertViewHas('pacientes', fn ($lista) => $lista->pluck('id_paciente')->take(2)->all() === [$nuevo, $antiguo])
             ->assertSeeInOrder(['Emilio Robles', 'Ana Alvarado']);
     }
+
+    public function test_inicio_muestra_cifras_reales_y_turno_actual(): void
+    {
+        $this->internado(1);
+        IngresoFactory::new()->create(['tipo_atencion' => 'Consulta externa', 'fecha_ingreso' => '2026-10-11 09:00:00']);
+
+        $this->sesion()->get('/inicio')->assertOk()
+            ->assertSeeInOrder(['1', 'Paciente internado'])
+            ->assertSeeInOrder(['1', 'Consulta externa hoy'])
+            ->assertSee('50 %')->assertSee('1 de 2 habitaciones')
+            ->assertSee('Pendientes por cerrar')->assertSee('Todo al día')
+            ->assertSee('Turno actual')->assertSee('Mañana · 07:00 – 13:00')->assertSee('1 paciente internado')
+            ->assertSee('Resumen del turno de mañana');
+    }
 }

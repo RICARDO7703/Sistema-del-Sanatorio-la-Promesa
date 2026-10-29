@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->dontFlash(['contrasena', 'contrasena_actual', 'nueva_contrasena', 'nueva_contrasena_confirmation', 'clave_contacto']);
         $exceptions->render(function (ValidationException $exception, Request $request) {
+            $request->attributes->set('operacion_rechazada', true);
             if ($request->expectsJson()) {
                 return null;
             }

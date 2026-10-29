@@ -4,18 +4,19 @@
 @section('content')
 <div class="inicio-encabezado">
     <div class="inicio-icono"><i class="bi bi-clipboard-data"></i></div>
-    <div><h1>Bitácora</h1><p>Inicios de sesión y recuperación de contraseña. Hora de Guatemala.</p></div>
+    <div><h1>Bitácora</h1><p>Accesos y acciones realizadas en el sistema. Hora de Guatemala.</p></div>
 </div>
 <form method="GET" action="{{ url('/bitacora') }}" class="mb-4">
     <div class="row g-3 align-items-end">
         <div class="col-md-4"><label for="fecha" class="form-label">Fecha</label><input id="fecha" name="fecha" type="date" value="{{ request('fecha') }}" class="form-control"></div>
         <div class="col-md-4"><label for="resultado" class="form-label">Resultado</label><select id="resultado" name="resultado" class="form-select"><option value="">Todos</option>@foreach(['Exitoso', 'Fallido'] as $resultado)<option @selected(request('resultado') === $resultado)>{{ $resultado }}</option>@endforeach</select></div>
-        <div class="col-md-4 d-flex gap-2"><button class="btn btn-primary">Buscar</button><a href="{{ url('/bitacora') }}" class="btn btn-outline-secondary">Limpiar</a></div>
+        <div class="col-md-4"><label for="accion" class="form-label">Acción</label><input id="accion" name="accion" class="form-control" maxlength="100" value="{{ request('accion') }}" placeholder="Ej.: paciente, evolución, contraseña"></div>
+        <div class="col-12 d-flex gap-2"><button class="btn btn-primary">Buscar</button><a href="{{ url('/bitacora') }}" class="btn btn-outline-secondary">Limpiar</a></div>
     </div>
     @foreach($errors->all() as $error)<p class="text-danger mt-2">{{ $error }}</p>@endforeach
 </form>
 <div class="bitacora-card">
-    <h2 class="h4">Registro de accesos y recuperación</h2>
+    <h2 class="h4">Registro de acciones</h2>
     <p>{{ $registros->total() }} registros. El nombre intentado no acredita la identidad de quien intentó entrar.</p>
     <div class="table-responsive"><table class="table align-middle bitacora-tabla">
         <thead><tr><th>ID bitácora</th><th>Fecha y hora</th><th>Usuario autenticado</th><th>Usuario intentado</th><th>Acción</th><th>Resultado</th><th>IP</th><th>Navegador</th><th>Sistema operativo</th><th>Tabla</th><th>ID registro</th><th>Detalle</th></tr></thead>
