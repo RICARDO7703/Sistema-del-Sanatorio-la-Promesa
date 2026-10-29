@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class RegistroBitacora
 {
-    public function registrar(Request $request, string $accion, string $resultado, string $descripcion, ?int $usuario = null, ?int $registro = null, ?string $nombre = null): void
+    public function registrar(Request $request, string $accion, string $resultado, string $descripcion, ?int $usuario = null, ?int $registro = null, ?string $nombre = null, string $tabla = 'tbl_usuario'): void
     {
         $agente = mb_substr($request->userAgent() ?? '', 0, 1024);
         $ip = $request->ip();
@@ -25,7 +25,7 @@ class RegistroBitacora
             'navegador' => $this->navegador($agente),
             'sistema_operativo' => $this->sistema($agente),
             'agente_usuario' => $agente ?: null,
-            'tabla' => 'tbl_usuario',
+            'tabla' => $tabla,
             'id_registro' => $registro,
         ]);
     }

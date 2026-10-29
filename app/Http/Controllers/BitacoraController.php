@@ -12,6 +12,7 @@ class BitacoraController extends Controller
     public function index(Request $request): View
     {
         $filtros = $request->validate([
+            'accion' => ['nullable', 'string', 'max:100'],
             'fecha' => ['nullable', 'date_format:Y-m-d'],
             'resultado' => ['nullable', 'in:Exitoso,Fallido'],
         ]);
@@ -24,6 +25,9 @@ class BitacoraController extends Controller
         }
         if (! empty($filtros['resultado'])) {
             $consulta->where('b.resultado', $filtros['resultado']);
+        }
+        if (! empty($filtros['accion'])) {
+            $consulta->where('b.accion', 'like', '%'.$filtros['accion'].'%');
         }
         $registros = $consulta->orderByDesc('b.fecha_hora')->orderByDesc('b.id_bitacora')->paginate(20)->withQueryString();
 

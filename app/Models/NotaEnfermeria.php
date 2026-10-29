@@ -77,13 +77,27 @@ class NotaEnfermeria extends Model
      */
     public function turno(): string
     {
-        $hora = (int) $this->fecha_hora->format('G');
+        return self::turnoPorHora((int) $this->fecha_hora->format('G'));
+    }
 
+    /**
+     * Turno que corresponde a una hora del día (0 a 23).
+     */
+    public static function turnoPorHora(int $hora): string
+    {
         return match (true) {
             $hora >= 7 && $hora < 13 => 'Mañana',
             $hora >= 13 && $hora < 19 => 'Tarde',
             default => 'Noche',
         };
+    }
+
+    /**
+     * Horario de cada turno, para mostrarlo en pantalla.
+     */
+    public static function horarioTurno(string $turno): string
+    {
+        return ['Mañana' => '07:00 – 13:00', 'Tarde' => '13:00 – 19:00', 'Noche' => '19:00 – 07:00'][$turno] ?? '';
     }
 
     /**

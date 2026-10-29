@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Personal;
+use App\Support\RegistroBitacora;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,13 +36,40 @@ class PerfilController extends Controller
         }
     }
 
+    /**
+     * Mi perfil: datos de la cuenta y datos de contacto.
+     */
     public function show(): View
+    {
+        return $this->pantalla('perfil');
+    }
+
+    /**
+     * Pantalla que solo muestra la foto de perfil.
+     */
+    public function editarFoto(): View
+    {
+        return $this->pantalla('foto');
+    }
+
+    /**
+     * Pantalla que solo muestra el cambio de contraseña.
+     */
+    public function editarContrasena(): View
+    {
+        return $this->pantalla('contrasena');
+    }
+
+    /**
+     * @param  'perfil'|'foto'|'contrasena'  $seccion
+     */
+    private function pantalla(string $seccion): View
     {
         $cuenta = $this->cuenta();
         $persona = Personal::with('cargo')->findOrFail($cuenta->id_personal);
         $rol = DB::table('tbl_rol')->where('id_rol', $cuenta->id_rol)->value('nombre_rol');
 
-        return view('perfil.show', ['persona' => $persona, 'nombreUsuario' => $cuenta->nombre_usuario, 'rol' => $rol, 'estadoCuenta' => $cuenta->estado]);
+        return view('perfil.show', ['seccion' => $seccion, 'persona' => $persona, 'nombreUsuario' => $cuenta->nombre_usuario, 'rol' => $rol, 'estadoCuenta' => $cuenta->estado]);
     }
 
     public function contacto(Request $request): RedirectResponse
@@ -69,7 +97,7 @@ class PerfilController extends Controller
             }
         });
 
-        return back()->with('exito', 'Datos de contacto actualizados.');
+        return redirect()->route('perfil.show')->with('exito', 'Datos de contacto actualizados.');
     }
 
     public function foto(Request $request): RedirectResponse
@@ -99,7 +127,7 @@ class PerfilController extends Controller
         }
         $this->borrarFoto($anterior, (int) $cuenta->id_personal);
 
-        return back()->with('exito', 'Foto de perfil actualizada.');
+        return redirect()->route('perfil.foto.editar')->with('exito', 'Foto de perfil actualizada.');
     }
 
     public function quitarFoto(): RedirectResponse
@@ -114,7 +142,7 @@ class PerfilController extends Controller
         });
         $this->borrarFoto($anterior, (int) $cuenta->id_personal);
 
-        return back()->with('exito', 'Foto eliminada. Se mostrará el icono de usuario.');
+        return redirect()->route('perfil.foto.editar')->with('exito', 'Foto eliminada. Se mostrará el icono de usuario.');
     }
 
     private function borrarFoto(?string $ruta, int $personal): void
@@ -150,6 +178,7 @@ class PerfilController extends Controller
             $cuenta = DB::table('tbl_usuario')->where('id_usuario', session('id_usuario'))->lockForUpdate()->firstOrFail();
             $this->comprobarClave($datos['contrasena_actual'], $cuenta);
             DB::table('tbl_usuario')->where('id_usuario', $cuenta->id_usuario)->update(['contrasena' => Hash::make($datos['nueva_contrasena'])]);
+            app(RegistroBitacora::class)->registrar(request(), 'Cambio de contraseña', 'Exitoso', 'El usuario cambió su contraseña desde Mi perfil.', (int) $cuenta->id_usuario, (int) $cuenta->id_usuario);
             if (Schema::hasTable('recuperacion_contrasenas')) {
                 DB::table('recuperacion_contrasenas')->where('id_usuario', $cuenta->id_usuario)->delete();
             }
@@ -158,6 +187,6 @@ class PerfilController extends Controller
         $request->session()->regenerate();
         $request->session()->regenerateToken();
 
-        return back()->with('exito','Contraseña actualizada correctamente.');
+        return redirect()->route('perfil.contrasena.editar')->with('exito', 'Contraseña actualizada correctamente.');
     }
 }

@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\RegistroBitacora;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Symfony\Component\HttpFoundation\Response;
 
 class LoginController extends Controller
 {
@@ -59,8 +62,23 @@ class LoginController extends Controller
         return redirect('/inicio');
     }
 
+    public function salidaPagina(Request $request): Response
+    {
+        $datos = $request->validate(['pagina' => ['required', 'uuid']]);
+        $id = (int) $request->session()->get('id_usuario');
+        $clave = 'salida-pagina:'.$id.':'.$datos['pagina'];
+        if (Cache::add($clave, true, now()->addHours(2))) {
+            app(RegistroBitacora::class)->registrar($request, 'Posible cierre de página', 'Exitoso', 'Aviso recibido del navegador al abandonar la página. Puede ser cierre, recarga o navegación. No confirma cierre de sesión ni invalida otras pestañas.', $id, $id);
+        }
+
+        return response()->noContent();
+    }
+
     public function cerrarSesion(Request $request)
     {
+        if ($id = $request->session()->get('id_usuario')) {
+            app(RegistroBitacora::class)->registrar($request, 'Cierre de sesión', 'Exitoso', 'El usuario cerró su sesión mediante el botón de salida.', (int) $id, (int) $id);
+        }
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

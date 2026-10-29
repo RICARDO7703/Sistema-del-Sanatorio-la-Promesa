@@ -33,6 +33,39 @@ class PerfilTest extends TestCase
         $this->withSession(['id_usuario' => 1])->get(route('perfil.show'))->assertOk()->assertSee('Persona Prueba')->assertSee('Mi perfil')->assertSee('Cambiar contraseña')->assertDontSee('Quitar foto');
     }
 
+    public function test_cada_opcion_del_menu_abre_solo_su_pantalla(): void
+    {
+        $this->get(route('perfil.foto.editar'))->assertRedirect('/');
+        $this->get(route('perfil.contrasena.editar'))->assertRedirect('/');
+        $this->withSession(['id_usuario' => 1]);
+
+        $this->get(route('perfil.show'))->assertOk()
+            ->assertSee(route('perfil.foto.editar'), false)->assertSee(route('perfil.contrasena.editar'), false)
+            ->assertSee('Datos de contacto')->assertSee('name="telefono"', false)
+            ->assertDontSee('name="foto"', false)->assertDontSee('name="nueva_contrasena"', false);
+
+        $this->get(route('perfil.foto.editar'))->assertOk()
+            ->assertSee('<h1>Cambiar foto</h1>', false)->assertSee('name="foto"', false)->assertSee('Volver a mi perfil')
+            ->assertDontSee('name="telefono"', false)->assertDontSee('name="nueva_contrasena"', false);
+
+        $this->get(route('perfil.contrasena.editar'))->assertOk()
+            ->assertSee('<h1>Cambiar contraseña</h1>', false)->assertSee('name="nueva_contrasena"', false)
+            ->assertDontSee('name="telefono"', false)->assertDontSee('name="foto"', false);
+    }
+
+    public function test_cada_formulario_regresa_a_su_propia_pantalla(): void
+    {
+        Storage::fake('documentos_clinicos');
+        $this->withSession(['id_usuario' => 1]);
+
+        $this->from(route('perfil.show'))->patch(route('perfil.contacto'), ['telefono' => '55551234', 'correo' => 'persona@example.com'])->assertRedirect(route('perfil.show'));
+        $this->from(route('perfil.foto.editar'))->post(route('perfil.foto'), ['foto' => UploadedFile::fake()->image('foto.jpg', 100, 100)])->assertRedirect(route('perfil.foto.editar'));
+        $this->from(route('perfil.foto.editar'))->delete(route('perfil.quitar-foto'))->assertRedirect(route('perfil.foto.editar'));
+        $this->from(route('perfil.contrasena.editar'))->post(route('perfil.contrasena'), ['contrasena_actual' => 'Equivocada-12345', 'nueva_contrasena' => 'Segura-Nueva123!', 'nueva_contrasena_confirmation' => 'Segura-Nueva123!'])->assertRedirect(route('perfil.contrasena.editar'));
+        $this->from(route('perfil.contrasena.editar'))->post(route('perfil.contrasena'), ['contrasena_actual' => 'Anterior-12345', 'nueva_contrasena' => 'Segura-Nueva123!', 'nueva_contrasena_confirmation' => 'Segura-Nueva123!'])->assertRedirect(route('perfil.contrasena.editar'));
+        $this->get(route('perfil.contrasena.editar'))->assertSee('Contraseña actualizada correctamente.');
+    }
+
     public function test_cambia_contacto_solo_propio_y_correo_requiere_contrasena(): void
     {
         $this->withSession(['id_usuario' => 1])->patch(route('perfil.contacto'), ['telefono' => '55551234', 'correo' => 'persona@example.com', 'id_personal' => 999, 'id_cargo' => 999, 'estado' => 'Inactivo'])->assertSessionHasNoErrors();
@@ -51,7 +84,7 @@ class PerfilTest extends TestCase
         $persona = Personal::findOrFail(1);
         $primera = $persona->foto_perfil;
         Storage::disk('documentos_clinicos')->assertExists($primera);
-        $this->get(route('perfil.show'))->assertOk()->assertSee('Foto de Persona')->assertSee('Quitar foto');
+        $this->get(route('perfil.foto.editar'))->assertOk()->assertSee('Foto de Persona')->assertSee('Quitar foto');
         $this->get(route('personal.foto', $persona))->assertOk()->assertHeader('Content-Type', 'image/jpeg');
         $this->post(route('perfil.foto'), ['foto' => UploadedFile::fake()->image('otra.png', 100, 100)])->assertSessionHasNoErrors();
         Storage::disk('documentos_clinicos')->assertMissing($primera);

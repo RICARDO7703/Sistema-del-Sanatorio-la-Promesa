@@ -3,8 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f5f9fe">
 
     <title>Login - Sanatorio La Promesa</title>
+
+    <!-- Letra Nunito -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 
     <!-- Bootstrap -->
     <link
@@ -22,141 +28,122 @@
     <link rel="stylesheet" href="{{ asset('css/estilos.css') }}">
 </head>
 
-<body class="login-body">
+<body class="login-body login-acceso">
 
-    <div class="login-contenedor">
+    <!-- Manchas de color difuminadas del fondo -->
+    <div class="acceso-fondo" aria-hidden="true">
+        <span class="acceso-mancha acceso-mancha-1"></span>
+        <span class="acceso-mancha acceso-mancha-2"></span>
+        <span class="acceso-mancha acceso-mancha-3"></span>
+    </div>
 
-        <div class="login-card">
+    <main class="acceso-contenedor">
 
-            <!-- Logo -->
-            <img
-                src="{{ asset('imagenes/logo-sanatorio.jpg') }}"
-                alt="Logo Sanatorio La Promesa"
-                class="logo-login"
-            >
+        <div class="acceso-card">
 
-            <!-- Separador -->
-            <div class="separador-login">
-                <span></span>
+            <!-- Marca -->
+            <div class="acceso-marca">
+                <span class="acceso-emblema">
+                    <img src="{{ asset('imagenes/emblema-sanatorio.png') }}" alt="" width="64" height="64">
+                </span>
+                <p class="acceso-sanatorio">Sanatorio</p>
+                <p class="acceso-nombre">La Promesa</p>
+                <span class="acceso-separador" aria-hidden="true"><span></span></span>
             </div>
 
-            <h2 class="login-titulo">
-                Iniciar sesión
-            </h2>
+            <h1 class="acceso-titulo">Bienvenido de vuelta</h1>
+            <p class="acceso-subtitulo">Ingrese a su cuenta</p>
 
             @if(session('status'))<div class="alert alert-success" role="status">{{ session('status') }}</div>@endif
+
             <form action="{{ route('login.validar') }}" method="POST">
 
                 @csrf
 
                 <!-- Usuario -->
-                <div class="mb-4">
-
-                    <label class="form-label">
-                        Usuario
-                    </label>
-
+                <div class="mb-3">
+                    <label class="form-label" for="usuario">Usuario</label>
                     <div class="login-input">
-
-                        <i class="bi bi-person-fill icono-izquierdo"></i>
-
+                        <i class="bi bi-person icono-izquierdo" aria-hidden="true"></i>
                         <input
                             type="text"
                             name="usuario"
+                            id="usuario"
                             class="form-control"
                             placeholder="Ingrese su usuario"
                             value="{{ old('usuario') }}"
+                            autocomplete="username"
+                            autocapitalize="none"
                             required
                         >
-
                     </div>
-
                     @error('usuario')
-                        <small class="text-danger">
-                            {{ $message }}
-                        </small>
+                        <small class="acceso-error">{{ $message }}</small>
                     @enderror
-
                 </div>
 
                 <!-- Contraseña -->
                 <div class="mb-3">
-
-                    <label class="form-label">
-                        Contraseña
-                    </label>
-
+                    <label class="form-label" for="contrasena">Contraseña</label>
                     <div class="login-input">
-
-                        <i class="bi bi-lock-fill icono-izquierdo"></i>
-
+                        <i class="bi bi-lock icono-izquierdo" aria-hidden="true"></i>
                         <input
                             type="password"
                             name="contrasena"
                             id="contrasena"
                             class="form-control"
                             placeholder="Ingrese su contraseña"
+                            autocomplete="current-password"
                             required
                         >
-
-                        <i
-                            class="bi bi-eye-fill icono-derecho"
+                        <button
+                            type="button"
+                            class="icono-derecho"
                             id="mostrarContrasena"
-                            role="button"
-                        ></i>
-
+                            aria-label="Mostrar contraseña"
+                        ><i class="bi bi-eye" aria-hidden="true"></i></button>
                     </div>
-
                     @error('contrasena')
-                        <small class="text-danger">
-                            {{ $message }}
-                        </small>
+                        <small class="acceso-error">{{ $message }}</small>
                     @enderror
-
                 </div>
 
                 @if(session('aviso_sesion'))
                     <div class="alert alert-info" role="status">{{ session('aviso_sesion') }}</div>
                 @endif
                 @if(session('error'))
-                    <div class="alert alert-danger">
-                        {{ session('error') }}
-                    </div>
+                    <div class="alert alert-danger">{{ session('error') }}</div>
                 @endif
 
-                <button
-                    type="submit"
-                    class="btn btn-primary w-100 btn-login"
-                >
-                    Iniciar sesión
+                <button type="submit" class="btn btn-primary w-100 btn-login">
+                    <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
+                    Ingresar
                 </button>
 
             </form>
 
-            <div class="text-center mt-4">
-                <a href="{{ route('password.request') }}">¿Olvidaste tu contraseña?</a>
+            <div class="text-center mt-3">
+                <a href="{{ route('password.request') }}" class="acceso-enlace">¿Olvidaste tu contraseña?</a>
+            </div>
+
+            <div class="acceso-pie">
+                <span><i class="bi bi-shield-check" aria-hidden="true"></i> Acceso seguro</span>
+                <span>Sistema de Información Clínica · © 2026</span>
             </div>
 
         </div>
 
-    </div>
+    </main>
 
     <script>
         const inputContrasena = document.getElementById('contrasena');
         const botonMostrar = document.getElementById('mostrarContrasena');
 
         botonMostrar.addEventListener('click', function () {
-
-            if (inputContrasena.type === 'password') {
-                inputContrasena.type = 'text';
-                botonMostrar.classList.remove('bi-eye-fill');
-                botonMostrar.classList.add('bi-eye-slash-fill');
-            } else {
-                inputContrasena.type = 'password';
-                botonMostrar.classList.remove('bi-eye-slash-fill');
-                botonMostrar.classList.add('bi-eye-fill');
-            }
-
+            const mostrar = inputContrasena.type === 'password';
+            inputContrasena.type = mostrar ? 'text' : 'password';
+            botonMostrar.querySelector('i').className = mostrar ? 'bi bi-eye-slash' : 'bi bi-eye';
+            botonMostrar.setAttribute('aria-label', mostrar ? 'Ocultar contraseña' : 'Mostrar contraseña');
         });
     </script>
 
