@@ -54,10 +54,9 @@ class CirugiaController extends Controller
             'fecha_fin_real' => [$modo === 'realizada' ? 'required' : 'exclude', 'date', 'after_or_equal:fecha_inicio_real', 'before_or_equal:'.now('America/Guatemala')->format('Y-m-d H:i:s')],
             'motivo_registro_posterior' => [$modo === 'realizada' ? 'required' : 'exclude', 'string', 'max:500'],
             'fecha_programada' => [$modo === 'agendar' ? 'required' : 'nullable', 'date', 'after_or_equal:'.now('America/Guatemala')->format('Y-m-d H:i:00')],
-            'fecha_fin_programada' => [$modo === 'agendar' ? 'required' : 'nullable', 'date', 'after:fecha_programada'],
             'personal' => ['nullable', 'array', 'max:30'], 'personal.*' => ['required', 'integer', 'distinct', Rule::exists('tbl_personal', 'id_personal')->where('estado', 'Activo')],
-        ], ['fecha_programada.after_or_equal' => 'La fecha de la cirugía no puede estar en el pasado.', 'fecha_fin_programada.after' => 'La hora de finalización debe ser posterior al inicio.', 'personal.*.distinct' => 'No agregue dos veces a la misma persona.']);
-        foreach (['fecha_programada', 'fecha_fin_programada', 'fecha_inicio_real', 'fecha_fin_real'] as $campo) {
+        ], ['fecha_programada.required' => 'Indique la fecha y hora de la cirugía.', 'fecha_programada.after_or_equal' => 'La fecha de la cirugía no puede estar en el pasado.', 'personal.*.distinct' => 'No agregue dos veces a la misma persona.']);
+        foreach (['fecha_programada', 'fecha_inicio_real', 'fecha_fin_real'] as $campo) {
             if (! empty($datos[$campo])) {
                 $datos[$campo] = Carbon::parse($datos[$campo])->format('Y-m-d H:i:s');
             }
@@ -102,7 +101,11 @@ class CirugiaController extends Controller
                         throw ValidationException::withMessages(['personal' => 'Seleccione únicamente médicos o personal de enfermería.']);
                     }
                 }
-                $solapadas = Cirugia::whereIn('estado', ['Programada', 'Aprobada', 'Evaluación preoperatoria', 'En cirugía'])->where('fecha_programada', '<', $datos['fecha_fin_programada'])->where('fecha_fin_programada', '>', $datos['fecha_programada'])->when($cirugia->exists, fn ($q) => $q->where('id_cirugia', '<>', $cirugia->getKey()))->where(function ($q) use ($actual, $datos) {
+                $solapadas = Cirugia::whereIn('estado', ['Programada', 'Aprobada', 'Evaluación preoperatoria', 'En cirugía'])->where(function ($q) use ($datos) {
+                    // Sin duración conocida: choca otra cirugía a la misma hora, o una anterior que tenía un fin estimado posterior.
+                    $q->where('fecha_programada', $datos['fecha_programada'])
+                        ->orWhere(fn ($q) => $q->where('fecha_programada', '<', $datos['fecha_programada'])->where('fecha_fin_programada', '>', $datos['fecha_programada']));
+                })->when($cirugia->exists, fn ($q) => $q->where('id_cirugia', '<>', $cirugia->getKey()))->where(function ($q) use ($actual, $datos) {
                     $q->where('id_ingreso', $actual->getKey());
                     if (! empty($datos['personal'])) {
                         $q->orWhereHas('equipo', fn ($q) => $q->whereIn('tbl_personal.id_personal', $datos['personal'])->where('tbl_cirugia_equipo.estado', '<>', 'Cancelado'));
@@ -121,7 +124,8 @@ class CirugiaController extends Controller
             }
             if ($modo === 'agendar') {
                 $cirugia->fecha_programada = $datos['fecha_programada'];
-                $cirugia->fecha_fin_programada = $datos['fecha_fin_programada'];
+                // La duración no se conoce de antemano: solo se agenda la hora de inicio.
+                $cirugia->fecha_fin_programada = null;
             }
             if ($modo === 'realizada') {
                 $cirugia->fecha_inicio_real = $datos['fecha_inicio_real'];

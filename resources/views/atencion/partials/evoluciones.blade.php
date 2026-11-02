@@ -1,8 +1,10 @@
 @php
     $registro = $registroSeleccionado;
     $primero = $ingreso->evoluciones->first();
-    $idValoracion = $primero && $primero->ordenes_medicas === null ? $primero->getKey() : null;
+    $idValoracion = $primero && $primero->estado_mejoria === null ? $primero->getKey() : null;
     $formulario = $registro ? 'evolucion-'.$registro->getKey() : 'evolucion-nueva';
+    // Un registro guardado solo lo corrige quien lo hizo, durante 12 horas; para los demás queda de solo lectura.
+    $soloLectura = $registro && ! (\App\Support\EdicionClinica::puedeEditar($registro) && app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Editar'));
     $recuperar = old('_formulario') === $formulario;
     $valorCampo = fn ($campo, $defecto = '') => $recuperar ? old($campo, $defecto) : ($registro?->{$campo} ?? $defecto);
     $ordenes = $recuperar ? old('ordenes', []) : ($registro?->ordenes_medicas ?? []);
@@ -14,13 +16,15 @@
         ->first(fn ($valor) => filled($valor))])->all();
     $diagnosticoActual = $valorCampo('diagnostico');
     $usarDiagnosticoAnterior = filled($diagnosticoAnterior) && ($recuperar ? old('diagnostico') === $diagnosticoAnterior : ! $registro);
-    $dietaGuardada = $ordenes['dieta'] ?? '';
-    $dietaEsOtra = $dietaGuardada === \App\Services\OrdenesMedicas::DIETA_OTRA || ($dietaGuardada !== '' && ! in_array($dietaGuardada, \App\Services\OrdenesMedicas::DIETAS, true));
-    $textoDietaOtra = $recuperar ? ($ordenes['dieta_otra'] ?? '') : ($dietaEsOtra ? $dietaGuardada : '');
 @endphp
 <div class="evolucion-card">
-    <h4>Evolución clínica y órdenes médicas</h4>
-    <p class="text-muted">Seleccione un registro del historial para consultar o editar su evolución y sus órdenes. Cada registro conserva sus propias indicaciones.</p>
+    <div class="evolucion-historial-encabezado">
+        <div>
+            <h4 class="mb-2">Evolución clínica y órdenes médicas</h4>
+            <p class="text-muted mb-0">Seleccione un registro del historial para consultar o editar su evolución y sus órdenes. Cada registro conserva sus propias indicaciones.</p>
+        </div>
+        @if($ingreso->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Ingresar'))<a class="btn btn-primary evolucion-nueva-accion" href="{{ route('atencion.show', ['ingreso'=>$ingreso->getKey(), 'nuevo'=>1]) }}#evoluciones"><i class="bi bi-plus-circle me-2" aria-hidden="true"></i>Nueva evolución</a>@endif
+    </div>
     <div class="table-responsive"><table class="table table-hover align-middle">
         <thead><tr><th>Fecha y hora</th><th>Médico</th><th>Tipo de registro</th><th>Evolución del paciente</th><th>Acciones</th></tr></thead>
         <tbody>@forelse($historial as $item)
@@ -34,7 +38,6 @@
         @if($historial->previousPageUrl())<a href="{{ $historial->previousPageUrl() }}#evoluciones">Anterior</a>@endif
         <span>Página {{ $historial->currentPage() }} de {{ $historial->lastPage() }} · {{ $historial->total() }} registros</span>
         @if($historial->nextPageUrl())<a href="{{ $historial->nextPageUrl() }}#evoluciones">Siguiente</a>@endif
-        @if($ingreso->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Ingresar'))<a class="btn btn-primary ms-auto" href="{{ route('atencion.show', ['ingreso'=>$ingreso->getKey(), 'nuevo'=>1]) }}#evoluciones">Nueva evolución</a>@endif
     </div>
 <div class="modal fade" id="modalEvolucion" tabindex="-1" aria-labelledby="modalEvolucion-titulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="modalEvolucion-titulo">Evolución clínica y órdenes médicas</h5><a href="#" role="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></a></div><div class="modal-body">@if($errors->any())<div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
     <div class="bg-primary text-white p-3 rounded-top">{{ $registro ? 'Registro #'.$registro->getKey().' · '.$registro->fecha_hora->format('d/m/Y H:i') : 'Nueva evolución' }}</div>
@@ -43,11 +46,19 @@
         @csrf @if($registro) @method('PUT') @endif
         <input type="hidden" name="_formulario" value="{{ $formulario }}">
         <input type="hidden" name="id_ingreso" value="{{ $ingreso->getKey() }}">
+        @if($soloLectura)
+        <div class="alert alert-secondary d-flex gap-2" role="note"><i class="bi bi-lock" aria-hidden="true"></i><span>{{ \App\Support\EdicionClinica::MENSAJE }}</span></div>
+        @elseif($registro)
+        <p class="small text-muted"><i class="bi bi-clock-history" aria-hidden="true"></i> Puede corregir este registro hasta el {{ \App\Support\EdicionClinica::limiteLocal($registro)?->format('d/m/Y') }} a las {{ \App\Support\EdicionClinica::limiteLocal($registro)?->format('H:i') }}.</p>
+        @endif
+        <fieldset class="border-0 p-0 m-0" @disabled($soloLectura)>
         <div class="row g-4">
             <div class="col-xl-6">
                 <h5>Evolución clínica</h5>
                 <label class="form-label" for="evo-fecha">Fecha y hora</label><input id="evo-fecha" class="form-control" type="datetime-local" name="fecha_hora" required min="{{ $ingreso->fecha_ingreso->format('Y-m-d\TH:i') }}" max="{{ now('America/Guatemala')->format('Y-m-d\TH:i') }}" data-max-ahora data-mensaje-requerido="Indique la fecha y hora." data-mensaje-minimo="No puede ser anterior al ingreso." data-mensaje-maximo="La fecha y hora no pueden ser futuras." value="{{ $recuperar ? old('fecha_hora') : ($registro?->fecha_hora?->format('Y-m-d\TH:i') ?? now('America/Guatemala')->format('Y-m-d\TH:i')) }}"><div class="mb-3"></div>
-                <label class="form-label" for="evo-medico">Médico responsable</label><select id="evo-medico" name="id_personal_medico" class="form-select mb-3" data-mensaje-requerido="Seleccione el médico responsable." required><option value="">Seleccione un médico</option>@foreach($medicos as $medico)<option value="{{ $medico->getKey() }}" @selected(($recuperar ? old('id_personal_medico') : ($registro?->id_personal ?? $personalSesion)) == $medico->getKey())>{{ $medico->nombres }} {{ $medico->apellidos }}</option>@endforeach</select>
+                @php($responsable = $registro?->personal ?? \App\Models\Personal::find($personalSesion))
+                {{-- El responsable es el personal del usuario que inició sesión; no se elige. --}}
+                <p class="mb-3"><span class="form-label d-block mb-1">Médico responsable</span><span class="fw-semibold"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>{{ trim($responsable?->nombres.' '.$responsable?->apellidos) ?: 'Sin personal asociado' }}</span></p>
                 <input type="hidden" name="motivo_atencion" value="{{ $registro?->motivo_atencion ?: ($ingreso->motivo_ingreso ?: 'Seguimiento clínico') }}">
                 <label class="form-label" for="evo-sintomas">Síntomas</label><textarea id="evo-sintomas" class="form-control mb-3" name="sintomas" maxlength="1000">{{ $valorCampo('sintomas') }}</textarea>
                 @include('atencion.partials.examen-fisico', ['registro'=>$registro, 'formulario'=>$formulario, 'valoresIniciales'=>$medidasIniciales])
@@ -85,31 +96,14 @@
                 @endif
                 @if($registro?->ordenes_medicas)<div class="border rounded p-2 mb-3"><strong>Órdenes guardadas de este registro</strong>@include('atencion.partials.ordenes-resumen', ['resumenOrdenes'=>$registro->ordenes_medicas])</div>@endif
                 <p><strong>Ingreso #{{ $ingreso->getKey() }}</strong> · Habitación {{ $ingreso->hospitalizacion?->habitacionActual?->habitacion?->numero_habitacion ?? 'Sin asignar' }}</p>
-                <fieldset id="campos-ordenes">
-                    <label class="form-label" for="orden-dieta">Dieta <span class="text-danger">*</span></label>
-                    <select id="orden-dieta" class="form-select mb-2" name="ordenes[dieta]" data-mensaje-requerido="Seleccione la dieta." required>
-                        <option value="">Seleccione</option>
-                        @foreach(\App\Services\OrdenesMedicas::DIETAS as $dieta)<option @selected(! $dietaEsOtra && $dietaGuardada === $dieta)>{{ $dieta }}</option>@endforeach
-                        <option value="{{ \App\Services\OrdenesMedicas::DIETA_OTRA }}" @selected($dietaEsOtra)>Otra (escribirla)</option>
-                    </select>
-                    <div class="mb-3" data-dieta-otra @unless($dietaEsOtra) hidden @endunless>
-                        <input type="text" class="form-control" name="ordenes[dieta_otra]" value="{{ $textoDietaOtra }}" maxlength="100" placeholder="Ej. Hiposódica, diabética" aria-label="Otra dieta" data-mensaje-requerido="Escriba la dieta indicada." @disabled(! $dietaEsOtra) required>
-                    </div>
-                    <h6>Solución</h6><div id="filas-soluciones">
-                    @foreach($ordenes['soluciones'] ?? [] as $indice=>$fila)@include('atencion.partials.fila-solucion')@endforeach
-                    </div><button type="button" class="btn btn-outline-primary btn-sm mb-3" data-agregar="soluciones">Agregar solución</button>
-                    <h6>Medicamentos</h6><div id="filas-medicamentos">
-                    @foreach($ordenes['medicamentos'] ?? [] as $indice=>$fila)@include('atencion.partials.fila-medicamento')@endforeach
-                    </div><button type="button" class="btn btn-outline-primary btn-sm mb-3" data-agregar="medicamentos">Agregar medicamento</button>
-                    <div class="mb-3"><label class="form-label" for="orden-indicaciones">Otras indicaciones para enfermería</label><textarea id="orden-indicaciones" class="form-control" name="ordenes[indicaciones]" maxlength="2000" rows="4">{{ $ordenes['indicaciones'] ?? '' }}</textarea></div>
-                    <div><label class="form-label" for="orden-plan-educacional">Plan educacional <span class="text-muted fw-normal">(opcional)</span></label><textarea id="orden-plan-educacional" class="form-control" name="ordenes[plan_educacional]" maxlength="2000" rows="3" placeholder="Orientación para el paciente y su familia. Ej. cuidados de la herida, signos de alarma">{{ $ordenes['plan_educacional'] ?? '' }}</textarea></div>
-                </fieldset>
+                @include('atencion.partials.campos-ordenes', ['prefijo' => 'orden', 'ordenes' => $ordenes, 'idCampos' => 'campos-ordenes'])
             </div>
         </div>
+        </fieldset>
+        @unless($soloLectura)
         <button class="btn btn-primary w-100 mt-4">{{ $registro ? 'Guardar cambios de evolución y órdenes' : 'Registrar evolución y órdenes' }}</button>
+        @endunless
     </form>
-    <template id="plantilla-soluciones">@include('atencion.partials.fila-solucion', ['indice'=>'__INDEX__', 'fila'=>[]])</template>
-    <template id="plantilla-medicamentos">@include('atencion.partials.fila-medicamento', ['indice'=>'__INDEX__', 'fila'=>[]])</template>
     @if($registro && app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Desactivar'))<form method="POST" action="{{ route('evolucion.eliminar', $registro) }}" class="mt-2">@csrf @method('DELETE')<button class="btn btn-outline-danger btn-sm">Desactivar evolución #{{ $registro->getKey() }}</button></form>@endif
 </div></div></div></div>
     @if($ingreso->signosVitales->isNotEmpty())

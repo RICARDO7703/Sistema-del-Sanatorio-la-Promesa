@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\EvolucionClinica;
 use App\Models\Ingreso;
+use App\Support\EdicionClinica;
 use Database\Factories\IngresoFactory;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -212,5 +213,73 @@ class OrdenesMedicasTest extends TestCase
             ->assertSee('Otra (escribirla)')
             ->assertSee('Microgotas para niños.')
             ->assertSee('<span class="input-group-text">mg</span>', false);
+    }
+
+    public function test_valoracion_inicial_de_internado_admite_ordenes_opcionales(): void
+    {
+        $ingreso = $this->ingreso();
+        $ordenes = ['dieta' => 'Líquida', 'medicamentos' => [['nombre' => 'Acetaminofén', 'dosis' => 500, 'via' => 'Oral', 'frecuencia' => 6]], 'indicaciones' => 'Control de temperatura'];
+        $valoracion = ['_formulario' => 'valoracion', 'id_ingreso' => $ingreso->getKey(), 'fecha_hora' => '2026-10-11 08:00:00', 'motivo_atencion' => 'Desmayo', 'diagnostico' => 'Síncope', 'ordenes_opcionales' => '1'];
+
+        $this->withSession(['id_usuario' => 1])->get(route('atencion.show', $ingreso))->assertOk()
+            ->assertSee('Órdenes médicas (opcional)')->assertSee('name="con_ordenes"', false);
+        $this->post('/evolucion', $valoracion + ['con_ordenes' => '1', 'ordenes' => ['dieta' => '']])->assertSessionHasErrors('ordenes.dieta');
+        $this->assertDatabaseCount('tbl_evolucion_clinica', 0);
+
+        $this->post('/evolucion', $valoracion + ['con_ordenes' => '1', 'ordenes' => $ordenes])->assertSessionHasNoErrors();
+        $registro = EvolucionClinica::sole();
+        $this->assertSame('Líquida', $registro->ordenes_medicas['dieta']);
+        $this->assertNull($registro->estado_mejoria);
+        $this->assertSame(1, (int) $registro->id_personal);
+
+        // Sigue siendo la valoración inicial y sus órdenes se muestran con ella.
+        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Valoración inicial registrada')->assertSee('Acetaminofén');
+        $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()->assertSee('Valoración inicial')->assertSee('Acetaminofén');
+
+        // Al editarla sin marcar la casilla, las órdenes se quitan.
+        $this->put(route('evolucion.actualizar', $registro), array_replace($valoracion, ['_formulario' => 'valoracion-editar', 'ordenes' => $ordenes]))->assertSessionHasNoErrors();
+        $this->assertNull($registro->fresh()->ordenes_medicas);
+        $this->assertNull($registro->fresh()->estado_mejoria);
+
+        // Sin la casilla tampoco se guardan al registrarla.
+        $otro = $this->ingreso();
+        $this->post('/evolucion', array_replace($valoracion, ['id_ingreso' => $otro->getKey(), 'ordenes' => $ordenes]))->assertSessionHasNoErrors();
+        $this->assertNull(EvolucionClinica::where('id_ingreso', $otro->getKey())->sole()->ordenes_medicas);
+    }
+
+    public function test_solo_quien_registro_edita_y_durante_doce_horas(): void
+    {
+        $ingreso = $this->ingreso();
+        DB::table('tbl_personal')->insert(['id_personal' => 2, 'id_cargo' => 1, 'nombres' => 'Otra', 'apellidos' => 'Médica', 'dpi' => '1234567890124']);
+        DB::table('tbl_usuario')->insert(['id_usuario' => 2, 'id_personal' => 2, 'id_rol' => 1, 'nombre_usuario' => 'otra', 'contrasena' => 'solo-pruebas']);
+        $this->valoracion($ingreso);
+        $this->withSession(['id_usuario' => 1])->post('/evolucion', $this->evolucion($ingreso))->assertSessionHasNoErrors();
+        [$valoracion, $evolucion] = EvolucionClinica::orderBy('id_evolucion')->get()->all();
+        $expediente = route('pacientes.expediente', $ingreso->id_paciente);
+
+        $this->get($expediente)->assertOk()
+            ->assertSee(route('atencion.show', ['ingreso' => $ingreso->getKey(), 'editar' => 'valoracion']), false)
+            ->assertSee(route('atencion.show', ['ingreso' => $ingreso->getKey(), 'registro' => $evolucion->getKey()]).'#evoluciones', false)
+            ->assertSee('Puede editarla hasta');
+        $this->get(route('atencion.show', ['ingreso' => $ingreso->getKey(), 'editar' => 'valoracion']))->assertOk()->assertSee('data-editar-valoracion', false);
+
+        // Otro usuario solo puede verlos.
+        $this->withSession(['id_usuario' => 2])->get($expediente)->assertOk()->assertDontSee('Puede editarla hasta');
+        $this->get(route('atencion.show', ['ingreso' => $ingreso->getKey(), 'registro' => $evolucion->getKey()]))->assertOk()
+            ->assertSee('Solo quien lo registró puede editarlo')->assertDontSee('Guardar cambios de evolución y órdenes');
+        $this->put(route('evolucion.actualizar', $evolucion), $this->evolucion($ingreso, ['dieta' => 'Libre']) + ['_formulario' => 'evolucion-'.$evolucion->getKey()])
+            ->assertSessionHas('error', EdicionClinica::MENSAJE);
+        $this->put(route('ingresos.actualizar', $ingreso), ['fecha_ingreso' => $ingreso->fecha_ingreso->format('Y-m-d\TH:i'), 'motivo_ingreso' => 'Otro'])->assertSessionHas('error', EdicionClinica::MENSAJE);
+        $this->assertSame('Blanda', $evolucion->fresh()->ordenes_medicas['dieta']);
+
+        // Quien lo registró puede corregirlo dentro del plazo, pero no después de 12 horas.
+        $this->withSession(['id_usuario' => 1])->put(route('evolucion.actualizar', $evolucion), $this->evolucion($ingreso, ['dieta' => 'Libre']) + ['_formulario' => 'evolucion-'.$evolucion->getKey()])->assertSessionHasNoErrors();
+        $this->assertSame('Libre', $evolucion->fresh()->ordenes_medicas['dieta']);
+        $this->travel(12)->hours();
+        $this->travel(1)->minutes();
+        $this->put(route('evolucion.actualizar', $valoracion), ['_formulario' => 'valoracion-editar', 'fecha_hora' => '2026-10-11 08:00:00', 'motivo_atencion' => 'Tos', 'diagnostico' => 'Cambio tardío'])
+            ->assertSessionHas('error', EdicionClinica::MENSAJE);
+        $this->assertNotSame('Cambio tardío', $valoracion->fresh()->diagnostico);
+        $this->get($expediente)->assertOk()->assertDontSee('Puede editarla hasta');
     }
 }

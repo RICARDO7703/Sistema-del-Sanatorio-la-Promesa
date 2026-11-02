@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\Ingreso;
 use App\Models\Paciente;
 use Database\Factories\IngresoFactory;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class EmergenciaTest extends TestCase
@@ -268,7 +270,7 @@ class EmergenciaTest extends TestCase
             ->assertSee('Valoración inicial registrada')
             ->assertSee('Evolución clínica y órdenes médicas')
             ->assertSee('<strong>Habitación</strong>', false)
-            ->assertDontSee('data-elegir-signo', false)
+            ->assertSee('data-elegir-signo', false)
             ->assertDontSee('Consulta externa');
     }
 
@@ -336,8 +338,12 @@ class EmergenciaTest extends TestCase
     {
         $datos = ['estado_identificacion' => 'Identificado', 'nombres' => 'Luis', 'apellidos' => 'García', 'telefono' => '55555555', 'form_context' => 'nuevo',
             'hospitalizar' => '1', 'fecha_ingreso' => '2026-10-11 11:30:00', 'id_habitacion' => 2, 'motivo_ingreso' => 'Neumonía', 'documento_firmado' => '1'];
+        Storage::fake('documentos_clinicos');
 
-        $respuesta = $this->sesion()->post('/pacientes', $datos);
+        $this->sesion()->post('/pacientes', $datos)->assertSessionHasErrors('documento_archivo');
+        $this->assertDatabaseCount('tbl_paciente', 0);
+
+        $respuesta = $this->post('/pacientes', $datos + ['documento_archivo' => UploadedFile::fake()->createWithContent('firma.pdf', "%PDF-1.4\n%%EOF")]);
 
         $ingreso = Ingreso::firstOrFail();
         $respuesta->assertSessionHasNoErrors()->assertRedirect(route('atencion.show', $ingreso))->assertSessionHas('exito', 'Paciente registrado y hospitalizado.');
@@ -347,6 +353,7 @@ class EmergenciaTest extends TestCase
         $this->assertSame('2026-10-11 11:30', $ingreso->fecha_ingreso->format('Y-m-d H:i'));
         $this->assertDatabaseHas('tbl_hospitalizacion', ['id_ingreso' => $ingreso->getKey(), 'estado' => 'Activa']);
         $this->assertDatabaseHas('tbl_hospitalizacion_habitacion', ['id_habitacion' => 2, 'fecha_hora_fin' => null]);
+        $this->assertDatabaseHas('tbl_documento_clinico', ['id_paciente' => $ingreso->id_paciente, 'id_ingreso' => null, 'id_registro_origen' => $ingreso->getKey(), 'tipo_documento' => 'Documento de ingreso firmado']);
     }
 
     public function test_hospitalizar_al_registrar_exige_habitacion_libre(): void
@@ -445,12 +452,12 @@ class EmergenciaTest extends TestCase
         $consulta = IngresoFactory::new()->create(['tipo_atencion' => 'Consulta externa']);
         $this->sesion()->get(route('atencion.show', $consulta))->assertOk()->assertDontSee('name="documento_firmado"', false);
         $this->get(route('pacientes.expediente', $consulta->id_paciente))->assertOk()
-            ->assertDontSee('<dt>Documento de ingreso firmado</dt>', false)->assertDontSee('pendiente de firma');
+            ->assertDontSee('Documento de ingreso</h6>', false)->assertDontSee('pendiente de firma')->assertDontSee('Pendiente de firma');
 
         $hospitalizacion = IngresoFactory::new()->create(['tipo_atencion' => 'Hospitalización']);
         $this->get(route('atencion.show', $hospitalizacion))->assertOk()->assertSee('name="documento_firmado"', false);
         $this->get(route('pacientes.expediente', $hospitalizacion->id_paciente))->assertOk()
-            ->assertSee('<dt>Documento de ingreso firmado</dt>', false)->assertSee('Documento de ingreso pendiente de firma');
+            ->assertSee('Documento de ingreso</h6>', false)->assertSee('Documento de ingreso pendiente de firma')->assertSee('Pendiente de firma');
     }
 
     public function test_registrar_paciente_sin_casilla_no_abre_atencion(): void
@@ -555,10 +562,10 @@ class EmergenciaTest extends TestCase
             ->assertSee('Documentos de la atención')
             ->assertSee('Hoja de llegada')->assertSee('Consulta externa')->assertSee('Alta e indicaciones para casa')
             ->assertDontSee('Notas de enfermería (')->assertDontSee('Evoluciones (')
-            ->assertSee('Consulta externa del 11/10/2026')->assertSee('Fecha y hora de salida')->assertSee('Medicamentos para casa')
-            ->assertSee('<td class="fw-semibold text-break">Omeprazol</td>', false)->assertSee('14 días')
-            ->assertSee('Temperatura (°C)')->assertDontSee('Frecuencia cardíaca (FC, lpm)');
-        $this->assertStringNotContainsString('Saturación de oxígeno (%)', $expediente->getContent());
+            ->assertSee('Consulta externa del 11/10/2026')->assertSee(' Salida</dt>', false)->assertSee('Medicamentos para casa')
+            ->assertSee('<strong>Omeprazol</strong>', false)->assertSee('14 días')
+            ->assertSee('title="Temperatura"', false)->assertDontSee('title="Frecuencia cardíaca"', false);
+        $this->assertStringNotContainsString('title="Saturación de oxígeno"', $expediente->getContent());
 
         $this->get(route('pacientes.index'))->assertOk()->assertSee('Atención finalizada');
         $this->get(route('atencion.show', $ingreso))->assertOk()
@@ -568,7 +575,7 @@ class EmergenciaTest extends TestCase
     public function test_formulario_de_paciente_valida_con_mensajes_del_sistema(): void
     {
         $this->sesion()->get(route('pacientes.index'))->assertOk()
-            ->assertSee('action="'.route('pacientes.guardar').'"'."\n                method=\"POST\" novalidate data-validar-en-linea data-validar-al-enviar", false)
+            ->assertSee('action="'.route('pacientes.guardar').'"'."\n                method=\"POST\" enctype=\"multipart/form-data\" novalidate data-validar-en-linea data-validar-al-enviar", false)
             ->assertSee('data-mensaje-requerido="Escriba los nombres del paciente."', false)
             ->assertSee('data-mensaje-formato="El teléfono debe tener 8 números, por ejemplo 5555-1234."', false)
             ->assertSee('data-mensaje-maximo="La fecha de nacimiento no puede ser futura."', false);

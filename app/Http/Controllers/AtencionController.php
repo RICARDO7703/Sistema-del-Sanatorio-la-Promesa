@@ -80,7 +80,7 @@ class AtencionController extends Controller
             'hospitalizacion.habitacionActual.habitacion',
             'evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')->with('personal')->orderBy('fecha_hora')->orderBy('id_evolucion'),
             'signosVitales' => fn ($consulta) => $consulta->with('personal')->orderByDesc('fecha_hora')->orderByDesc('id_signos_vitales'),
-            'notasEnfermeria' => fn ($consulta) => $consulta->with(['personal', 'actividades', 'signosVitales'])->orderByDesc('fecha_hora')->orderByDesc('id_atencion_enfermeria'),
+            'notasEnfermeria' => fn ($consulta) => $consulta->with(['personal', 'actividades', 'signosVitales', 'medicoAvisado'])->orderByDesc('fecha_hora')->orderByDesc('id_atencion_enfermeria'),
         ]);
 
         if ($ingreso->estado !== 'Activo' || $ingreso->hospitalizacion?->estado !== 'Activa') {
@@ -94,7 +94,9 @@ class AtencionController extends Controller
         $diagnosticoActual = $registrosRecientes->first();
         $ultimoControl = $ingreso->signosVitales->first();
 
-        return view('atencion.enfermeria', compact('ingreso', 'ordenesVigentes', 'ordenesAnteriores', 'diagnosticoActual', 'ultimoControl'));
+        $medicos = Personal::where('estado', 'Activo')->whereHas('cargo', fn ($q) => $q->whereIn('nombre_cargo', Personal::CARGOS_MEDICOS))->orderBy('nombres')->orderBy('apellidos')->get();
+
+        return view('atencion.enfermeria', compact('ingreso', 'ordenesVigentes', 'ordenesAnteriores', 'diagnosticoActual', 'ultimoControl', 'medicos'));
     }
 
     public function show(Request $request, Ingreso $ingreso)

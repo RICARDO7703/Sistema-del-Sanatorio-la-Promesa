@@ -1234,3 +1234,249 @@ details > summary { font-weight: 700; }
 @media (max-width: 767.98px) {
     .tabla-permisos td:first-child { min-width: 0; }
 }
+
+/* Signos vitales: todos los campos del mismo ancho, en el mismo orden y alineados por abajo. */
+.signos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+    gap: 0.75rem 1rem;
+    align-items: end;
+}
+
+.signos-grid .input-group > .form-control {
+    min-width: 0;
+}
+
+/* Ventanas desplazables cuyo formulario envuelve encabezado, cuerpo y pie:
+   el formulario ocupa el alto disponible para que el cuerpo tenga su propia barra de desplazamiento. */
+.modal-dialog-scrollable .modal-content > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* =====================================================================
+   Documentos clínicos del expediente (hoja de ingreso, valoración,
+   evolución, nota de enfermería y alta): encabezado del paciente,
+   datos clave, secciones con título y signos vitales en fichas.
+   ===================================================================== */
+.doc-clinico { display: flex; flex-direction: column; gap: 1.1rem; color: var(--sp-texto); }
+.doc-clinico .doc-tono-primario { --doc-tono: var(--sp-primario); --doc-tono-suave: var(--sp-primario-suave); }
+.doc-clinico .doc-tono-exito { --doc-tono: #198754; --doc-tono-suave: #e8f6ee; }
+.doc-clinico .doc-tono-info { --doc-tono: #0a8ea8; --doc-tono-suave: #e3f6fa; }
+
+.doc-cabecera { display: flex; align-items: flex-start; gap: 0.9rem; padding: 1rem 1.1rem; border-radius: 16px; background: var(--doc-tono-suave); border: 1px solid var(--sp-borde); }
+.doc-icono { flex: 0 0 auto; width: 2.75rem; height: 2.75rem; border-radius: 12px; display: grid; place-items: center; background: #fff; color: var(--doc-tono); font-size: 1.35rem; box-shadow: 0 2px 8px rgba(23, 32, 51, 0.06); }
+.doc-paciente { flex: 1 1 auto; min-width: 0; }
+.doc-paciente-nombre { margin: 0; font-size: 1.15rem; font-weight: 800; line-height: 1.25; }
+.doc-paciente-datos { margin: 0.15rem 0 0; color: var(--sp-tenue); font-size: 0.92rem; }
+.doc-alergia { display: inline-flex; align-items: center; gap: 0.35rem; margin: 0.45rem 0 0; padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--sp-vino-suave); border: 1px solid var(--sp-vino-borde); color: var(--sp-vino); font-size: 0.85rem; font-weight: 700; }
+
+.doc-pastilla { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.22rem 0.7rem; border-radius: 999px; font-size: 0.82rem; font-weight: 800; white-space: nowrap; }
+.doc-pastilla-exito { background: #e8f6ee; color: #146c43; }
+.doc-pastilla-peligro { background: #fde8ea; color: #b02a37; }
+.doc-pastilla-alerta { background: #fff4d6; color: #8a5a00; }
+.doc-pastilla-neutra { background: #eef1f5; color: #4a5567; }
+.doc-pastilla-primaria { background: var(--sp-primario-suave); color: var(--sp-primario-oscuro); }
+
+.doc-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; margin: 0; }
+.doc-meta > div { padding: 0.7rem 0.85rem; border: 1px solid var(--sp-borde); border-radius: 12px; background: #fff; min-width: 0; }
+.doc-meta dt { font-size: 0.74rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sp-tenue); margin-bottom: 0.2rem; }
+.doc-meta dt .bi { margin-right: 0.2rem; }
+.doc-meta dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.doc-meta dd > span:not(.doc-pastilla) { color: var(--sp-tenue); font-weight: 600; margin-left: 0.25rem; }
+
+.doc-seccion { min-width: 0; }
+.doc-seccion-titulo { display: flex; align-items: center; gap: 0.45rem; margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--sp-primario-oscuro); }
+.doc-texto { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+.doc-vacio { margin: 0; color: var(--sp-tenue); font-style: italic; }
+.doc-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
+.doc-columnas > .doc-seccion { padding: 0.85rem 1rem; border: 1px solid var(--sp-borde); border-radius: 12px; }
+
+.doc-signos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.6rem; }
+.doc-signos li { display: flex; flex-direction: column; padding: 0.6rem 0.75rem; border-radius: 12px; background: var(--sp-primario-tenue); border: 1px solid var(--sp-borde); min-width: 0; }
+.doc-signo-sigla { font-size: 0.74rem; font-weight: 800; letter-spacing: 0.04em; color: var(--sp-primario-oscuro); }
+.doc-signo-valor { font-size: 1.35rem; font-weight: 800; line-height: 1.2; }
+.doc-signo-valor small { font-size: 0.75rem; font-weight: 700; color: var(--sp-tenue); margin-left: 0.25rem; }
+.doc-signo-nombre { font-size: 0.75rem; color: var(--sp-tenue); }
+
+.doc-regiones { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.6rem; }
+.doc-regiones > div { padding: 0.65rem 0.8rem; border-left: 3px solid var(--sp-primario); background: #fafcff; border-radius: 0 10px 10px 0; }
+.doc-regiones span { display: block; font-size: 0.78rem; font-weight: 800; color: var(--sp-tenue); margin-bottom: 0.15rem; }
+
+.doc-diagnostico { padding: 0.85rem 1rem; border-radius: 12px; background: var(--sp-primario-suave); border-left: 4px solid var(--sp-primario); }
+.doc-diagnostico-etiqueta { display: block; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--sp-primario-oscuro); margin-bottom: 0.2rem; }
+.doc-diagnostico .doc-texto { font-size: 1.05rem; font-weight: 700; }
+
+.doc-aviso { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 12px; background: #fff4d6; border: 1px solid #f5d98b; color: #6b4600; }
+.doc-aviso > .bi { font-size: 1.3rem; }
+
+.doc-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.doc-chips > li, .doc-chips > span { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.7rem; border-radius: 999px; background: #fff; border: 1px solid var(--sp-borde); font-weight: 600; font-size: 0.9rem; }
+.doc-chips > li .bi { color: #198754; }
+.doc-chips-compactos { display: inline-flex; margin-left: 0.25rem; }
+.doc-chips-compactos > span { padding: 0.1rem 0.5rem; font-size: 0.8rem; background: var(--sp-primario-tenue); }
+
+.doc-lista-medicamentos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.doc-lista-medicamentos li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; padding: 0.55rem 0.7rem; border: 1px solid var(--sp-borde); border-radius: 10px; background: #fff; }
+.doc-lista-medicamentos .doc-chips-compactos { margin-left: auto; }
+
+.doc-cuerpo { display: grid; gap: 1.25rem; }
+.doc-principal { display: flex; flex-direction: column; gap: 1.1rem; min-width: 0; }
+.doc-lateral { align-self: start; display: flex; flex-direction: column; gap: 0.9rem; padding: 1rem; border-radius: 14px; border: 1px solid var(--sp-borde); background: #fbfdff; min-width: 0; }
+.doc-orden { display: flex; flex-direction: column; gap: 0.3rem; }
+.doc-orden + .doc-orden { padding-top: 0.8rem; border-top: 1px dashed var(--sp-borde); }
+.doc-orden-etiqueta { font-size: 0.78rem; font-weight: 800; color: var(--sp-tenue); }
+.doc-orden-etiqueta .bi { color: var(--sp-primario); margin-right: 0.2rem; }
+.doc-orden > .doc-pastilla { align-self: flex-start; }
+
+@media (min-width: 1200px) {
+    .doc-cuerpo-con-lateral { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); }
+    .doc-lateral { position: sticky; top: 0; }
+}
+
+@media (max-width: 575.98px) {
+    .doc-cabecera { flex-wrap: wrap; }
+    .doc-paciente { flex: 1 1 calc(100% - 3.7rem); }
+    .doc-cabecera > .doc-pastilla { order: 3; margin-left: 3.65rem; }
+    .doc-signos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .doc-lista-medicamentos .doc-chips-compactos { margin-left: 0; }
+}
+
+/* =====================================================================
+   Modo oscuro («Apariencia» en Mi perfil). Se activa con
+   data-bs-theme="dark" en <html>; Bootstrap 5.3 ajusta sus componentes
+   y aquí se ajustan los colores propios del sistema.
+   ===================================================================== */
+[data-bs-theme="dark"] {
+    color-scheme: dark;
+    --sp-primario: #5b9dff;
+    --sp-primario-oscuro: #9cc3ff;
+    --sp-primario-suave: rgba(91, 157, 255, 0.16);
+    --sp-primario-tenue: rgba(91, 157, 255, 0.08);
+    --sp-vino: #ff8197;
+    --sp-vino-suave: rgba(255, 129, 151, 0.12);
+    --sp-vino-borde: rgba(255, 129, 151, 0.35);
+    --sp-texto: #e4eaf3;
+    --sp-tenue: #9badc5;
+    --sp-borde: #27354b;
+    --sp-fondo: #0c121d;
+    --sp-superficie: #131c2b;
+    --sp-superficie-2: #1a2537;
+    --sp-sombra: 0 4px 24px rgba(0, 0, 0, 0.35);
+    --bs-body-bg: #0c121d;
+    --bs-body-color: #e4eaf3;
+    --bs-emphasis-color: #ffffff;
+    --bs-secondary-color: #9badc5;
+    --bs-secondary-bg: #1a2537;
+    --bs-tertiary-bg: #131c2b;
+    --bs-border-color: #27354b;
+    --bs-link-color: #7fb2ff;
+    --bs-link-hover-color: #a9cbff;
+}
+
+/* Superficies (tarjetas, menú, barra, ventanas) */
+[data-bs-theme="dark"] :is(.sidebar, .usuario, .evolucion-card, .bitacora-card, .bitacora-acciones, .expediente-card,
+    .expediente-buscador, .expediente-tabs, .pacientes-tabla, .pacientes-buscador, .inicio-card, .inicio-icono, .cifra-card,
+    .pendientes-card, .login-card, .acceso-card, .doc-meta > div, .doc-icono, .doc-chips > li, .doc-chips > span,
+    .doc-lista-medicamentos li, .btn-flecha) {
+    background-color: var(--sp-superficie);
+    border-color: var(--sp-borde);
+}
+[data-bs-theme="dark"] .barra-superior { background: rgba(12, 18, 29, 0.88); }
+[data-bs-theme="dark"] .modal-content { --bs-modal-bg: var(--sp-superficie); --bs-modal-border-color: var(--sp-borde); }
+[data-bs-theme="dark"] .dropdown-menu { --bs-dropdown-bg: var(--sp-superficie); --bs-dropdown-border-color: var(--sp-borde); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); }
+[data-bs-theme="dark"] .list-group { --bs-list-group-bg: var(--sp-superficie); --bs-list-group-border-color: var(--sp-borde); }
+[data-bs-theme="dark"] .table { --bs-table-bg: transparent; --bs-table-color: var(--sp-texto); --bs-table-striped-bg: rgba(255, 255, 255, 0.03); }
+[data-bs-theme="dark"] .table > tbody > tr > td { border-color: var(--sp-borde); }
+[data-bs-theme="dark"] .sidebar-logo img { background: #fff; border-radius: 12px; padding: 6px 10px; }
+[data-bs-theme="dark"] .perfil-avatar { background: var(--sp-superficie-2); }
+
+/* Formularios */
+[data-bs-theme="dark"] .form-control, [data-bs-theme="dark"] .form-select,
+[data-bs-theme="dark"] .login-acceso .login-input .form-control { background-color: #0f1724; border-color: #2c3b52; color: var(--sp-texto); }
+[data-bs-theme="dark"] .form-control:focus, [data-bs-theme="dark"] .form-select:focus,
+[data-bs-theme="dark"] .login-acceso .login-input .form-control:focus { background-color: #0f1724; border-color: var(--sp-primario); }
+[data-bs-theme="dark"] .form-control:disabled, [data-bs-theme="dark"] .form-control[readonly] { background-color: var(--sp-superficie-2); }
+[data-bs-theme="dark"] .form-control::placeholder { color: #6f819b; }
+[data-bs-theme="dark"] .input-group-text { background-color: var(--sp-superficie-2); border-color: #2c3b52; color: var(--sp-tenue); }
+
+/* Bloques suaves y pequeños textos con color fijo */
+[data-bs-theme="dark"] :is(.ficha-contactos, .ficha-nota, .enfermeria-diagnostico, .enfermeria-bloque, .doc-regiones > div, .doc-lateral) { background: var(--sp-superficie-2); }
+[data-bs-theme="dark"] :is(.paciente-avatar, .ficha-avatar, .card-icono, .expediente-avatar, .modulo-badge, .accion-badge.consulta, .enfermeria-habitacion, .expediente-acciones, #enfermeria-ordenes thead) { background: var(--sp-primario-suave); color: var(--sp-primario-oscuro); }
+[data-bs-theme="dark"] .card-icono i, [data-bs-theme="dark"] .expediente-avatar i { color: var(--sp-primario); }
+[data-bs-theme="dark"] .ficha-alergias { background: rgba(245, 158, 11, 0.12); }
+[data-bs-theme="dark"] .accion-badge.registro { background: rgba(25, 135, 84, 0.18); color: #6fdba5; }
+[data-bs-theme="dark"] .accion-badge.modificacion { background: rgba(255, 193, 7, 0.15); color: #ffd56b; }
+[data-bs-theme="dark"] :is(.ficha-nombre p, .ficha-dato dt, .ficha-contactos li > div > span, .expediente-guia p, .enfermeria-datos dt,
+    .tabla-adaptable .etiqueta-movil, .dato-label, .medicamento-item span, .evolucion-paciente p, .bitacora-titulo p, .inicio-card p) { color: var(--sp-tenue); }
+[data-bs-theme="dark"] :is(.ficha-dato dt i, .ficha-contactos h3 i, .ficha-nota h3 i, .enfermeria-datos dt i, .enfermeria-bloque dt i, #enfermeria-ordenes summary) { color: var(--sp-primario); }
+[data-bs-theme="dark"] .text-consulta { color: #3dd6c3 !important; }
+[data-bs-theme="dark"] .documento-editado { color: #ffc861; }
+[data-bs-theme="dark"] .acceso-error { color: #ff8a95; }
+[data-bs-theme="dark"] .historial-atencion[open] > summary { border-bottom-color: var(--sp-borde); }
+[data-bs-theme="dark"] .btn-cerrar-sesion:hover { background: rgba(255, 129, 151, 0.2); }
+[data-bs-theme="dark"] .sidebar-toggle:hover { background: rgba(91, 157, 255, 0.24); }
+[data-bs-theme="dark"] .acceso-fondo { background: linear-gradient(135deg, #0b1220 0%, var(--sp-fondo) 55%, #101b30 100%); }
+@media (max-width: 767.98px) {
+    [data-bs-theme="dark"] .tabla-adaptable > tbody > tr { background: var(--sp-superficie); border-color: var(--sp-borde); }
+}
+
+/* Clases claras de Bootstrap que no cambian solas */
+[data-bs-theme="dark"] .bg-light, [data-bs-theme="dark"] .bg-white { background-color: var(--sp-superficie-2) !important; }
+[data-bs-theme="dark"] .bg-light.text-dark, [data-bs-theme="dark"] .text-bg-light, [data-bs-theme="dark"] .bg-white.text-dark { color: var(--sp-texto) !important; }
+[data-bs-theme="dark"] .text-bg-light { background-color: var(--sp-superficie-2) !important; }
+
+/* Documentos clínicos */
+[data-bs-theme="dark"] .doc-clinico .doc-tono-primario { --doc-tono-suave: rgba(91, 157, 255, 0.12); }
+[data-bs-theme="dark"] .doc-clinico .doc-tono-exito { --doc-tono: #5fd39a; --doc-tono-suave: rgba(25, 135, 84, 0.16); }
+[data-bs-theme="dark"] .doc-clinico .doc-tono-info { --doc-tono: #4fd1e8; --doc-tono-suave: rgba(13, 202, 240, 0.12); }
+[data-bs-theme="dark"] .doc-pastilla-exito { background: rgba(25, 135, 84, 0.2); color: #74e0ab; }
+[data-bs-theme="dark"] .doc-pastilla-peligro { background: rgba(220, 53, 69, 0.2); color: #ff8f9a; }
+[data-bs-theme="dark"] .doc-pastilla-alerta { background: rgba(255, 193, 7, 0.16); color: #ffd56b; }
+[data-bs-theme="dark"] .doc-pastilla-neutra { background: rgba(255, 255, 255, 0.08); color: #c3cedd; }
+[data-bs-theme="dark"] .doc-aviso { background: rgba(255, 193, 7, 0.12); border-color: rgba(255, 193, 7, 0.35); color: #ffd56b; }
+[data-bs-theme="dark"] .doc-chips-compactos > span { background: var(--sp-primario-tenue); }
+
+/* Pantalla «Apariencia» */
+.tema-opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; }
+.tema-opcion { position: relative; display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; border: 2px solid var(--sp-borde); border-radius: 16px; cursor: pointer; background: var(--sp-superficie, #fff); transition: border-color .15s ease, box-shadow .15s ease; }
+.tema-opcion:hover { border-color: var(--sp-primario); }
+.btn-check:checked + .tema-opcion { border-color: var(--sp-primario); box-shadow: 0 0 0 4px var(--sp-primario-suave); }
+.btn-check:focus-visible + .tema-opcion { outline: 3px solid var(--sp-primario); outline-offset: 2px; }
+.tema-opcion-titulo { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-weight: 800; }
+.tema-opcion-titulo .bi-check-circle-fill { color: var(--sp-primario); visibility: hidden; font-size: 1.25rem; }
+.btn-check:checked + .tema-opcion .bi-check-circle-fill { visibility: visible; }
+.tema-muestra { display: grid; grid-template-columns: 28% 1fr; height: 7rem; border-radius: 10px; overflow: hidden; border: 1px solid rgba(0, 0, 0, 0.12); }
+.tema-muestra-menu { display: flex; flex-direction: column; gap: 6px; padding: 10px 8px; }
+.tema-muestra-menu span, .tema-muestra-cuerpo span { display: block; height: 8px; border-radius: 4px; }
+.tema-muestra-cuerpo { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.tema-muestra-cuerpo .tema-muestra-tarjeta { height: auto; flex: 1; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.tema-muestra-claro .tema-muestra-menu { background: #ffffff; }
+.tema-muestra-claro .tema-muestra-cuerpo { background: #f5f9fe; }
+.tema-muestra-claro .tema-muestra-menu span { background: #dbe7fb; }
+.tema-muestra-claro .tema-muestra-menu span:first-child { background: #0d6efd; }
+.tema-muestra-claro .tema-muestra-tarjeta { background: #ffffff; border: 1px solid #e3ecf7; }
+.tema-muestra-claro .tema-muestra-tarjeta span { background: #e3ecf7; }
+.tema-muestra-claro .tema-muestra-tarjeta span:first-child { background: #a71930; width: 40%; }
+.tema-muestra-oscuro .tema-muestra-menu { background: #131c2b; }
+.tema-muestra-oscuro .tema-muestra-cuerpo { background: #0c121d; }
+.tema-muestra-oscuro .tema-muestra-menu span { background: #27354b; }
+.tema-muestra-oscuro .tema-muestra-menu span:first-child { background: #5b9dff; }
+.tema-muestra-oscuro .tema-muestra-tarjeta { background: #131c2b; border: 1px solid #27354b; }
+.tema-muestra-oscuro .tema-muestra-tarjeta span { background: #27354b; }
+.tema-muestra-oscuro .tema-muestra-tarjeta span:first-child { background: #ff8197; width: 40%; }
+.tema-muestra-cuerpo > span:not(.tema-muestra-tarjeta) { width: 55%; flex: 0 0 8px; }
+.tema-muestra-claro .tema-muestra-cuerpo > span:not(.tema-muestra-tarjeta) { background: #172033; opacity: .7; }
+.tema-muestra-oscuro .tema-muestra-cuerpo > span:not(.tema-muestra-tarjeta) { background: #e4eaf3; opacity: .7; }
+
+/* Acción principal del historial de evoluciones. */
+.evolucion-historial-encabezado { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
+.evolucion-historial-encabezado > div { min-width: 0; }
+.evolucion-nueva-accion { flex-shrink: 0; white-space: nowrap; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 767.98px) {
+    .evolucion-historial-encabezado { flex-direction: column; }
+    .evolucion-nueva-accion { width: 100%; }
+}

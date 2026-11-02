@@ -1564,7 +1564,7 @@
 <div class="modal fade" id="modalIniciarAtencion" tabindex="-1" aria-labelledby="modalIniciarAtencion-titulo" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ route('ingresos.guardar') }}" method="POST" novalidate data-validar-en-linea data-validar-al-enviar>
+            <form action="{{ route('ingresos.guardar') }}" method="POST" enctype="multipart/form-data" novalidate data-validar-en-linea data-validar-al-enviar>
                 @csrf
                 <input type="hidden" name="form_context" value="iniciar-atencion">
                 <input type="hidden" name="id_paciente" value="{{ $recuperarAtencion ? old('id_paciente') : '' }}" data-campo-paciente>
@@ -1611,7 +1611,7 @@
 
             <form
                 action="{{ route('pacientes.guardar') }}"
-                method="POST" novalidate data-validar-en-linea data-validar-al-enviar
+                method="POST" enctype="multipart/form-data" novalidate data-validar-en-linea data-validar-al-enviar
             >
 
                 @csrf

@@ -23,6 +23,12 @@ class DocumentoClinico extends Model
      */
     public const CATEGORIAS = ['Laboratorio', 'Radiografía', 'Ultrasonido', 'Electrocardiograma', 'Informe', 'Otro'];
 
+    /**
+     * Tipo del documento de ingreso firmado, que se sube al hospitalizar y no se elige a mano.
+     * En la base queda con la categoría «Otro», que ya existe, para no cambiar la tabla.
+     */
+    public const TIPO_INGRESO_FIRMADO = 'Documento de ingreso firmado';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -55,6 +61,22 @@ class DocumentoClinico extends Model
     public function esDelPaciente(): bool
     {
         return $this->id_ingreso === null;
+    }
+
+    /**
+     * Documento de ingreso firmado que se subió al marcar la casilla del ingreso.
+     */
+    public function esDocumentoIngresoFirmado(): bool
+    {
+        return $this->tipo_documento === self::TIPO_INGRESO_FIRMADO && $this->tabla_origen === 'tbl_ingreso' && $this->id_ingreso === null;
+    }
+
+    /**
+     * Nombre del tipo que se muestra en el expediente.
+     */
+    public function etiquetaCategoria(): string
+    {
+        return $this->esDocumentoIngresoFirmado() ? 'Documento de ingreso' : (string) $this->categoria;
     }
 
     /**

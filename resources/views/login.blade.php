@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    @include('partials.tema')
     <meta name="theme-color" content="#f5f9fe">
 
     <title>Login - Sanatorio La Promesa</title>

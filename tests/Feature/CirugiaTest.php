@@ -7,6 +7,7 @@ use App\Models\Ingreso;
 use App\Models\SignoVital;
 use Database\Factories\IngresoFactory;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
 
 class CirugiaTest extends TestCase
@@ -23,6 +24,7 @@ class CirugiaTest extends TestCase
         (require database_path('migrations/2026_10_12_224836_add_examen_fisico_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_14_011905_add_ordenes_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_26_010043_add_notas_to_tbl_atencion_enfermeria.php'))->up();
+        (require database_path('migrations/2026_11_02_053000_add_medico_avisado_to_tbl_atencion_enfermeria.php'))->up();
         $this->travelTo(now()->setDate(2026, 10, 11)->setTime(18, 0));
         DB::table('tbl_cargo')->insert([['id_cargo' => 1, 'nombre_cargo' => 'Médico general'], ['id_cargo' => 6, 'nombre_cargo' => 'Enfermera']]);
         DB::table('tbl_personal')->insert([
@@ -36,7 +38,7 @@ class CirugiaTest extends TestCase
 
     private function datos(array $cambios = []): array
     {
-        return array_replace(['modo' => 'agendar', 'tipo_operacion' => 'Cirugía de prueba', 'fecha_programada' => '2026-10-12 10:00:00', 'fecha_fin_programada' => '2026-10-12 11:00:00', 'personal' => [1, 2]], $cambios);
+        return array_replace(['modo' => 'agendar', 'tipo_operacion' => 'Cirugía de prueba', 'fecha_programada' => '2026-10-12 10:00:00', 'personal' => [1, 2]], $cambios);
     }
 
     public function test_programacion_equipo_y_vistas(): void
@@ -66,7 +68,7 @@ class CirugiaTest extends TestCase
         $i = IngresoFactory::new()->create();
         $ruta = route('cirugias.guardar', $i);
         $this->withSession(['id_usuario' => 1]);
-        $this->post($ruta, $this->datos(['fecha_fin_programada' => '2026-10-12 09:00:00']))->assertSessionHasErrors('fecha_fin_programada');
+        $this->post($ruta, $this->datos(['fecha_programada' => '']))->assertSessionHasErrors(['fecha_programada' => 'Indique la fecha y hora de la cirugía.']);
         $this->post($ruta, $this->datos(['personal' => [1, 1]]))->assertSessionHasErrors('personal.0');
         $this->post($ruta, $this->datos(['fecha_programada' => '2026-10-10 10:00:00']))->assertSessionHasErrors('fecha_programada');
         $this->assertDatabaseCount('tbl_cirugia', 0);
@@ -204,5 +206,45 @@ class CirugiaTest extends TestCase
         $ingreso = Ingreso::sole();
         $this->patch(route('hospitalizacion.cambiar-habitacion', $ingreso->hospitalizacion), ['id_habitacion' => 1])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('tbl_hospitalizacion_habitacion', ['id_hospitalizacion' => $ingreso->hospitalizacion->getKey(), 'id_habitacion' => 1]);
+    }
+
+    public function test_alta_requiere_confirmar_y_cancela_solo_cirugias_pendientes(): void
+    {
+        $ingreso = IngresoFactory::new()->create();
+        $pendiente = Cirugia::create(['id_ingreso' => $ingreso->getKey(), 'tipo_operacion' => 'Pendiente de prueba', 'estado' => 'Programada', 'fecha_programada' => '2026-10-12 10:00:00', 'id_usuario_creacion' => 1]);
+        $pendiente->equipo()->attach(2, ['rol_quirurgico' => 'Otro', 'estado' => 'Asignado']);
+        $realizada = Cirugia::create(['id_ingreso' => $ingreso->getKey(), 'tipo_operacion' => 'Anterior', 'estado' => 'Realizada', 'id_usuario_creacion' => 1]);
+        $datos = ['id_personal_medico' => 1, 'fecha_hora' => now('America/Guatemala')->format('Y-m-d H:i:s'), 'diagnostico_final' => 'Prueba', 'condicion_egreso' => 'Prueba'];
+        $this->withSession(['id_usuario' => 1]);
+        $this->view('atencion.partials.aviso-cirugias-alta', ['ingreso' => $ingreso, 'errors' => new ViewErrorBag])->assertSee('Confirmo dar de alta y cancelar las cirugías pendientes.');
+        $this->post(route('alta.guardar', $ingreso), $datos)->assertSessionHasErrors('cancelar_cirugias');
+        self::assertSame('Activo', $ingreso->fresh()->estado);
+        self::assertSame('Programada', $pendiente->fresh()->estado);
+        $this->assertDatabaseCount('tbl_alta_medica', 0);
+        $this->post(route('alta.guardar', $ingreso), $datos + ['cancelar_cirugias' => '1'])->assertSessionHasNoErrors();
+        self::assertSame('Dado de alta', $ingreso->fresh()->estado);
+        self::assertSame('Cancelada', $pendiente->fresh()->estado);
+        self::assertSame('Realizada', $realizada->fresh()->estado);
+        $this->assertDatabaseHas('tbl_cirugia_equipo', ['id_cirugia' => $pendiente->getKey(), 'estado' => 'Cancelado']);
+        $this->assertDatabaseHas('tbl_bitacora', ['tabla' => 'tbl_cirugia', 'id_registro' => $pendiente->getKey(), 'accion' => 'Cancelación de cirugía']);
+    }
+
+    public function test_alta_no_cancela_cirugia_en_curso_ni_deja_cancelaciones_parciales(): void
+    {
+        $ingreso = IngresoFactory::new()->create();
+        $pendiente = Cirugia::create(['id_ingreso' => $ingreso->getKey(), 'tipo_operacion' => 'Pendiente', 'estado' => 'Programada', 'id_usuario_creacion' => 1]);
+        $curso = Cirugia::create(['id_ingreso' => $ingreso->getKey(), 'tipo_operacion' => 'En curso', 'estado' => 'En cirugía', 'id_usuario_creacion' => 1]);
+        $this->withSession(['id_usuario' => 1])->post(route('alta.guardar', $ingreso), ['id_personal_medico' => 1, 'fecha_hora' => now('America/Guatemala')->format('Y-m-d H:i:s'), 'diagnostico_final' => 'Prueba', 'condicion_egreso' => 'Prueba', 'cancelar_cirugias' => '1'])->assertSessionHasErrors('cancelar_cirugias');
+        self::assertSame('Activo', $ingreso->fresh()->estado);
+        self::assertSame('Programada', $pendiente->fresh()->estado);
+        self::assertSame('En cirugía', $curso->fresh()->estado);
+        $this->assertDatabaseCount('tbl_alta_medica', 0);
+    }
+
+    public function test_alta_usa_personal_de_sesion_e_ignora_medico_enviado(): void
+    {
+        $ingreso = IngresoFactory::new()->create();
+        $this->withSession(['id_usuario' => 1])->post(route('alta.guardar', $ingreso), ['id_personal_medico' => 999999, 'fecha_hora' => now('America/Guatemala')->format('Y-m-d H:i:s'), 'diagnostico_final' => 'Prueba', 'condicion_egreso' => 'Prueba'])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('tbl_alta_medica', ['id_ingreso' => $ingreso->getKey(), 'id_personal_medico' => 2, 'id_usuario_creacion' => 1]);
     }
 }

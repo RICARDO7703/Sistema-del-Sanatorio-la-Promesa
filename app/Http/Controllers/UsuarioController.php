@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Personal;
+use App\Support\FotoPersonal;
 use App\Support\Permisos;
 use App\Support\RegistroBitacora;
 use Illuminate\Http\RedirectResponse;
@@ -57,7 +58,11 @@ class UsuarioController extends Controller
             'contrasena' => $this->reglaContrasena(),
             'permisos' => ['nullable', 'array'],
             'permisos.*' => ['string', Rule::in($this->clavesPermitidas())],
-        ], $this->mensajes());
+            'foto' => FotoPersonal::reglas(),
+        ], $this->mensajes() + FotoPersonal::mensajes());
+        if ($request->hasFile('foto')) {
+            FotoPersonal::comprobar($request->file('foto'));
+        }
 
         $idUsuario = DB::transaction(function () use ($request, $datos): int {
             $idUsuario = (int) DB::table('tbl_usuario')->insertGetId([
@@ -70,6 +75,9 @@ class UsuarioController extends Controller
 
             return $idUsuario;
         });
+        if ($request->hasFile('foto')) {
+            FotoPersonal::guardar($request->file('foto'), (int) $datos['id_personal']);
+        }
 
         return redirect()->route('usuarios.editar', $idUsuario)->with('exito', 'Usuario creado. Entregue la contraseña a la persona y pídale que la cambie en «Mi perfil».');
     }
@@ -92,7 +100,12 @@ class UsuarioController extends Controller
             'id_rol' => ['required', 'integer', Rule::exists('tbl_rol', 'id_rol')->where('estado', 'Activo')],
             'permisos' => ['nullable', 'array'],
             'permisos.*' => ['string', Rule::in($this->clavesPermitidas())],
-        ], $this->mensajes());
+            'foto' => FotoPersonal::reglas(),
+            'quitar_foto' => ['nullable', 'boolean'],
+        ], $this->mensajes() + FotoPersonal::mensajes());
+        if ($request->hasFile('foto')) {
+            FotoPersonal::comprobar($request->file('foto'));
+        }
         $quedaAdministrador = Permisos::rolEsAdministrador(DB::table('tbl_rol')->where('id_rol', $datos['id_rol'])->value('nombre_rol'));
         if (Permisos::rolEsAdministrador($cuenta->nombre_rol) && ! $quedaAdministrador) {
             if ((int) $cuenta->id_usuario === (int) session('id_usuario')) {
@@ -109,6 +122,11 @@ class UsuarioController extends Controller
             app(RegistroBitacora::class)->registrar($request, 'Edición de usuario', 'Exitoso', 'Se actualizaron el rol y los permisos de «'.$cuenta->nombre_usuario.'».', (int) session('id_usuario'), $cuenta->id_usuario);
         });
         Permisos::olvidar($cuenta->id_usuario);
+        if ($request->hasFile('foto')) {
+            FotoPersonal::guardar($request->file('foto'), (int) $cuenta->id_personal);
+        } elseif ($request->boolean('quitar_foto')) {
+            FotoPersonal::quitar((int) $cuenta->id_personal);
+        }
 
         return redirect()->route('usuarios.editar', $cuenta->id_usuario)->with('exito', 'Cambios guardados. Se aplican desde la siguiente pantalla que abra el usuario.');
     }
@@ -207,7 +225,7 @@ class UsuarioController extends Controller
             ->join('tbl_rol as r', 'r.id_rol', '=', 'u.id_rol')
             ->leftJoin('tbl_cargo as c', 'c.id_cargo', '=', 'p.id_cargo')
             ->where('u.id_usuario', $idUsuario)
-            ->select('u.id_usuario', 'u.nombre_usuario', 'u.estado', 'u.id_rol', 'u.ultimo_acceso', 'p.nombres', 'p.apellidos', 'c.nombre_cargo', 'r.nombre_rol')
+            ->select('u.id_usuario', 'u.nombre_usuario', 'u.estado', 'u.id_rol', 'u.ultimo_acceso', 'u.id_personal', 'p.nombres', 'p.apellidos', 'p.foto_perfil', 'c.nombre_cargo', 'r.nombre_rol')
             ->first();
         abort_unless($cuenta, 404);
         $cuenta->id_usuario = (int) $cuenta->id_usuario;

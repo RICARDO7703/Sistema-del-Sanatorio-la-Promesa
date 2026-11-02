@@ -4,10 +4,8 @@ namespace App\Services;
 
 use App\Models\EvolucionClinica;
 use App\Models\Ingreso;
-use App\Models\Personal;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 class OrdenesMedicas
 {
@@ -26,24 +24,37 @@ class OrdenesMedicas
     {
         $formulario = $request->input('_formulario');
         $primero = $ingreso->evoluciones()->where('estado', 'Activo')->orderBy('fecha_hora')->orderBy('id_evolucion')->first();
+        $desdeEvolucion = (is_string($formulario) && str_starts_with($formulario, 'evolucion-')) || $request->has('estado_mejoria');
+        // La valoración inicial es el primer registro y no lleva «estado de mejoría»; sus órdenes son opcionales.
         $esValoracion = $registro
-            ? $registro->ordenes_medicas === null && $primero?->getKey() === $registro->getKey()
-            : $primero === null && (! is_string($formulario) || ! str_starts_with($formulario, 'evolucion-'));
-        if (! $request->hasAny(['ordenes', 'estado_mejoria', 'id_personal_medico']) && $esValoracion) {
-            return [];
+            ? $registro->estado_mejoria === null && $primero?->getKey() === $registro->getKey()
+            : $primero === null && ! (is_string($formulario) && str_starts_with($formulario, 'evolucion-'));
+        if ($esValoracion && ! $desdeEvolucion) {
+            if ($ingreso->esConsultaExterna() || ! $request->boolean('con_ordenes')) {
+                // Si el formulario ofrecía las órdenes y se desmarcaron, se quitan las guardadas.
+                return $request->boolean('ordenes_opcionales') && ! $ingreso->esConsultaExterna() ? ['ordenes_medicas' => null] : [];
+            }
+
+            return ['ordenes_medicas' => self::validarOrdenes($request)];
         }
+        // El responsable de la evolución es el personal del usuario que inició sesión (lo asigna el controlador).
         $datos = $request->validate([
             'estado_mejoria' => ['required', Rule::in(['Mejoró', 'Sin cambios', 'Empeoró'])],
-            'id_personal_medico' => ['required', 'integer'],
             'ordenes' => ['required', 'array:dieta,dieta_otra,soluciones,medicamentos,indicaciones,plan_educacional'],
         ], [
             'ordenes.required' => 'Debe completar las órdenes médicas antes de guardar la evolución.',
         ]);
-        $medico = Personal::whereKey($datos['id_personal_medico'])->where('estado', 'Activo')
-            ->whereHas('cargo', fn ($q) => $q->whereIn('nombre_cargo', ['Médico general', 'Médico especialista', 'Cirujano', 'Cirujano externo', 'Anestesiólogo']))->first();
-        if (! $medico) {
-            throw ValidationException::withMessages(['id_personal_medico' => 'Seleccione un médico activo.']);
-        }
+
+        return ['ordenes_medicas' => self::validarOrdenes($request), 'estado_mejoria' => $datos['estado_mejoria']];
+    }
+
+    /**
+     * Valida y ordena dieta, solución, medicamentos e indicaciones.
+     *
+     * @return array<string, mixed>
+     */
+    private static function validarOrdenes(Request $request): array
+    {
         $validado = $request->validate([
             'ordenes' => ['required', 'array:dieta,dieta_otra,soluciones,medicamentos,indicaciones,plan_educacional'],
             'ordenes.dieta' => ['required', 'string', Rule::in([...self::DIETAS, self::DIETA_OTRA])],
@@ -105,6 +116,6 @@ class OrdenesMedicas
             unset($ordenes['plan_educacional']);
         }
 
-        return ['ordenes_medicas' => $ordenes, 'estado_mejoria' => $datos['estado_mejoria'], 'id_personal' => $medico->getKey()];
+        return $ordenes;
     }
 }

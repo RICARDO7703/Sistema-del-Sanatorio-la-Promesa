@@ -23,5 +23,5 @@
 <p class="mb-1 text-break" style="white-space: pre-wrap">{{ $nota->observaciones }}</p>
 @endif
 @if($nota->aviso_medico)
-<p class="mb-0 text-danger-emphasis"><i class="bi bi-telephone" aria-hidden="true"></i> Se avisó al médico</p>
+<p class="mb-0 text-danger-emphasis"><i class="bi bi-telephone" aria-hidden="true"></i> <span>Se avisó al médico</span>@if($nota->medicoAvisado)<span>: <strong>{{ $nota->medicoAvisado->nombres }} {{ $nota->medicoAvisado->apellidos }}</strong></span>@endif</p>
 @endif

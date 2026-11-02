@@ -166,7 +166,7 @@ class Permisos
      */
     public const RUTAS_LIBRES = [
         'inicio', 'sesion.salida-pagina', 'personal.foto',
-        'perfil.show', 'perfil.foto.editar', 'perfil.contrasena.editar', 'perfil.contacto', 'perfil.foto', 'perfil.quitar-foto', 'perfil.contrasena',
+        'perfil.show', 'perfil.foto.editar', 'perfil.contrasena.editar', 'perfil.apariencia.editar', 'perfil.contacto', 'perfil.foto', 'perfil.quitar-foto', 'perfil.contrasena',
         'evolucion.index', 'signos.index', 'tratamientos.index', 'ingresos.index',
     ];
 

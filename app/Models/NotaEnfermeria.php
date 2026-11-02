@@ -43,6 +43,7 @@ class NotaEnfermeria extends Model
         'actividad',
         'observaciones',
         'aviso_medico',
+        'id_personal_avisado',
         'id_usuario_creacion',
     ];
 
@@ -55,6 +56,14 @@ class NotaEnfermeria extends Model
     public function ingreso(): BelongsTo
     {
         return $this->belongsTo(Ingreso::class, 'id_ingreso', 'id_ingreso');
+    }
+
+    /**
+     * Médico al que enfermería avisó.
+     */
+    public function medicoAvisado(): BelongsTo
+    {
+        return $this->belongsTo(Personal::class, 'id_personal_avisado', 'id_personal');
     }
 
     public function personal(): BelongsTo

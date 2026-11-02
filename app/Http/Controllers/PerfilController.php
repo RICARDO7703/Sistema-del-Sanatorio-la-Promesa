@@ -55,13 +55,21 @@ class PerfilController extends Controller
     /**
      * Pantalla que solo muestra el cambio de contraseña.
      */
+    /**
+     * Pantalla para elegir el modo claro u oscuro.
+     */
+    public function editarApariencia(): View
+    {
+        return $this->pantalla('apariencia');
+    }
+
     public function editarContrasena(): View
     {
         return $this->pantalla('contrasena');
     }
 
     /**
-     * @param  'perfil'|'foto'|'contrasena'  $seccion
+     * @param  'perfil'|'foto'|'contrasena'|'apariencia'  $seccion
      */
     private function pantalla(string $seccion): View
     {

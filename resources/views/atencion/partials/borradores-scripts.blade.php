@@ -27,8 +27,8 @@
         const borrador = leer(clave);
         if (borrador && borrador.version === 1 && Array.isArray(borrador.campos) && formularioConErrores !== identificador) {
             ['soluciones', 'medicamentos'].forEach(tipo => {
-                const contenedor = form.querySelector('#filas-' + tipo);
-                const plantilla = document.getElementById('plantilla-' + tipo);
+                const contenedor = form.querySelector('[data-filas="' + tipo + '"]');
+                const plantilla = form.querySelector('template[data-plantilla="' + tipo + '"]');
                 if (!contenedor || !plantilla) return;
                 const indices = borrador.filas?.[tipo];
                 if (!Array.isArray(indices)) return;
@@ -55,7 +55,7 @@
             if (!modificado) return;
             const filas = {};
             ['soluciones', 'medicamentos'].forEach(tipo => {
-                const contenedor = form.querySelector('#filas-' + tipo);
+                const contenedor = form.querySelector('[data-filas="' + tipo + '"]');
                 if (!contenedor) return;
                 filas[tipo] = [...contenedor.querySelectorAll('.fila-orden')].map(fila => Number(fila.querySelector('[name]')?.name.split('[')[2]?.split(']')[0])).filter(Number.isSafeInteger);
             });

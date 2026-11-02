@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Hospitalizacion;
 use App\Models\Ingreso;
 use App\Models\NotaEnfermeria;
+use App\Models\Personal;
 use App\Models\SignoVital;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -44,7 +45,10 @@ class NotaEnfermeriaController extends Controller
             'actividad_otra' => ['nullable', 'string', 'max:100'],
             'observaciones' => ['nullable', 'string', 'max:2000'],
             'aviso_medico' => ['nullable', 'boolean'],
+            'id_personal_avisado' => ['exclude_unless:aviso_medico,1', 'required', 'integer', Rule::exists('tbl_personal', 'id_personal')->where('estado', 'Activo')],
         ], [
+            'id_personal_avisado.required' => 'Seleccione a qué médico se avisó.',
+            'id_personal_avisado.exists' => 'Seleccione un médico activo de la lista.',
             'fecha_hora.required' => 'Indique la fecha y hora de la nota.',
             'fecha_hora.before_or_equal' => 'La fecha y hora no pueden ser futuras.',
             'estado_paciente.required' => 'Indique cómo está el paciente.',
@@ -74,9 +78,14 @@ class NotaEnfermeriaController extends Controller
             throw ValidationException::withMessages(['nota' => 'Registre signos vitales, marque una actividad o escriba la nota.']);
         }
 
+        $avisoMedico = (bool) ($datos['aviso_medico'] ?? false);
+        if ($avisoMedico && ! Personal::whereKey($datos['id_personal_avisado'])->whereHas('cargo', fn ($consulta) => $consulta->whereIn('nombre_cargo', Personal::CARGOS_MEDICOS))->exists()) {
+            throw ValidationException::withMessages(['id_personal_avisado' => 'Seleccione un médico activo de la lista.']);
+        }
+
         $fecha = Carbon::parse($datos['fecha_hora']);
 
-        DB::transaction(function () use ($ingreso, $datos, $actividades, $nota, $conSignos, $fecha, $idPersonal): void {
+        DB::transaction(function () use ($ingreso, $datos, $actividades, $nota, $conSignos, $fecha, $idPersonal, $avisoMedico): void {
             $actual = Ingreso::whereKey($ingreso->getKey())->lockForUpdate()->firstOrFail();
             $internado = Hospitalizacion::where('id_ingreso', $actual->getKey())->where('estado', 'Activa')->exists();
 
@@ -104,7 +113,8 @@ class NotaEnfermeriaController extends Controller
                 'estado_paciente' => $datos['estado_paciente'],
                 'id_signos_vitales' => $signos?->getKey(),
                 'observaciones' => $nota !== '' ? $nota : null,
-                'aviso_medico' => (bool) ($datos['aviso_medico'] ?? false),
+                'aviso_medico' => $avisoMedico,
+                'id_personal_avisado' => $avisoMedico ? (int) $datos['id_personal_avisado'] : null,
                 'id_usuario_creacion' => session('id_usuario'),
             ]);
 

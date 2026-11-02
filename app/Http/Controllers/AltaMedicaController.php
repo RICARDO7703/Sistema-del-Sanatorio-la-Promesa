@@ -4,12 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\AltaMedica;
 use App\Models\Ingreso;
+use App\Services\CirugiasAlAlta;
 use App\Services\ReglasAtencion;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AltaMedicaController extends Controller
@@ -25,7 +25,6 @@ class AltaMedicaController extends Controller
             'medicamentos_casa.*.via_administracion' => ['nullable', 'string', 'max:80'],
             'medicamentos_casa.*.frecuencia' => ['required', 'string', 'max:100'],
             'medicamentos_casa.*.duracion' => ['nullable', 'string', 'max:100'],
-            'id_personal_medico' => ['required', 'integer', Rule::exists('tbl_personal', 'id_personal')->where('estado', 'Activo')],
             'fecha_hora' => ['required', 'date', ReglasAtencion::reglaNoFutura()],
             'diagnostico_final' => ['required', 'string', 'max:2000'],
             'condicion_egreso' => ['required', 'string', 'max:150'],
@@ -39,15 +38,17 @@ class AltaMedicaController extends Controller
         ]);
         $medicamentosCasa = $datos['medicamentos_casa'] ?? [];
         unset($datos['medicamentos_casa']);
-        $esMedico = DB::table('tbl_personal')->join('tbl_cargo', 'tbl_cargo.id_cargo', '=', 'tbl_personal.id_cargo')
-            ->where('tbl_personal.id_personal', $datos['id_personal_medico'])
-            ->whereIn('tbl_cargo.nombre_cargo', ['Médico general', 'Médico especialista', 'Cirujano', 'Cirujano externo', 'Anestesiólogo'])->exists();
-        if (! $esMedico) {
-            throw ValidationException::withMessages(['id_personal_medico' => 'Seleccione personal con cargo médico.']);
+        $cancelarCirugias = $request->input('cancelar_cirugias') === '1';
+        $idPersonal = DB::table('tbl_usuario as u')->join('tbl_personal as p', 'p.id_personal', '=', 'u.id_personal')
+            ->where('u.id_usuario', $request->session()->get('id_usuario'))->where('u.estado', 'Activo')->where('p.estado', 'Activo')->value('p.id_personal');
+        if (! $idPersonal) {
+            throw ValidationException::withMessages(['id_personal_medico' => 'Su usuario no tiene personal activo vinculado.']);
         }
-        DB::transaction(function () use ($ingreso, $datos, $medicamentosCasa): void {
+        $datos['id_personal_medico'] = $idPersonal;
+        DB::transaction(function () use ($ingreso, $datos, $medicamentosCasa, $cancelarCirugias): void {
             $actual = Ingreso::whereKey($ingreso->getKey())->lockForUpdate()->firstOrFail();
             ReglasAtencion::exigirActivo($actual->estado);
+            app(CirugiasAlAlta::class)->cancelar($actual, $cancelarCirugias);
             $fecha = Carbon::parse($datos['fecha_hora']);
             ReglasAtencion::validarFecha($fecha, $actual->fecha_ingreso, ReglasAtencion::ahora());
             foreach (['evoluciones' => 'fecha_hora', 'signosVitales' => 'fecha_hora', 'tratamientos' => 'fecha_indicacion'] as $relacion => $campo) {

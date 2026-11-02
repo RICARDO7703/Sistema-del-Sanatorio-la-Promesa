@@ -12,6 +12,16 @@ class EvolucionClinica extends Model
 
     public $timestamps = false;
 
+    /**
+     * La hora de registro se guarda en UTC desde la aplicación; con ella se cuentan las 12 horas para editar.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $registro): void {
+            $registro->fecha_registro ??= now('UTC');
+        });
+    }
+
     protected $fillable = [
         'id_ingreso',
         'id_personal',

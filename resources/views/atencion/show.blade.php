@@ -63,13 +63,13 @@
 <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
 
     <a
-        href="{{ $ingreso->esConsultaExterna() ? route('pacientes.index') : route('atencion.index') }}"
+        href="{{ route('pacientes.expediente', $ingreso->id_paciente) }}"
         class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i>
-        {{ $ingreso->esConsultaExterna() ? 'Volver a pacientes' : 'Volver a pacientes en atención' }}
+        Volver al expediente
     </a>
 
-    @if($ingreso->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Ingresos', 'Editar'))
+    @if(\App\Support\EdicionClinica::puedeEditar($ingreso) && app(\App\Support\Permisos::class)->puede('Ingresos', 'Editar'))
     <button
         type="button"
         class="btn btn-outline-primary"
@@ -612,7 +612,7 @@ $ingreso->hospitalizacion->estado === 'Activa'
                         'ingresos.actualizar',
                         $ingreso->id_ingreso
                     ) }}"
-                method="POST">
+                method="POST" enctype="multipart/form-data">
 
                 @csrf
                 @method('PUT')
@@ -664,6 +664,14 @@ $ingreso->hospitalizacion->estado === 'Activa'
 
                     {{-- El documento de ingreso solo se firma cuando el paciente se interna. --}}
                     @unless($ingreso->esConsultaExterna())
+                    @php($documentoFirmado = $ingreso->documentoFirmado)
+                    @php($marcarFirmado = $errors->has('documento_archivo') || old('documento_firmado') ? (bool) old('documento_firmado') : (bool) $ingreso->documento_firmado)
+                    @if($documentoFirmado)
+                    <p class="mb-0 text-success">
+                        <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Documento de ingreso firmado.
+                        <a href="{{ route('archivos.show', $documentoFirmado) }}">Ver documento</a>
+                    </p>
+                    @else
                     <div class="form-check">
 
                         <input
@@ -672,7 +680,8 @@ $ingreso->hospitalizacion->estado === 'Activa'
                             name="documento_firmado"
                             value="1"
                             id="editarDocumentoFirmado"
-                            @checked($ingreso->documento_firmado)
+                            data-archivo-firmado="editarDocumentoFirmado-archivo"
+                            @checked($marcarFirmado)
                         >
 
                         <label
@@ -682,6 +691,17 @@ $ingreso->hospitalizacion->estado === 'Activa'
                         </label>
 
                     </div>
+
+                    <div class="mt-2" id="editarDocumentoFirmado-archivo" @unless($marcarFirmado) hidden @endunless>
+                        @if($ingreso->documento_firmado)
+                        <p class="small text-warning-emphasis mb-1">Este ingreso está marcado como firmado, pero no tiene el documento. Súbalo o desmarque la casilla.</p>
+                        @endif
+                        <label class="form-label" for="editarDocumentoFirmado-campo">Documento firmado (PDF o imagen) *</label>
+                        <input type="file" id="editarDocumentoFirmado-campo" name="documento_archivo" class="form-control @error('documento_archivo') is-invalid @enderror" accept="application/pdf,image/jpeg,image/png,image/webp" data-mensaje-requerido="Suba el documento de ingreso firmado o desmarque la casilla." @if($marcarFirmado) required @else disabled @endif>
+                        @error('documento_archivo')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <small class="text-muted d-block">Máximo 10 MB. Quedará en «Archivos médicos» del expediente.</small>
+                    </div>
+                    @endif
                     @endunless
 
                 </div>
@@ -719,9 +739,9 @@ $ingreso->hospitalizacion->estado === 'Activa'
 @include('atencion.partials.ordenes-scripts')
 <?php
     $formularioAnterior = old('_formulario', '');
-    $modalAbierto = $formularioAnterior === 'anular-atencion' && $ingreso->estado === 'Activo' ? 'modalAnularAtencion' : (session('abrir_internamiento') && ! $ingreso->hospitalizacion ? 'modalAsignarHabitacion' : ((str_starts_with($formularioAnterior, 'valoracion') || request('consulta') === 'valoracion' || ($registroSeleccionado && $registroSeleccionado->getKey() === $ingreso->evoluciones->first()?->getKey() && $registroSeleccionado->ordenes_medicas === null)) ? 'modalValoracion'
+    $modalAbierto = $formularioAnterior === 'anular-atencion' && $ingreso->estado === 'Activo' ? 'modalAnularAtencion' : (request('editar') === 'ingreso' && \App\Support\EdicionClinica::puedeEditar($ingreso) ? 'modalEditarIngreso' : (session('abrir_internamiento') && ! $ingreso->hospitalizacion ? 'modalAsignarHabitacion' : ((str_starts_with($formularioAnterior, 'valoracion') || request('consulta') === 'valoracion' || request('editar') === 'valoracion' || ($registroSeleccionado && $registroSeleccionado->getKey() === $ingreso->evoluciones->first()?->getKey() && $registroSeleccionado->estado_mejoria === null)) ? 'modalValoracion'
         : ($formularioAnterior === 'alta' || request('consulta') === 'alta' ? 'modalAlta'
-        : (str_starts_with($formularioAnterior, 'evolucion-') || $registroSeleccionado || request('nuevo') === '1' ? 'modalEvolucion' : null))));
+        : (str_starts_with($formularioAnterior, 'evolucion-') || $registroSeleccionado || request('nuevo') === '1' ? 'modalEvolucion' : null)))));
 ?>
 @if($modalAbierto)
 <script>

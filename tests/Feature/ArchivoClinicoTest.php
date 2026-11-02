@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\ArchivoClinicoController;
 use App\Models\DocumentoClinico;
+use App\Models\Ingreso;
 use Database\Factories\IngresoFactory;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,7 @@ class ArchivoClinicoTest extends TestCase
         (require database_path('migrations/2026_10_12_224836_add_examen_fisico_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_14_011905_add_ordenes_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_26_010043_add_notas_to_tbl_atencion_enfermeria.php'))->up();
+        (require database_path('migrations/2026_11_02_053000_add_medico_avisado_to_tbl_atencion_enfermeria.php'))->up();
         $this->travelTo(now()->setDate(2026, 10, 11)->setTime(18, 0));
         DB::table('tbl_cargo')->insert([['id_cargo' => 1, 'nombre_cargo' => 'Médico general'], ['id_cargo' => 6, 'nombre_cargo' => 'Enfermera']]);
         DB::table('tbl_personal')->insert([
@@ -217,5 +219,65 @@ class ArchivoClinicoTest extends TestCase
         $m->up();
         $m->up();
         $this->assertTrue(Schema::hasColumn('tbl_documento_clinico', 'tabla_origen'));
+    }
+
+    public function test_hospitalizar_con_documento_firmado_exige_subirlo_y_lo_guarda_en_archivos_medicos(): void
+    {
+        Storage::fake('documentos_clinicos');
+        $paciente = IngresoFactory::new()->create(['estado' => 'Dado de alta'])->paciente;
+        $datos = ['id_paciente' => $paciente->getKey(), 'fecha_ingreso' => '2026-10-11T11:30', 'motivo_ingreso' => 'Desmayo', 'documento_firmado' => '1'];
+
+        $this->withSession(['id_usuario' => 1])->post(route('ingresos.guardar'), $datos)
+            ->assertSessionHasErrors(['documento_archivo' => 'Suba el documento de ingreso firmado o desmarque la casilla.']);
+        $this->post(route('ingresos.guardar'), $datos + ['documento_archivo' => UploadedFile::fake()->createWithContent('falso.pdf', 'texto normal')])
+            ->assertSessionHasErrors('documento_archivo');
+        $this->assertSame(0, Ingreso::where('estado', 'Activo')->count());
+        $this->assertDatabaseCount('tbl_documento_clinico', 0);
+
+        $this->post(route('ingresos.guardar'), $datos + ['documento_archivo' => $this->pdf('consentimiento.pdf')])->assertSessionHasNoErrors();
+        $ingreso = Ingreso::where('estado', 'Activo')->sole();
+        $documento = DocumentoClinico::sole();
+        $this->assertTrue($ingreso->documento_firmado);
+        $this->assertNull($documento->id_ingreso);
+        $this->assertTrue($documento->esDocumentoIngresoFirmado());
+        $this->assertSame($ingreso->getKey(), (int) $documento->id_registro_origen);
+        $this->assertSame('consentimiento.pdf', $documento->nombre_archivo);
+        Storage::disk('documentos_clinicos')->assertExists($documento->ruta_archivo);
+
+        $this->get(route('pacientes.expediente', $paciente))->assertOk()
+            ->assertSeeInOrder(['id="archivos-paciente"', 'Documento de ingreso firmado · ingreso del 11/10/2026 11:30'], false)
+            ->assertSee(route('archivos.show', $documento), false);
+        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Ver documento')->assertDontSee('id="editarDocumentoFirmado"', false);
+
+        // Ya subido, no se puede desmarcar al editar el ingreso.
+        $this->put(route('ingresos.actualizar', $ingreso), ['fecha_ingreso' => '2026-10-11T11:30', 'motivo_ingreso' => 'Síncope'])->assertSessionHasNoErrors();
+        $this->assertTrue($ingreso->fresh()->documento_firmado);
+        $this->assertDatabaseCount('tbl_documento_clinico', 1);
+
+        // Su tipo no se cambia al corregirlo.
+        $this->put(route('archivos.actualizar', $documento), ['categoria' => 'Otro', 'titulo' => 'Consentimiento firmado'])->assertSessionHasNoErrors();
+        $this->assertSame('Otro', $documento->fresh()->categoria);
+        $this->assertTrue($documento->fresh()->esDocumentoIngresoFirmado());
+        $this->get(route('archivos.editar', $documento))->assertOk()->assertDontSee('name="categoria"', false);
+    }
+
+    public function test_sin_marcar_la_casilla_no_se_pide_el_documento_y_al_editar_se_puede_subir(): void
+    {
+        Storage::fake('documentos_clinicos');
+        $paciente = IngresoFactory::new()->create(['estado' => 'Dado de alta'])->paciente;
+
+        $this->withSession(['id_usuario' => 1])->post(route('ingresos.guardar'), ['id_paciente' => $paciente->getKey(), 'fecha_ingreso' => '2026-10-11T11:30', 'documento_archivo' => $this->pdf()])
+            ->assertSessionHasNoErrors();
+        $ingreso = Ingreso::where('estado', 'Activo')->sole();
+        $this->assertFalse($ingreso->documento_firmado);
+        $this->assertDatabaseCount('tbl_documento_clinico', 0);
+
+        $this->put(route('ingresos.actualizar', $ingreso), ['fecha_ingreso' => '2026-10-11T11:30', 'documento_firmado' => '1'])->assertSessionHasErrors('documento_archivo');
+        $this->assertFalse($ingreso->fresh()->documento_firmado);
+
+        $this->put(route('ingresos.actualizar', $ingreso), ['fecha_ingreso' => '2026-10-11T11:30', 'documento_firmado' => '1', 'documento_archivo' => UploadedFile::fake()->image('firma.jpg')])
+            ->assertSessionHasNoErrors();
+        $this->assertTrue($ingreso->fresh()->documento_firmado);
+        $this->assertSame($ingreso->getKey(), (int) DocumentoClinico::sole()->id_registro_origen);
     }
 }

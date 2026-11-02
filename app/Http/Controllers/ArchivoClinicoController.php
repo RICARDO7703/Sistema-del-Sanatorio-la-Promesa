@@ -175,10 +175,13 @@ class ArchivoClinicoController extends Controller
             'descripcion' => ['nullable', 'string', 'max:2000'],
             'archivo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'extensions:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ];
+        if ($archivoClinico->esDocumentoIngresoFirmado()) {
+            unset($reglas['categoria']);
+        }
         $datos = $request->validate($reglas, $this->mensajesArchivo());
         $cambios = ['descripcion' => $this->texto($datos['descripcion'] ?? null), 'id_usuario_modificacion' => session('id_usuario')];
         if ($delPaciente) {
-            $cambios += ['categoria' => $datos['categoria'], 'titulo' => trim($datos['titulo'])];
+            $cambios += ['categoria' => $datos['categoria'] ?? $archivoClinico->categoria, 'titulo' => trim($datos['titulo'])];
         } else {
             $fecha = Carbon::parse($datos['fecha_documento']);
             if ($fecha->lt($archivoClinico->ingreso->fecha_ingreso)) {
