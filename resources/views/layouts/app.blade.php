@@ -47,35 +47,54 @@
                     <span>Inicio</span>
                 </a>
 
+                @puede('Pacientes', 'Ver')
                 <a class="nav-link @yield('menu-pacientes')" href="{{ url('/pacientes') }}">
                     <i class="bi bi-people"></i>
                     <span>Pacientes</span>
                 </a>
+                @endpuede
 
+                @puede('Expedientes', 'Ver')
                 <a class="nav-link @yield('menu-expedientes')" href="{{ route('expedientes.index') }}">
                     <i class="bi bi-folder2-open"></i>
                     <span>Expedientes</span>
                 </a>
+                @endpuede
 
+                @puede('Ingresos', 'Ver')
                 <a class="nav-link @yield('menu-atencion')" href="{{ route('atencion.index') }}">
                     <i class="bi bi-clipboard2-pulse"></i>
                     <span>Atención del paciente</span>
                 </a>
+                @endpuede
 
+                @puede('Personal', 'Ver')
                 <a class="nav-link @yield('menu-personal')" href="{{ route('personal.index') }}">
                     <i class="bi bi-person-badge"></i>
                     <span>Personal</span>
                 </a>
+                @endpuede
 
+                @puede('Habitaciones', 'Ver')
                 <a class="nav-link @yield('menu-habitaciones')" href="{{ route('habitaciones.index') }}">
                     <i class="bi bi-door-open"></i>
                     <span>Habitaciones</span>
                 </a>
+                @endpuede
 
+                @administrador
+                <a class="nav-link @yield('menu-usuarios')" href="{{ route('usuarios.index') }}">
+                    <i class="bi bi-person-lock"></i>
+                    <span>Usuarios</span>
+                </a>
+                @endadministrador
+
+                @puede('Bitácora', 'Ver')
                 <a class="nav-link @yield('menu-bitacora')" href="{{ url('/bitacora') }}">
                     <i class="bi bi-clipboard-data"></i>
                     <span>Bitácora</span>
                 </a>
+                @endpuede
 
             </nav>
 
@@ -140,6 +159,9 @@
             </header>
 
             <main class="contenido-principal">
+                @if(session('permiso_denegado'))
+                <div class="alert alert-warning d-flex gap-2 align-items-start" role="alert"><i class="bi bi-shield-lock" aria-hidden="true"></i><span>{{ session('permiso_denegado') }}</span></div>
+                @endif
                 @yield('content')
             </main>
 

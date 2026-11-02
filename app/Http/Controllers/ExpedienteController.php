@@ -2,9 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DocumentoClinico;
 use App\Models\Habitacion;
+use App\Models\Ingreso;
 use App\Models\Paciente;
+use App\Services\ReglasAtencion;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -55,6 +61,10 @@ class ExpedienteController extends Controller
             ->orderByDesc('id_ingreso')
             ->get();
 
+        $archivosPaciente = $paciente->documentosClinicos()->whereNull('id_ingreso')->where('estado', 'Activo')
+            ->with('personalResponsable')->orderByDesc('fecha_documento')->orderByDesc('id_documento')->get();
+        $ediciones = $this->ultimasEdiciones($ingresos, $archivosPaciente);
+
         $ingresoActivo = $paciente->ingresos()->with('hospitalizacion.habitacionActual.habitacion')
             ->where('estado', 'Activo')
             ->orderBy('fecha_ingreso', 'desc')
@@ -78,9 +88,42 @@ class ExpedienteController extends Controller
             compact(
                 'paciente',
                 'ingresos',
+                'ediciones',
+                'archivosPaciente',
                 'ingresoActivo',
                 'habitacionesDisponibles'
             )
         );
+    }
+
+    /**
+     * Fecha de la última edición hecha por una persona a la hoja de llegada o de ingreso
+     * y a cada consulta, valoración o evolución, según la bitácora. Se devuelve en hora de Guatemala.
+     *
+     * @param  Collection<int, Ingreso>  $ingresos
+     * @param  Collection<int, DocumentoClinico>  $archivosPaciente
+     * @return Collection<string, Carbon>
+     */
+    private function ultimasEdiciones(Collection $ingresos, Collection $archivosPaciente): Collection
+    {
+        $idsIngresos = $ingresos->modelKeys();
+        $idsEvoluciones = $ingresos->flatMap(fn (Ingreso $ingreso) => $ingreso->evoluciones->modelKeys())->all();
+        $idsArchivos = $ingresos->flatMap(fn (Ingreso $ingreso) => $ingreso->documentosClinicos->modelKeys())->merge($archivosPaciente->modelKeys())->all();
+        if ($idsIngresos === [] && $idsEvoluciones === [] && $idsArchivos === []) {
+            return collect();
+        }
+
+        return DB::table('tbl_bitacora')
+            ->where(function ($consulta) use ($idsIngresos, $idsEvoluciones, $idsArchivos): void {
+                $consulta->where(fn ($ingreso) => $ingreso->where('tabla', 'tbl_ingreso')->whereIn('id_registro', $idsIngresos)->where('accion', 'Edición de ingreso'))
+                    ->orWhere(fn ($evolucion) => $evolucion->where('tabla', 'tbl_evolucion_clinica')->whereIn('id_registro', $idsEvoluciones)
+                        ->whereIn('accion', ['Edición de evolución clínica', 'Actualización de evolución clínica']))
+                    ->orWhere(fn ($archivo) => $archivo->where('tabla', 'tbl_documento_clinico')->whereIn('id_registro', $idsArchivos)->where('accion', 'Edición de archivo clínico'));
+            })
+            ->where('resultado', 'Exitoso')
+            ->groupBy('tabla', 'id_registro')
+            ->selectRaw('tabla, id_registro, MAX(fecha_hora) AS ultima')
+            ->get()
+            ->mapWithKeys(fn ($fila) => [$fila->tabla.':'.$fila->id_registro => Carbon::parse($fila->ultima, 'UTC')->setTimezone(ReglasAtencion::ZONA_HORARIA)]);
     }
 }

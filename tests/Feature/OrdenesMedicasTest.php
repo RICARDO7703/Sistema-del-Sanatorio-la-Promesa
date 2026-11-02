@@ -22,7 +22,8 @@ class OrdenesMedicasTest extends TestCase
         DB::unprepared(file_get_contents(base_path('tests/Fixtures/v3.sqlite.sql')));
         (require database_path('migrations/2026_10_12_224836_add_examen_fisico_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_14_011905_add_ordenes_to_tbl_evolucion_clinica.php'))->up();
-        $this->travelTo(now()->setDate(2026, 10, 11)->setTime(12, 0));
+        // 18:00 UTC = 12:00 en Guatemala, la hora que usan las fechas clínicas.
+        $this->travelTo(now()->setDate(2026, 10, 11)->setTime(18, 0));
         DB::table('tbl_cargo')->insert(['id_cargo' => 1, 'nombre_cargo' => 'Médico general']);
         DB::table('tbl_personal')->insert(['id_personal' => 1, 'id_cargo' => 1, 'nombres' => 'Médico', 'apellidos' => 'Prueba', 'dpi' => '1234567890123']);
         DB::table('tbl_rol')->insert(['id_rol' => 1, 'nombre_rol' => 'Administrador']);

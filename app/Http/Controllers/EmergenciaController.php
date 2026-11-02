@@ -7,6 +7,7 @@ use App\Models\EvolucionClinica;
 use App\Models\Ingreso;
 use App\Services\ExamenFisico;
 use App\Services\ReglasAtencion;
+use App\Support\Permisos;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,10 @@ class EmergenciaController extends Controller
             return redirect()->route('atencion.show', $ingreso)->with('error', 'Esta atención no es una consulta externa.');
         }
 
+        if ($request->input('accion') === 'alta' && ! app(Permisos::class)->puede('Alta médica', Permisos::GUARDAR)) {
+            return back()->withInput()->with('permiso_denegado', 'No tiene permiso para '.Permisos::descripcion('Alta médica', Permisos::GUARDAR).'. Puede guardar la consulta con «Internar paciente» o pedir a un médico que dé el alta.');
+        }
+
         $idPersonal = DB::table('tbl_usuario')->where('id_usuario', session('id_usuario'))->value('id_personal');
 
         if (! $idPersonal) {
@@ -38,7 +43,7 @@ class EmergenciaController extends Controller
 
         $datos = $request->validate([
             'accion' => ['required', Rule::in(['alta', 'internar'])],
-            'fecha_hora' => ['required', 'date', 'before_or_equal:'.now('America/Guatemala')->format('Y-m-d H:i:s')],
+            'fecha_hora' => ['required', 'date', ReglasAtencion::reglaNoFutura()],
             'motivo_atencion' => ['required', 'string', 'max:255'],
             'sintomas' => ['nullable', 'string', 'max:1000'],
             'evaluacion_medica' => ['nullable', 'string', 'max:2000'],
@@ -70,7 +75,8 @@ class EmergenciaController extends Controller
             $actual = Ingreso::whereKey($ingreso->getKey())->lockForUpdate()->firstOrFail();
             ReglasAtencion::exigirActivo($actual->estado);
 
-            if ($fecha->lt($actual->fecha_ingreso)) {
+            // La consulta se registra al minuto; la llegada puede tener segundos en registros anteriores.
+            if ($fecha->lt($actual->fecha_ingreso->copy()->startOfMinute())) {
                 throw ValidationException::withMessages(['fecha_hora' => 'La consulta no puede ser anterior a la llegada del paciente.']);
             }
 
@@ -92,7 +98,9 @@ class EmergenciaController extends Controller
             $registro = $actual->evoluciones()->where('estado', 'Activo')->orderBy('fecha_hora')->orderBy('id_evolucion')->first();
 
             if ($registro) {
+                request()->attributes->set('edicion_documento', true);
                 $registro->update($consulta + ['id_usuario_modificacion' => session('id_usuario')]);
+                request()->attributes->remove('edicion_documento');
             } else {
                 EvolucionClinica::create($consulta + [
                     'id_ingreso' => $actual->getKey(),
@@ -106,7 +114,7 @@ class EmergenciaController extends Controller
                 return;
             }
 
-            $ahoraLocal = Carbon::parse(now('America/Guatemala')->format('Y-m-d H:i:00'));
+            $ahoraLocal = ReglasAtencion::ahora()->startOfMinute();
             $fechaAlta = $ahoraLocal->max($fecha);
             $alta = AltaMedica::create([
                 'id_ingreso' => $actual->getKey(),

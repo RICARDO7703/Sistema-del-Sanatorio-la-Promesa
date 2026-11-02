@@ -26,7 +26,7 @@
     </div>
 </div>
 
-<div class="mb-3"><a class="btn btn-outline-primary" href="{{ route('archivos.formulario',[$ingreso,'tipo'=>'Nota de enfermería']) }}"><i class="bi bi-camera" aria-hidden="true"></i> Subir hoja en papel (imagen o PDF)</a></div>
+@puede('Documentos clínicos', 'Ingresar')<div class="mb-3"><a class="btn btn-outline-primary" href="{{ route('archivos.formulario',[$ingreso,'tipo'=>'Nota de enfermería']) }}"><i class="bi bi-camera" aria-hidden="true"></i> Subir hoja en papel (imagen o PDF)</a></div>@endpuede
 @if(session('exito'))<div class="alert alert-success">{{ session('exito') }}</div>@endif
 @if(session('error'))<div class="alert alert-danger">{{ session('error') }}</div>@endif
 
@@ -292,7 +292,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar nota</button>
+                    @puede('Enfermería', 'Ingresar')<button type="submit" class="btn btn-primary">Guardar nota</button>@endpuede
                 </div>
             </form>
         </div>

@@ -4,9 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\DocumentoClinico;
 use App\Models\Ingreso;
+use App\Models\Paciente;
+use App\Services\ReglasAtencion;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -86,7 +89,7 @@ class ArchivoClinicoController extends Controller
                     'descripcion' => $datos['descripcion'] ?? null, 'ruta_archivo' => $ruta,
                     'nombre_archivo' => mb_substr(basename($archivo->getClientOriginalName()), 0, 255),
                     'tipo_archivo' => $archivo->extension(), 'fecha_documento' => $fecha,
-                    'estado' => 'Activo', 'id_usuario_creacion' => session('id_usuario'),
+                    'estado' => 'Activo', 'id_usuario_creacion' => session('id_usuario'), 'fecha_registro' => now('UTC'),
                 ]);
             });
         } catch (Throwable $error) {
@@ -99,7 +102,7 @@ class ArchivoClinicoController extends Controller
 
     public function show(DocumentoClinico $archivoClinico): View
     {
-        abort_unless($archivoClinico->estado === 'Activo' && $archivoClinico->ingreso, 404);
+        abort_unless($archivoClinico->estado === 'Activo' && ($archivoClinico->ingreso || $archivoClinico->esDelPaciente()), 404);
         $archivoClinico->load(['paciente', 'personalResponsable']);
 
         return view('archivos.show', ['documento' => $archivoClinico]);
@@ -107,9 +110,9 @@ class ArchivoClinicoController extends Controller
 
     public function contenido(DocumentoClinico $archivoClinico): BinaryFileResponse
     {
-        abort_unless($archivoClinico->estado === 'Activo' && $archivoClinico->ingreso, 404);
+        abort_unless($archivoClinico->estado === 'Activo' && ($archivoClinico->ingreso || $archivoClinico->esDelPaciente()), 404);
         $ruta = $archivoClinico->ruta_archivo;
-        abort_unless(str_starts_with($ruta, 'hojas/'.$archivoClinico->id_ingreso.'/') && ! str_contains($ruta, '..'), 404);
+        abort_unless(str_starts_with($ruta, $this->carpeta($archivoClinico).'/') && ! str_contains($ruta, '..'), 404);
         $disk = Storage::disk('documentos_clinicos');
         abort_unless($disk->exists($ruta), 404);
         $mime = $disk->mimeType($ruta);
@@ -119,6 +122,152 @@ class ArchivoClinicoController extends Controller
             'Content-Type' => $mime, 'Content-Disposition' => 'inline; filename="hoja-'.$archivoClinico->getKey().'.'.$archivoClinico->tipo_archivo.'"',
             'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /**
+     * Archivo médico que se agrega directamente al expediente del paciente (laboratorio, radiografía, informe…).
+     * La fecha es la hora en que se sube.
+     */
+    public function guardarPaciente(Request $request, Paciente $paciente): RedirectResponse
+    {
+        $datos = $request->validate($this->reglasArchivoPaciente(true), $this->mensajesArchivo());
+        $archivo = $this->archivoValido($request->file('archivo'));
+        $ruta = $archivo->store('pacientes/'.$paciente->getKey(), 'documentos_clinicos');
+        if (! $ruta) {
+            throw ValidationException::withMessages(['archivo' => 'No se pudo guardar el archivo. Inténtelo nuevamente.']);
+        }
+        try {
+            DocumentoClinico::create([
+                'id_paciente' => $paciente->getKey(), 'id_ingreso' => null,
+                'id_personal_responsable' => DB::table('tbl_usuario')->where('id_usuario', session('id_usuario'))->value('id_personal'),
+                'categoria' => $datos['categoria'], 'titulo' => trim($datos['titulo']), 'tipo_documento' => null,
+                'descripcion' => $this->texto($datos['descripcion'] ?? null), 'ruta_archivo' => $ruta,
+                'nombre_archivo' => mb_substr(basename($archivo->getClientOriginalName()), 0, 255),
+                'tipo_archivo' => $archivo->extension(), 'fecha_documento' => ReglasAtencion::ahora(),
+                'estado' => 'Activo', 'id_usuario_creacion' => session('id_usuario'), 'fecha_registro' => now('UTC'),
+            ]);
+        } catch (Throwable $error) {
+            Storage::disk('documentos_clinicos')->delete($ruta);
+            throw $error;
+        }
+
+        return redirect()->to(route('pacientes.expediente', $paciente).'#archivos-paciente')
+            ->with('exito', 'Archivo agregado al expediente. Puede corregirlo durante las próximas '.DocumentoClinico::HORAS_PARA_EDITAR.' horas.');
+    }
+
+    public function editar(DocumentoClinico $archivoClinico): View
+    {
+        $this->exigirEdicion($archivoClinico);
+        $archivoClinico->load(['paciente', 'ingreso']);
+
+        return view('archivos.editar', ['documento' => $archivoClinico]);
+    }
+
+    /**
+     * Corrige los datos o reemplaza el archivo. Solo quien lo subió y dentro de las primeras 12 horas.
+     */
+    public function actualizar(Request $request, DocumentoClinico $archivoClinico): RedirectResponse
+    {
+        $this->exigirEdicion($archivoClinico);
+        $delPaciente = $archivoClinico->esDelPaciente();
+        $reglas = $delPaciente ? $this->reglasArchivoPaciente(false) : [
+            'fecha_documento' => ['required', 'date', ReglasAtencion::reglaNoFutura()],
+            'descripcion' => ['nullable', 'string', 'max:2000'],
+            'archivo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'extensions:jpg,jpeg,png,webp,pdf', 'max:10240'],
+        ];
+        $datos = $request->validate($reglas, $this->mensajesArchivo());
+        $cambios = ['descripcion' => $this->texto($datos['descripcion'] ?? null), 'id_usuario_modificacion' => session('id_usuario')];
+        if ($delPaciente) {
+            $cambios += ['categoria' => $datos['categoria'], 'titulo' => trim($datos['titulo'])];
+        } else {
+            $fecha = Carbon::parse($datos['fecha_documento']);
+            if ($fecha->lt($archivoClinico->ingreso->fecha_ingreso)) {
+                throw ValidationException::withMessages(['fecha_documento' => 'La hoja no puede tener una fecha anterior a la llegada del paciente.']);
+            }
+            $cambios['fecha_documento'] = $fecha;
+        }
+        $rutaNueva = null;
+        if ($request->hasFile('archivo')) {
+            $archivo = $this->archivoValido($request->file('archivo'));
+            $rutaNueva = $archivo->store($this->carpeta($archivoClinico), 'documentos_clinicos');
+            if (! $rutaNueva) {
+                throw ValidationException::withMessages(['archivo' => 'No se pudo guardar el archivo. Inténtelo nuevamente.']);
+            }
+            $cambios += ['ruta_archivo' => $rutaNueva, 'nombre_archivo' => mb_substr(basename($archivo->getClientOriginalName()), 0, 255), 'tipo_archivo' => $archivo->extension()];
+        }
+        $rutaAnterior = $archivoClinico->ruta_archivo;
+        try {
+            $request->attributes->set('edicion_documento', true);
+            $archivoClinico->update($cambios);
+        } catch (Throwable $error) {
+            if ($rutaNueva) {
+                Storage::disk('documentos_clinicos')->delete($rutaNueva);
+            }
+            throw $error;
+        }
+        if ($rutaNueva) {
+            DB::afterCommit(fn () => Storage::disk('documentos_clinicos')->delete($rutaAnterior));
+        }
+
+        return redirect()->route('archivos.show', $archivoClinico)->with('exito', 'Archivo corregido.');
+    }
+
+    private function exigirEdicion(DocumentoClinico $documento): void
+    {
+        abort_unless($documento->estado === 'Activo' && ($documento->ingreso || $documento->esDelPaciente()), 404);
+        abort_unless($documento->puedeEditar((int) session('id_usuario')), 403, 'Solo quien subió el archivo puede editarlo, y únicamente durante las primeras '.DocumentoClinico::HORAS_PARA_EDITAR.' horas.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function reglasArchivoPaciente(bool $archivoObligatorio): array
+    {
+        return [
+            'categoria' => ['required', Rule::in(DocumentoClinico::CATEGORIAS)],
+            'titulo' => ['required', 'string', 'max:150'],
+            'descripcion' => ['nullable', 'string', 'max:2000'],
+            'archivo' => [$archivoObligatorio ? 'required' : 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'extensions:jpg,jpeg,png,webp,pdf', 'max:10240'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function mensajesArchivo(): array
+    {
+        return [
+            'categoria.required' => 'Seleccione el tipo de archivo.',
+            'categoria.in' => 'Seleccione un tipo de la lista.',
+            'titulo.required' => 'Escriba el nombre del archivo.',
+            'titulo.max' => 'El nombre no puede pasar de 150 caracteres.',
+            'fecha_documento.required' => 'Indique la fecha.',
+            'fecha_documento.before_or_equal' => 'La fecha no puede ser futura.',
+            'archivo.required' => 'Seleccione el PDF o la imagen.',
+            'archivo.mimes' => 'Solo se aceptan archivos PDF o imágenes JPG, PNG o WEBP.',
+            'archivo.extensions' => 'La extensión del archivo debe ser PDF, JPG, PNG o WEBP.',
+            'archivo.max' => 'El archivo no puede superar los 10 MB.',
+        ];
+    }
+
+    private function archivoValido(UploadedFile $archivo): UploadedFile
+    {
+        $mimeReal = (new \finfo(FILEINFO_MIME_TYPE))->file($archivo->getRealPath());
+        if (! in_array($mimeReal, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], true)) {
+            throw ValidationException::withMessages(['archivo' => 'El contenido no corresponde a una imagen o PDF válido.']);
+        }
+
+        return $archivo;
+    }
+
+    private function carpeta(DocumentoClinico $documento): string
+    {
+        return $documento->esDelPaciente() ? 'pacientes/'.$documento->id_paciente : 'hojas/'.$documento->id_ingreso;
+    }
+
+    private function texto(mixed $valor): ?string
+    {
+        return is_string($valor) && trim($valor) !== '' ? trim($valor) : null;
     }
 
     private function referencia(Ingreso $ingreso, string $tipo, mixed $id): string

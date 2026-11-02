@@ -34,7 +34,7 @@
         @if($historial->previousPageUrl())<a href="{{ $historial->previousPageUrl() }}#evoluciones">Anterior</a>@endif
         <span>Página {{ $historial->currentPage() }} de {{ $historial->lastPage() }} · {{ $historial->total() }} registros</span>
         @if($historial->nextPageUrl())<a href="{{ $historial->nextPageUrl() }}#evoluciones">Siguiente</a>@endif
-        @if($ingreso->estado === 'Activo')<a class="btn btn-primary ms-auto" href="{{ route('atencion.show', ['ingreso'=>$ingreso->getKey(), 'nuevo'=>1]) }}#evoluciones">Nueva evolución</a>@endif
+        @if($ingreso->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Ingresar'))<a class="btn btn-primary ms-auto" href="{{ route('atencion.show', ['ingreso'=>$ingreso->getKey(), 'nuevo'=>1]) }}#evoluciones">Nueva evolución</a>@endif
     </div>
 <div class="modal fade" id="modalEvolucion" tabindex="-1" aria-labelledby="modalEvolucion-titulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="modalEvolucion-titulo">Evolución clínica y órdenes médicas</h5><a href="#" role="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></a></div><div class="modal-body">@if($errors->any())<div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
     <div class="bg-primary text-white p-3 rounded-top">{{ $registro ? 'Registro #'.$registro->getKey().' · '.$registro->fecha_hora->format('d/m/Y H:i') : 'Nueva evolución' }}</div>
@@ -78,6 +78,7 @@
             </div>
             <div class="col-xl-6 border-start">
                 <h5>Órdenes médicas</h5><p class="text-muted">Indicaciones para enfermería vinculadas a esta evolución.</p>
+                @include('atencion.partials.aviso-alergias', ['paciente' => $ingreso->paciente])
                 @if($ordenesAnteriores && $ingreso->estado === 'Activo')
                 <script type="application/json" id="ordenes-anteriores">@json($ordenesAnteriores)</script>
                 <button type="button" class="btn btn-outline-primary w-100 mb-3" data-repetir-ordenes><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Seguir igual (copiar las órdenes anteriores)</button>
@@ -109,7 +110,7 @@
     </form>
     <template id="plantilla-soluciones">@include('atencion.partials.fila-solucion', ['indice'=>'__INDEX__', 'fila'=>[]])</template>
     <template id="plantilla-medicamentos">@include('atencion.partials.fila-medicamento', ['indice'=>'__INDEX__', 'fila'=>[]])</template>
-    @if($registro)<form method="POST" action="{{ route('evolucion.eliminar', $registro) }}" class="mt-2">@csrf @method('DELETE')<button class="btn btn-outline-danger btn-sm">Desactivar evolución #{{ $registro->getKey() }}</button></form>@endif
+    @if($registro && app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Desactivar'))<form method="POST" action="{{ route('evolucion.eliminar', $registro) }}" class="mt-2">@csrf @method('DELETE')<button class="btn btn-outline-danger btn-sm">Desactivar evolución #{{ $registro->getKey() }}</button></form>@endif
 </div></div></div></div>
     @if($ingreso->signosVitales->isNotEmpty())
     <details class="mt-3"><summary>Historial de controles de signos vitales anteriores</summary><div class="table-responsive"><table class="table"><thead><tr><th>Fecha</th><th>PA</th><th>FC</th><th>FR</th><th>°C</th><th>SpO₂</th></tr></thead><tbody>@foreach($ingreso->signosVitales as $signo)<tr><td>{{ $signo->fecha_hora->format('d/m/Y H:i') }}</td><td>{{ $signo->presion_sistolica }}/{{ $signo->presion_diastolica }}</td><td>{{ $signo->frecuencia_cardiaca }}</td><td>{{ $signo->frecuencia_respiratoria }}</td><td>{{ $signo->temperatura }}</td><td>{{ $signo->saturacion_oxigeno }}</td></tr>@endforeach</tbody></table></div></details>

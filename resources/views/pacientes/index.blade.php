@@ -141,7 +141,7 @@
 
         </div>
 
-        @if(($estado ?? 'Activo') === 'Activo')
+        @if(($estado ?? 'Activo') === 'Activo' && app(\App\Support\Permisos::class)->puede('Pacientes', 'Ingresar'))
 
             <button
                 type="button"
@@ -168,7 +168,7 @@
                     <th>Paciente</th>
                     <th class="d-none d-xxl-table-cell">Identificación</th>
                     <th>Edad</th>
-                    <th>Teléfono</th>
+                    <th class="celda-telefono">Teléfono</th>
                     <th>Situación actual</th>
                     <th>Habitación / Alta</th>
                     <th>Acciones</th>
@@ -310,7 +310,7 @@
                         </td>
 
 
-                        <td>
+                        <td class="celda-telefono">
                             {{ $paciente->telefono ?: '-' }}
                         </td>
 
@@ -415,33 +415,40 @@
                             <div class="d-grid gap-1 acciones-paciente">
     <?php $ingresoParaAtencion = $paciente->estado === 'Activo' ? $paciente->ingresos->sortByDesc('fecha_ingreso')->firstWhere('estado', 'Activo') : null; ?>
     @if($ingresoParaAtencion)
-    <a href="{{ route('atencion.show', $ingresoParaAtencion) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-clipboard2-pulse"></i> Atención al paciente</a>
+    @puede('Ingresos', 'Ver')
+    <a href="{{ route('atencion.show', $ingresoParaAtencion) }}" class="btn btn-outline-success btn-sm accion-principal"><i class="bi bi-clipboard2-pulse" aria-hidden="true"></i> Atención al paciente</a>
+    @endpuede
     @else
-    @if($paciente->estado === 'Activo')
-    <form action="{{ route('consultas.iniciar', $paciente->id_paciente) }}" method="POST" class="m-0">
+    @if($paciente->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Ingresos', 'Ingresar'))
+    <form action="{{ route('consultas.iniciar', $paciente->id_paciente) }}" method="POST" class="m-0 accion-principal">
         @csrf
-        <button type="submit" class="btn btn-consulta btn-sm w-100"><i class="bi bi-person-walking"></i> Iniciar consulta</button>
+        <button type="submit" class="btn btn-consulta btn-sm w-100"><i class="bi bi-person-walking" aria-hidden="true"></i> Iniciar consulta</button>
     </form>
-    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalIniciarAtencion" data-iniciar-atencion="{{ $paciente->id_paciente }}" data-nombre-paciente="{{ $paciente->estado_identificacion === 'Identificado' ? $paciente->nombres.' '.$paciente->apellidos : 'No identificado - '.$paciente->codigo_temporal }}"><i class="bi bi-hospital"></i> Hospitalizar</button>
-    @else
-    <button type="button" class="btn btn-outline-secondary btn-sm" disabled title="El paciente está inactivo"><i class="bi bi-clipboard2-pulse"></i> Atención al paciente</button>
+    <button type="button" class="btn btn-outline-danger btn-sm accion-principal" data-bs-toggle="modal" data-bs-target="#modalIniciarAtencion" data-iniciar-atencion="{{ $paciente->id_paciente }}" data-nombre-paciente="{{ $paciente->estado_identificacion === 'Identificado' ? $paciente->nombres.' '.$paciente->apellidos : 'No identificado - '.$paciente->codigo_temporal }}"><i class="bi bi-hospital" aria-hidden="true"></i> Hospitalizar</button>
+    @elseif($paciente->estado !== 'Activo')
+    <button type="button" class="btn btn-outline-secondary btn-sm accion-principal" disabled title="El paciente está inactivo"><i class="bi bi-clipboard2-pulse" aria-hidden="true"></i> Atención al paciente</button>
     @endif
     @endif
-    <a href="{{ route('pacientes.expediente', ['paciente' => $paciente->id_paciente, 'desde' => 'pacientes']) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-folder2-open"></i> Expediente</a>
-    <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#modalEditar{{ $paciente->id_paciente }}" @disabled($paciente->estado !== 'Activo')><i class="bi bi-pencil"></i> Editar</button>
-    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalContactos{{ $paciente->id_paciente }}"><i class="bi bi-person-lines-fill"></i> Contactos</button>
+    @puede('Expedientes', 'Ver')
+    <a href="{{ route('pacientes.expediente', ['paciente' => $paciente->id_paciente, 'desde' => 'pacientes']) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-folder2-open" aria-hidden="true"></i> Expediente</a>
+    @endpuede
+    @puede('Pacientes', 'Editar')
+    <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#modalEditar{{ $paciente->id_paciente }}" @disabled($paciente->estado !== 'Activo')><i class="bi bi-pencil" aria-hidden="true"></i> Editar</button>
+    @endpuede
+    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalContactos{{ $paciente->id_paciente }}"><i class="bi bi-person-lines-fill" aria-hidden="true"></i> Contactos</button>
+    @puede('Pacientes', 'Desactivar')
     @if($paciente->estado === 'Activo')
     <form action="{{ route('pacientes.desactivar', $paciente->id_paciente) }}" method="POST" class="m-0" onsubmit="return confirm('¿Desea desactivar este paciente?');">
         @csrf @method('PATCH')
-        <button type="submit" class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-person-x"></i> Desactivar</button>
+        <button type="submit" class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-person-x" aria-hidden="true"></i> Desactivar</button>
     </form>
     @else
     <form action="{{ route('pacientes.activar', $paciente->id_paciente) }}" method="POST" class="m-0" onsubmit="return confirm('¿Desea activar nuevamente este paciente?');">
         @csrf @method('PATCH')
-        <button type="submit" class="btn btn-outline-success btn-sm w-100"><i class="bi bi-person-check"></i> Activar</button>
+        <button type="submit" class="btn btn-outline-success btn-sm w-100"><i class="bi bi-person-check" aria-hidden="true"></i> Activar</button>
     </form>
     @endif
-
+    @endpuede
 </div>
 
                         </td>
@@ -1320,6 +1327,7 @@
 
                                             <div class="d-flex gap-2 mt-3">
 
+                                                @puede('Pacientes', 'Editar')
                                                 <button
                                                     type="submit"
                                                     form="formContactoEditar{{ $contacto->id_contacto }}"
@@ -1328,7 +1336,9 @@
                                                     <i class="bi bi-check-lg"></i>
                                                     Guardar cambios
                                                 </button>
+                                                @endpuede
 
+                                                @puede('Pacientes', 'Desactivar')
                                                 <form
                                                     action="{{ route(
                                                         'pacientes.contactos.eliminar',
@@ -1351,6 +1361,7 @@
                                                     </button>
 
                                                 </form>
+                                                @endpuede
 
                                             </div>
 
@@ -1365,6 +1376,7 @@
                                     @endforelse
 
 
+                                    @puede('Pacientes', 'Editar')
                                     <hr class="my-4">
 
 
@@ -1514,6 +1526,7 @@
                                         </div>
 
                                     </form>
+                                    @endpuede
 
                                 </div>
 
@@ -2340,35 +2353,22 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
 
-    // Formato de teléfono
-    document
-        .querySelectorAll('.telefono')
-        .forEach(function (campo) {
+    // Formato de teléfono: 8 números con guion (0000-0000), también en los contactos agregados después.
+    document.addEventListener('input', function (evento) {
+        const campo = evento.target;
 
-            campo.addEventListener(
-                'input',
-                function () {
+        if (!campo.matches || !campo.matches('input.telefono')) {
+            return;
+        }
 
-                    let numero =
-                        campo.value
-                            .replace(/\D/g, '')
-                            .substring(0, 8);
+        let numero = campo.value.replace(/\D/g, '').substring(0, 8);
 
-                    if (numero.length > 4) {
+        if (numero.length > 4) {
+            numero = numero.substring(0, 4) + '-' + numero.substring(4);
+        }
 
-                        numero =
-                            numero.substring(0, 4)
-                            + '-'
-                            + numero.substring(4);
-
-                    }
-
-                    campo.value = numero;
-
-                }
-            );
-
-        });
+        campo.value = numero;
+    });
 
 
     // Paciente elegido para iniciar atención

@@ -782,10 +782,22 @@ fieldset.atencion-contenido:disabled a.btn:not(.disabled) {
 /* Listado de pacientes: iniciales en círculo y acciones que caben junto al menú. */
 .paciente-nombre { display: flex; align-items: center; gap: 10px; }
 .paciente-avatar { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; background-color: #eaf3ff; color: #0d6efd; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
-.acciones-paciente { grid-template-columns: repeat(2, minmax(110px, 1fr)); min-width: 230px; }
-@media (max-width: 1399.98px) {
-    .acciones-paciente { grid-template-columns: minmax(0, 1fr); min-width: 150px; }
-    .acciones-paciente > [style*="grid-column"] { justify-self: stretch !important; }
+/* Todas las acciones a la vista: la principal ocupa el ancho completo y las demás van en dos columnas. */
+.acciones-paciente { grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 220px; }
+.acciones-paciente .accion-principal { grid-column: 1 / -1; }
+.acciones-paciente .btn { white-space: nowrap; padding-left: 6px; padding-right: 6px; }
+/* En pantallas medianas las celdas se acercan un poco para que la columna de acciones quepa completa. */
+@media (min-width: 768px) and (max-width: 1599.98px) {
+    .pacientes-tabla .table > thead > tr > th, .pacientes-tabla .table > tbody > tr > td { padding-left: 9px; padding-right: 9px; }
+    .pacientes-tabla .table > thead > tr > th { white-space: normal; }
+    .pacientes-tabla .table > thead > tr > th:first-child { white-space: nowrap; }
+}
+@media (min-width: 768px) and (max-width: 1299.98px) {
+    .pacientes-tabla .table > thead > tr > th, .pacientes-tabla .table > tbody > tr > td { padding-left: 6px; padding-right: 6px; }
+}
+/* El teléfono se oculta solo en pantallas medianas; en el teléfono sigue visible en cada ficha. */
+@media (min-width: 768px) and (max-width: 1199.98px) {
+    .pacientes-tabla .celda-telefono { display: none; }
 }
 
 /* Consulta externa: color verde azulado, para no confundirla con una emergencia. */
@@ -851,7 +863,10 @@ fieldset.atencion-contenido:disabled a.btn:not(.disabled) {
     .ficha-nombre h2 { font-size:1.3rem; }
 }
 
-.expediente-acciones { display:grid; grid-template-columns:minmax(180px,1fr) repeat(2,minmax(0,1fr)); gap:16px; align-items:center; margin:20px 0; padding:18px; background:#eef4fc; border-radius:12px; }
+.expediente-acciones { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px 16px; align-items:stretch; padding:18px; background:#eef4fc; border-radius:12px; }
+.expediente-acciones .expediente-guia { grid-column:1 / -1; }
+.expediente-acciones > form { margin:0; display:flex; }
+.expediente-acciones > form > .expediente-accion { flex:1; }
 .expediente-guia h3 { font-size:1.1rem; font-weight:700; margin:0 0 6px; }
 .expediente-guia p { margin:0; color:#43536b; }
 .expediente-accion { display:flex; align-items:center; gap:12px; padding:16px; min-height:76px; text-align:left; white-space:normal; border-radius:10px; font-size:1rem; }
@@ -859,7 +874,7 @@ fieldset.atencion-contenido:disabled a.btn:not(.disabled) {
 .expediente-accion strong,.expediente-accion small { display:block; }
 .expediente-accion small { margin-top:4px; font-size:.9rem; }
 #historial-evoluciones .historial-resumen { min-height:76px; }
-@media(max-width:991.98px) { .expediente-acciones { grid-template-columns:1fr 1fr; } .expediente-guia { grid-column:1 / -1; } }
+
 @media(max-width:575.98px) { .expediente-acciones { grid-template-columns:minmax(0,1fr); padding:14px; } .expediente-accion { width:100%; } }
 
 .enfermeria-habitacion { display:flex; align-items:center; gap:12px; padding:12px 18px; border-radius:12px; background:#eaf2ff; color:#164c91; }
@@ -1209,3 +1224,13 @@ details > summary { font-weight: 700; }
     .acceso-pie { justify-content: center; text-align: center; }
 }
 .perfil-pantalla { max-width: 760px; }
+
+/* Expediente: aviso de que un documento se editó después de registrarse. */
+.documento-editado { margin-top: 2px; color: #8a5a00; font-weight: 700; }
+
+/* Usuarios: casillas de permisos grandes para tocarlas con el dedo. */
+.tabla-permisos .permiso-casilla { width: 1.5rem; height: 1.5rem; cursor: pointer; }
+.tabla-permisos td:first-child { min-width: 220px; }
+@media (max-width: 767.98px) {
+    .tabla-permisos td:first-child { min-width: 0; }
+}

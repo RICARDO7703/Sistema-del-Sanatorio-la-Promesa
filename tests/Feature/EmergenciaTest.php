@@ -379,9 +379,78 @@ class EmergenciaTest extends TestCase
             ->assertSessionHas('error', 'El paciente ya tiene un ingreso activo.');
         $this->assertSame(1, Ingreso::where('estado', 'Activo')->count());
 
-        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Se anota en la consulta, abajo');
+        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Aún no registrado')->assertDontSee('Se anota en la consulta, abajo');
         $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['motivo_atencion' => 'Dolor de cabeza', 'fecha_hora' => '2026-10-11 12:00:00']))->assertSessionHasNoErrors();
         $this->assertSame('Dolor de cabeza', $ingreso->fresh()->motivo_ingreso);
+    }
+
+    public function test_consulta_iniciada_se_puede_cerrar_en_el_mismo_minuto(): void
+    {
+        $this->travelTo(now()->setTime(18, 3, 41));
+        $idPaciente = $this->pacienteSinIngreso();
+
+        $this->sesion()->post(route('consultas.iniciar', $idPaciente))->assertSessionHasNoErrors();
+        $ingreso = Ingreso::where('estado', 'Activo')->firstOrFail();
+        $this->assertSame('2026-10-11 12:03:00', $ingreso->fecha_ingreso->format('Y-m-d H:i:s'));
+
+        $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['fecha_hora' => '2026-10-11T12:03']))->assertSessionHasNoErrors();
+        $this->assertSame('Dado de alta', $ingreso->fresh()->estado);
+    }
+
+    public function test_llegada_antigua_con_segundos_no_impide_la_consulta_del_mismo_minuto(): void
+    {
+        $ingreso = IngresoFactory::new()->create(['tipo_atencion' => 'Consulta externa', 'fecha_ingreso' => '2026-10-11 11:58:41']);
+
+        $this->sesion()->post(route('emergencia.guardar', $ingreso), $this->consulta(['accion' => 'internar', 'fecha_hora' => '2026-10-11T11:58']))->assertSessionHasNoErrors();
+        $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['accion' => 'internar', 'fecha_hora' => '2026-10-11T11:57']))
+            ->assertSessionHasErrors(['fecha_hora' => 'La consulta no puede ser anterior a la llegada del paciente.']);
+    }
+
+    public function test_internar_cambiar_habitacion_y_alta_usan_la_hora_de_guatemala(): void
+    {
+        $ingreso = $this->emergenciaConValoracion();
+
+        $this->post(route('hospitalizacion.guardar', $ingreso), ['id_habitacion' => 1])->assertSessionHasNoErrors();
+        $hospitalizacion = $ingreso->fresh()->hospitalizacion;
+        $this->assertSame('2026-10-11 12:00:00', $hospitalizacion->fecha_inicio->format('Y-m-d H:i:s'));
+        $this->assertDatabaseHas('tbl_hospitalizacion_habitacion', ['id_habitacion' => 1, 'fecha_hora_inicio' => '2026-10-11 12:00:00']);
+
+        $this->travel(5)->minutes();
+        $this->patch('/hospitalizacion/'.$hospitalizacion->getKey().'/cambiar-habitacion', ['id_habitacion' => 2])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('tbl_hospitalizacion_habitacion', ['id_habitacion' => 1, 'fecha_hora_fin' => '2026-10-11 12:05:00']);
+        $this->assertDatabaseHas('tbl_hospitalizacion_habitacion', ['id_habitacion' => 2, 'fecha_hora_inicio' => '2026-10-11 12:05:00']);
+
+        $this->travel(5)->minutes();
+        $this->get(route('atencion.show', $ingreso))->assertOk()
+            ->assertSee('max="2026-10-11T12:10" value="2026-10-11T12:10"', false);
+
+        $this->post('/atencion/'.$ingreso->getKey().'/alta', $this->cierre(['fecha_hora' => '2026-10-11 18:10:00']))->assertSessionHasErrors('fecha_hora');
+        $this->post('/atencion/'.$ingreso->getKey().'/alta', $this->cierre(['fecha_hora' => '2026-10-11 12:10:00']))->assertSessionHasNoErrors();
+        $this->assertSame('Dado de alta', $ingreso->fresh()->estado);
+        $this->assertDatabaseHas('tbl_alta_medica', ['id_ingreso' => $ingreso->getKey(), 'fecha_hora' => '2026-10-11 12:10:00']);
+    }
+
+    public function test_consulta_externa_muestra_tratamiento_debajo_de_signos_con_alergias(): void
+    {
+        $ingreso = $this->emergenciaActiva();
+        DB::table('tbl_paciente')->where('id_paciente', $ingreso->id_paciente)->update(['alergias' => 'Penicilina']);
+
+        $pagina = $this->get(route('atencion.show', $ingreso))->assertOk()
+            ->assertSeeInOrder(['Alergias:', 'Penicilina', 'Signos vitales (opcional)', 'Tratamiento en el sanatorio', 'Alergias:', 'Penicilina', 'Medicamentos o procedimientos aplicados', 'Diagnóstico', 'emergencia-diagnostico', 'Ambulatorio'])->getContent();
+        $this->assertSame(2, substr_count($pagina, 'aviso-alergias '));
+    }
+
+    public function test_documento_de_ingreso_firmado_solo_aparece_en_hospitalizacion(): void
+    {
+        $consulta = IngresoFactory::new()->create(['tipo_atencion' => 'Consulta externa']);
+        $this->sesion()->get(route('atencion.show', $consulta))->assertOk()->assertDontSee('name="documento_firmado"', false);
+        $this->get(route('pacientes.expediente', $consulta->id_paciente))->assertOk()
+            ->assertDontSee('<dt>Documento de ingreso firmado</dt>', false)->assertDontSee('pendiente de firma');
+
+        $hospitalizacion = IngresoFactory::new()->create(['tipo_atencion' => 'Hospitalización']);
+        $this->get(route('atencion.show', $hospitalizacion))->assertOk()->assertSee('name="documento_firmado"', false);
+        $this->get(route('pacientes.expediente', $hospitalizacion->id_paciente))->assertOk()
+            ->assertSee('<dt>Documento de ingreso firmado</dt>', false)->assertSee('Documento de ingreso pendiente de firma');
     }
 
     public function test_registrar_paciente_sin_casilla_no_abre_atencion(): void

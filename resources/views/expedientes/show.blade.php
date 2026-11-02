@@ -40,6 +40,32 @@
 @endif
 
 
+<!-- Acciones del paciente -->
+    @php($seguimientoOrigen = $ingresos->first(fn ($atencion) => $atencion->estado === 'Dado de alta' && $atencion->altaMedica))
+<section class="evolucion-card expediente-acciones mb-4" id="acciones-expediente" aria-label="Atención del paciente">
+        <div class="expediente-guia"><h3>Atención del paciente</h3><p>{{ $ingresoActivo ? 'Ya tiene una atención abierta. Continúe donde se quedó.' : 'Elija qué necesita hacer hoy.' }}</p></div>
+        @if($paciente->estado !== 'Activo')
+            <p class="mb-0">Este paciente está inactivo. Actívelo desde Pacientes para registrar una atención.</p>
+        @elseif($ingresoActivo)
+            @puede('Ingresos', 'Ver')
+            <a href="{{ route('atencion.show', $ingresoActivo) }}" class="btn btn-primary expediente-accion"><i class="bi bi-arrow-right-circle" aria-hidden="true"></i><span><strong>Continuar atención</strong><small>Abrir la atención actual</small></span></a>
+            @endpuede
+        @elseif(app(\App\Support\Permisos::class)->puede('Ingresos', 'Ingresar'))
+            @if($seguimientoOrigen)
+                <a href="{{ route('seguimientos.crear', $seguimientoOrigen) }}" class="btn btn-primary expediente-accion"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span><strong>Nuevo seguimiento</strong><small>Registrar el regreso del paciente</small></span></a>
+            @else
+                <form action="{{ route('consultas.iniciar', $paciente->id_paciente) }}" method="POST" class="m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-primary expediente-accion w-100"><i class="bi bi-person-walking" aria-hidden="true"></i><span><strong>Primera consulta</strong><small>Registrar una consulta externa</small></span></button>
+                </form>
+            @endif
+            <button type="button" class="btn btn-danger expediente-accion" data-bs-toggle="modal" data-bs-target="#modalNuevoIngreso"><i class="bi bi-hospital" aria-hidden="true"></i><span><strong>Hospitalizar paciente</strong><small>Registrar ingreso y habitación</small></span></button>
+        @endif
+        @puede('Documentos clínicos', 'Ingresar')
+    <button type="button" class="btn btn-outline-primary expediente-accion" data-bs-toggle="modal" data-bs-target="#modalArchivoPaciente"><i class="bi bi-file-earmark-arrow-up" aria-hidden="true"></i><span><strong>Subir archivo médico</strong><small>Laboratorio, radiografía, informe u otro (PDF, JPG o PNG)</small></span></button>
+    @endpuede
+</section>
+
 <!-- Ficha unificada del paciente -->
 <section class="evolucion-card ficha-paciente mb-4" id="datos-paciente" aria-label="Datos del paciente">
     <header class="ficha-identidad">
@@ -53,25 +79,6 @@
             <span class="badge {{ $paciente->estado === 'Activo' ? 'bg-primary' : 'bg-secondary' }}">{{ $paciente->estado }}</span>
         </div>
     </header>
-    @php($seguimientoOrigen = $ingresos->first(fn ($atencion) => $atencion->estado === 'Dado de alta' && $atencion->altaMedica))
-    <div class="expediente-acciones" id="acciones-expediente">
-        <div class="expediente-guia"><h3>Atención del paciente</h3><p>{{ $ingresoActivo ? 'Ya tiene una atención abierta. Continúe donde se quedó.' : 'Elija qué necesita hacer hoy.' }}</p></div>
-        @if($paciente->estado !== 'Activo')
-            <p class="mb-0">Este paciente está inactivo. Actívelo desde Pacientes para registrar una atención.</p>
-        @elseif($ingresoActivo)
-            <a href="{{ route('atencion.show', $ingresoActivo) }}" class="btn btn-primary expediente-accion"><i class="bi bi-arrow-right-circle" aria-hidden="true"></i><span><strong>Continuar atención</strong><small>Abrir la atención actual</small></span></a>
-        @else
-            @if($seguimientoOrigen)
-                <a href="{{ route('seguimientos.crear', $seguimientoOrigen) }}" class="btn btn-primary expediente-accion"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span><strong>Nuevo seguimiento</strong><small>Registrar el regreso del paciente</small></span></a>
-            @else
-                <form action="{{ route('consultas.iniciar', $paciente->id_paciente) }}" method="POST" class="m-0">
-                    @csrf
-                    <button type="submit" class="btn btn-primary expediente-accion w-100"><i class="bi bi-person-walking" aria-hidden="true"></i><span><strong>Primera consulta</strong><small>Registrar una consulta externa</small></span></button>
-                </form>
-            @endif
-            <button type="button" class="btn btn-danger expediente-accion" data-bs-toggle="modal" data-bs-target="#modalNuevoIngreso"><i class="bi bi-hospital" aria-hidden="true"></i><span><strong>Hospitalizar paciente</strong><small>Registrar ingreso y habitación</small></span></button>
-        @endif
-    </div>
     <dl class="ficha-datos">
         @foreach([
             ['calendar3', 'Edad', $paciente->fecha_nacimiento ? $paciente->fecha_nacimiento->age.' años' : 'Sin registro'],
@@ -114,6 +121,36 @@
     @endif
 </section>
 
+<section class="evolucion-card mb-4" id="archivos-paciente" aria-labelledby="titulo-archivos-paciente">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h4 class="mb-0" id="titulo-archivos-paciente"><i class="bi bi-paperclip" aria-hidden="true"></i> Archivos médicos</h4>
+        <span class="text-muted small">Quien sube un archivo puede corregirlo durante {{ \App\Models\DocumentoClinico::HORAS_PARA_EDITAR }} horas.</span>
+    </div>
+    @if($archivosPaciente->isEmpty())
+    <p class="text-muted mb-0">Todavía no hay archivos médicos. Use «Subir archivo médico», arriba.</p>
+    @else
+    <div class="list-group">
+        @foreach($archivosPaciente as $archivoPaciente)
+        @php($editado = ($ediciones ?? collect())->get('tbl_documento_clinico:'.$archivoPaciente->getKey()))
+        <div class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div class="text-break">
+                <i class="bi bi-file-earmark-{{ $archivoPaciente->tipo_archivo === 'pdf' ? 'pdf' : 'image' }} text-primary me-2" aria-hidden="true"></i><strong>{{ $archivoPaciente->titulo }}</strong>
+                <span class="badge bg-light text-dark border ms-1">{{ $archivoPaciente->categoria }}</span>
+                <span class="d-block small text-muted">Subido el {{ $archivoPaciente->fecha_documento?->format('d/m/Y') }} a las {{ $archivoPaciente->fecha_documento?->format('H:i') }} por {{ trim($archivoPaciente->personalResponsable?->nombres.' '.$archivoPaciente->personalResponsable?->apellidos) ?: 'Sin registro' }}</span>
+                @if($editado)<span class="d-block small documento-editado"><i class="bi bi-pencil-square" aria-hidden="true"></i> Se editó el {{ $editado->format('d/m/Y') }} a las {{ $editado->format('H:i') }}</span>@endif
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                @puede('Documentos clínicos', 'Ver')<a href="{{ route('archivos.show', $archivoPaciente) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye" aria-hidden="true"></i> Ver</a>@endpuede
+                @if($archivoPaciente->puedeEditar((int) session('id_usuario')) && app(\App\Support\Permisos::class)->puede('Documentos clínicos', 'Editar'))
+                <a href="{{ route('archivos.editar', $archivoPaciente) }}" class="btn btn-outline-warning btn-sm"><i class="bi bi-pencil" aria-hidden="true"></i> Editar</a>
+                @endif
+            </div>
+        </div>
+        @endforeach
+    </div>
+    @endif
+</section>
+
 <section class="evolucion-card mb-4" id="historial-evoluciones">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-2">
         <h4 class="mb-0"><i class="bi bi-clock-history"></i> Historial de atenciones</h4>
@@ -138,13 +175,13 @@
                     <i class="bi bi-hospital text-danger me-2" aria-hidden="true"></i>{{ $ingreso->estado === 'Activo' ? 'Ingreso actual' : 'Ingreso' }} #{{ $ingreso->getKey() }}
                     @endif
                 </h5>
-                <span class="badge {{ $ingreso->estado === 'Activo' ? 'bg-success' : ($ingreso->estado === 'Dado de alta' ? 'bg-primary' : 'bg-secondary') }}">{{ $ingreso->estado === 'Dado de alta' && $ingreso->esConsultaExterna() ? 'Atención finalizada' : $ingreso->estado }}</span>
+                <span class="badge {{ $ingreso->estado === 'Activo' ? 'bg-success' : ($ingreso->estado === 'Dado de alta' ? 'bg-primary' : 'bg-secondary') }}">{{ $ingreso->estado === 'Cancelado' ? 'Anulada' : ($ingreso->estado === 'Dado de alta' && $ingreso->esConsultaExterna() ? 'Atención finalizada' : $ingreso->estado) }}</span>
             </header>
             <div class="p-3">
                 @if($ingreso->atencionAnterior)<p class="text-primary"><i class="bi bi-arrow-return-right" aria-hidden="true"></i> El paciente regresó por la consulta del {{ $ingreso->atencionAnterior->fecha_ingreso->format('d/m/Y') }}@if($ingreso->atencionAnterior->altaMedica?->diagnostico_final) ({{ $ingreso->atencionAnterior->altaMedica->diagnostico_final }})@endif.</p>@endif
                 <dl class="row g-3 mb-3">
                     <div class="col-sm-6"><dt class="text-muted fw-normal">{{ $ingreso->esConsultaExterna() ? 'Fecha de llegada' : 'Fecha de ingreso' }}</dt><dd class="fw-semibold mb-0">{{ $ingreso->fecha_ingreso->format('d/m/Y H:i') }}</dd></div>
-                    <div class="col-sm-6"><dt class="text-muted fw-normal">{{ $ingreso->esConsultaExterna() ? 'Fecha de salida' : 'Fecha de egreso' }}</dt><dd class="fw-semibold mb-0">{{ $ingreso->altaMedica?->fecha_hora?->format('d/m/Y H:i') ?? ($ingreso->estado === 'Activo' ? 'En atención' : 'Sin egreso médico registrado') }}</dd></div>
+                    <div class="col-sm-6"><dt class="text-muted fw-normal">{{ $ingreso->esConsultaExterna() ? 'Fecha de salida' : 'Fecha de egreso' }}</dt><dd class="fw-semibold mb-0">{{ $ingreso->altaMedica?->fecha_hora?->format('d/m/Y H:i') ?? ($ingreso->estado === 'Activo' ? 'En atención' : ($ingreso->estado === 'Cancelado' ? 'Atención anulada' : 'Sin egreso médico registrado')) }}</dd></div>
                     <div class="col-12"><dt class="text-muted fw-normal">{{ $ingreso->esConsultaExterna() ? 'Motivo de consulta' : 'Motivo de ingreso' }}</dt><dd class="mb-0 text-break">{{ $ingreso->motivo_ingreso ?: 'Sin registro' }}</dd></div>
                     @if($ingreso->altaMedica?->medicamentos->isNotEmpty())
                     <div class="col-12"><dt class="text-muted fw-normal">Medicamentos para casa</dt><dd class="mb-0">
@@ -160,7 +197,9 @@
                 @unless($ingreso->esConsultaExterna())
                 @include('expedientes.partials.habitaciones', ['ingreso'=>$ingreso])
                 @endunless
+                @unless($ingreso->esConsultaExterna())
                 <p class="small mb-3 {{ $ingreso->documento_firmado ? 'text-success' : 'text-muted' }}"><i class="bi {{ $ingreso->documento_firmado ? 'bi-check-circle-fill' : 'bi-info-circle' }} me-1"></i>{{ $ingreso->documento_firmado ? 'Documento de ingreso firmado' : 'Documento de ingreso pendiente de firma' }}</p>
+                @endunless
                 @include('cirugias.panel', ['soloLecturaCirugia'=>true])
                 @include('expedientes.partials.documentos-ingreso', ['ingreso'=>$ingreso])
 
@@ -201,7 +240,60 @@
     </div>
 </div>
 
-@if(($errors->any() || (session('error') && old('id_paciente'))) && !$ingresoActivo)
+<!-- Modal subir archivo médico del paciente -->
+@php($recuperarArchivo = old('_formulario') === 'archivo-paciente')
+<div class="modal fade" id="modalArchivoPaciente" tabindex="-1" aria-labelledby="modalArchivoPaciente-titulo" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form action="{{ route('archivos.paciente.guardar', $paciente) }}" method="POST" enctype="multipart/form-data" novalidate data-validar-en-linea data-validar-al-enviar>
+                @csrf
+                <input type="hidden" name="_formulario" value="archivo-paciente">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalArchivoPaciente-titulo"><i class="bi bi-file-earmark-arrow-up text-primary" aria-hidden="true"></i> Subir archivo médico</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    @if($recuperarArchivo && $errors->any())<div class="alert alert-danger" role="alert"><strong>No se guardó el archivo.</strong><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+                    <div class="row g-3">
+                        <div class="col-12 col-md-5">
+                            <label class="form-label" for="archivo-paciente-categoria">Tipo *</label>
+                            <select id="archivo-paciente-categoria" name="categoria" class="form-select" required data-mensaje-requerido="Seleccione el tipo de archivo.">
+                                <option value="">Seleccione</option>
+                                @foreach(\App\Models\DocumentoClinico::CATEGORIAS as $categoria)
+                                <option value="{{ $categoria }}" @selected($recuperarArchivo && old('categoria') === $categoria)>{{ $categoria }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-7">
+                            <label class="form-label" for="archivo-paciente-titulo">Nombre del archivo *</label>
+                            <input id="archivo-paciente-titulo" name="titulo" class="form-control" maxlength="150" required placeholder="Ej. Hematología completa, rayos X de tórax" value="{{ $recuperarArchivo ? old('titulo') : '' }}" data-mensaje-requerido="Escriba el nombre del archivo.">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="archivo-paciente-archivo">PDF o imagen *</label>
+                            <input id="archivo-paciente-archivo" type="file" name="archivo" class="form-control" accept="application/pdf,image/jpeg,image/png,image/webp" required data-mensaje-requerido="Seleccione el PDF o la imagen.">
+                            <small class="text-muted">PDF, JPG o PNG. Máximo 10 MB. La fecha y hora de subida se guardan solas.</small>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="archivo-paciente-descripcion">Observaciones (opcional)</label>
+                            <textarea id="archivo-paciente-descripcion" name="descripcion" class="form-control" rows="2" maxlength="2000" placeholder="Ej. Resultado traído por el familiar">{{ $recuperarArchivo ? old('descripcion') : '' }}</textarea>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-3 mb-0">Después de guardarlo, usted podrá corregirlo durante {{ \App\Models\DocumentoClinico::HORAS_PARA_EDITAR }} horas. Los demás usuarios solo podrán verlo.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Guardar en el expediente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@if($recuperarArchivo)
+<script>
+    document.addEventListener('DOMContentLoaded', () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalArchivoPaciente')).show());
+</script>
+@elseif(($errors->any() || (session('error') && old('id_paciente'))) && !$ingresoActivo)
 
 <script>
     document.addEventListener(

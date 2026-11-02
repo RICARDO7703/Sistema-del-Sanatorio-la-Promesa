@@ -11,7 +11,7 @@
             <div class="col-md-6"><label class="form-label" for="tratamiento-{{ $campo }}">{{ $config[0] }}</label><input id="tratamiento-{{ $campo }}" class="form-control" name="{{ $campo }}" maxlength="{{ $config[1] }}" value="{{ old($campo) }}"></div>
             @endforeach
             @foreach(['fecha_indicacion'=>'Fecha de indicación', 'fecha_inicio'=>'Inicio (opcional)', 'fecha_fin'=>'Fin (opcional)'] as $campo=>$label)
-            <div class="col-md-4"><label class="form-label" for="tratamiento-{{ $campo }}">{{ $label }}</label><input id="tratamiento-{{ $campo }}" type="datetime-local" class="form-control" name="{{ $campo }}" value="{{ old($campo, $campo === 'fecha_indicacion' ? now()->format('Y-m-d\TH:i') : '') }}" @required($campo === 'fecha_indicacion')></div>
+            <div class="col-md-4"><label class="form-label" for="tratamiento-{{ $campo }}">{{ $label }}</label><input id="tratamiento-{{ $campo }}" type="datetime-local" class="form-control" name="{{ $campo }}" value="{{ old($campo, $campo === 'fecha_indicacion' ? now('America/Guatemala')->format('Y-m-d\TH:i') : '') }}" @required($campo === 'fecha_indicacion')></div>
             @endforeach
         </div>
         <button class="btn btn-primary mt-3">Registrar tratamiento</button>

@@ -140,6 +140,7 @@
 
         @if(($estado ?? 'Activo') === 'Activo')
 
+            @puede('Personal', 'Ingresar')
             <button
                 type="button"
                 class="btn btn-primary"
@@ -149,6 +150,7 @@
                 <i class="bi bi-person-plus"></i>
                 Nuevo personal
             </button>
+            @endpuede
 
         @endif
 
@@ -249,6 +251,7 @@
 
                                 @if($persona->estado === 'Activo')
 
+                                    @puede('Personal', 'Editar')
                                     <button
                                         type="button"
                                         class="btn btn-outline-warning btn-sm"
@@ -258,8 +261,10 @@
                                         <i class="bi bi-pencil"></i>
                                         Editar
                                     </button>
+                                    @endpuede
 
 
+                                    @puede('Personal', 'Desactivar')
                                     <form
                                         action="{{ route(
                                             'personal.desactivar',
@@ -282,9 +287,11 @@
                                         </button>
 
                                     </form>
+                                    @endpuede
 
                                 @else
 
+                                    @puede('Personal', 'Desactivar')
                                     <form
                                         action="{{ route(
                                             'personal.activar',
@@ -307,6 +314,7 @@
                                         </button>
 
                                     </form>
+                                    @endpuede
 
                                 @endif
 

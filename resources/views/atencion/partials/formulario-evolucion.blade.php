@@ -13,6 +13,7 @@
     <div class="col-12"><label class="form-label" for="{{ $formulario }}-sintomas">Síntomas</label><textarea id="{{ $formulario }}-sintomas" name="sintomas" class="form-control" rows="3" maxlength="1000">{{ $valorCampo('sintomas') }}</textarea></div>
 </div>
 @include('atencion.partials.examen-fisico', ['registro'=>$registro, 'formulario'=>$formulario, 'signosSeleccionables'=>$ingreso->esConsultaExterna()])
+@include('atencion.partials.aviso-alergias', ['paciente' => $ingreso->paciente])
 @foreach(['diagnostico'=>['Diagnóstico',1000,true], 'indicaciones'=>['Tratamiento',2000,false], 'observaciones'=>['Observaciones',1000,false]] as $campo=>$config)
 <div class="mb-3"><label class="form-label" for="{{ $formulario }}-{{ $campo }}">{{ $config[0] }}</label><textarea id="{{ $formulario }}-{{ $campo }}" class="form-control" name="{{ $campo }}" rows="3" maxlength="{{ $config[1] }}" @required($config[2])>{{ $valorCampo($campo) }}</textarea></div>
 @endforeach

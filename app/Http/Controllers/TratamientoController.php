@@ -79,11 +79,11 @@ class TratamientoController extends Controller
             'frecuencia' => ['nullable', 'string', 'max:100'],
             'duracion' => ['nullable', 'string', 'max:100'],
             'indicaciones' => ['nullable', 'string', 'max:2000'],
-            'fecha_indicacion' => ['required', 'date', 'before_or_equal:now'],
+            'fecha_indicacion' => ['required', 'date', ReglasAtencion::reglaNoFutura()],
             'fecha_inicio' => ['nullable', 'date', 'after_or_equal:fecha_indicacion'],
             'fecha_fin' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
         ]);
-        ReglasAtencion::validarFecha(Carbon::parse($datos['fecha_indicacion']), $ingreso->fecha_ingreso, now(), 'fecha_indicacion');
+        ReglasAtencion::validarFecha(Carbon::parse($datos['fecha_indicacion']), $ingreso->fecha_ingreso, ReglasAtencion::ahora(), 'fecha_indicacion');
         ReglasAtencion::validarTratamiento($datos['tipo_tratamiento'], isset($datos['id_medicamento']) ? (int) $datos['id_medicamento'] : null, $datos['descripcion_tratamiento'] ?? null);
         if (! empty($datos['fecha_fin']) && empty($datos['fecha_inicio'])) {
             throw ValidationException::withMessages(['fecha_inicio' => 'Indique la fecha de inicio.']);

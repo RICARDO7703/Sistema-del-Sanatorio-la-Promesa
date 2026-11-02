@@ -45,7 +45,7 @@
 
 
 <!-- Mensajes -->
-<div class="mb-3"><a class="btn btn-outline-primary" href="{{ route('archivos.formulario',[$ingreso,'tipo'=>'Evolución clínica']) }}"><i class="bi bi-camera" aria-hidden="true"></i> Subir hoja en papel (imagen o PDF)</a></div>
+@puede('Documentos clínicos', 'Ingresar')<div class="mb-3"><a class="btn btn-outline-primary" href="{{ route('archivos.formulario',[$ingreso,'tipo'=>'Evolución clínica']) }}"><i class="bi bi-camera" aria-hidden="true"></i> Subir hoja en papel (imagen o PDF)</a></div>@endpuede
 @if(session('exito'))
 <div class="alert alert-success">
     {{ session('exito') }}
@@ -69,7 +69,7 @@
         {{ $ingreso->esConsultaExterna() ? 'Volver a pacientes' : 'Volver a pacientes en atención' }}
     </a>
 
-    @if($ingreso->estado === 'Activo')
+    @if($ingreso->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Ingresos', 'Editar'))
     <button
         type="button"
         class="btn btn-outline-primary"
@@ -80,10 +80,51 @@
     </button>
     @endif
 
-    @if(! $ingreso->esConsultaExterna() && $ingreso->evoluciones->isNotEmpty() && ($ingreso->estado === 'Activo' || $ingreso->altaMedica))
+    @if(! $ingreso->esConsultaExterna() && $ingreso->evoluciones->isNotEmpty() && (($ingreso->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Alta médica', 'Ingresar')) || $ingreso->altaMedica))
     <a href="#modalAlta" role="button" class="btn btn-success accion-alta-medica" data-bs-toggle="modal" data-bs-target="#modalAlta"><i class="bi bi-clipboard2-check me-2" aria-hidden="true"></i>{{ $ingreso->altaMedica ? 'Ver alta médica' : 'Alta médica' }}</a>
     @endif
+
+    @if($ingreso->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Ingresos', 'Desactivar'))
+    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalAnularAtencion">
+        <i class="bi bi-x-circle" aria-hidden="true"></i>
+        Anular atención
+    </button>
+    @endif
 </div>
+
+@if($ingreso->estado === 'Activo')
+<!-- Modal anular atención abierta por error -->
+<div class="modal fade modal-confirmacion" id="modalAnularAtencion" tabindex="-1" aria-labelledby="modalAnularAtencion-titulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ route('ingresos.cancelar', $ingreso) }}" novalidate data-validar-en-linea data-validar-al-enviar>
+                @csrf
+                @method('PATCH')
+                <input type="hidden" name="_formulario" value="anular-atencion">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalAnularAtencion-titulo"><i class="bi bi-x-circle text-danger" aria-hidden="true"></i> ¿Anular esta atención?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">Úselo solo si la atención se abrió por error, por ejemplo con el paciente equivocado.</p>
+                    <ul class="text-muted small ps-3 mb-3">
+                        <li>La atención ya no aparecerá como activa y no se podrá modificar.</li>
+                        <li>Lo que ya se escribió no se borra.</li>
+                        @if($ingreso->hospitalizacion)<li>La habitación quedará libre.</li>@endif
+                    </ul>
+                    <label for="motivo-anulacion" class="form-label">Motivo de la anulación *</label>
+                    <textarea id="motivo-anulacion" name="motivo_anulacion" class="form-control @error('motivo_anulacion') is-invalid @enderror" rows="3" maxlength="255" placeholder="Ej. se abrió con el paciente equivocado" data-mensaje-requerido="Escriba por qué se anula la atención." required>{{ old('_formulario') === 'anular-atencion' ? old('motivo_anulacion') : '' }}</textarea>
+                    @error('motivo_anulacion')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, volver</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle" aria-hidden="true"></i> Sí, anular atención</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
 
 
 <!-- Datos del paciente -->
@@ -113,6 +154,9 @@
         <div class="col-6 col-md-2">
             <strong>Sexo</strong>
             <p class="mb-0">{{ $ingreso->paciente->sexo ?: 'Sin registro' }}</p>
+        </div>
+        <div class="col-12">
+            @include('atencion.partials.aviso-alergias', ['paciente' => $ingreso->paciente, 'mostrarSinRegistro' => true, 'clase' => 'mb-0'])
         </div>
     </div>
 </div>
@@ -150,6 +194,7 @@
 
             @if($ingreso->hospitalizacion->estado === 'Activa')
 
+            @puede('Hospitalización', $ingreso->hospitalizacion?->habitacionActual ? 'Editar' : 'Ingresar')
             <button
                 type="button"
                 class="btn btn-outline-primary btn-sm"
@@ -158,19 +203,20 @@
                 <i class="bi bi-arrow-left-right"></i>
                 {{ $ingreso->hospitalizacion?->habitacionActual ? 'Cambiar habitación' : 'Asignar habitación' }}
             </button>
+            @endpuede
 
             @endif
 
             @elseif($ingreso->hospitalizacion && $ingreso->hospitalizacion->estado === 'Activa')
                 <p class="text-muted">Pendiente de habitación</p>
-                @if($ingreso->estado === 'Activo')<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCambiarHabitacion"><i class="bi bi-door-open" aria-hidden="true"></i> Asignar habitación</button>@endif
+                @if($ingreso->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Hospitalización', 'Ingresar'))<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCambiarHabitacion"><i class="bi bi-door-open" aria-hidden="true"></i> Asignar habitación</button>@endif
             @elseif(!$ingreso->hospitalizacion)
 
             <p class="text-muted mb-2">
                 {{ $ingreso->esConsultaExterna() ? 'Sin internamiento' : 'Sin habitación asignada' }}
             </p>
 
-            @if($ingreso->estado === 'Activo')
+            @if($ingreso->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Hospitalización', 'Ingresar'))
             <button
                 type="button"
                 class="btn btn-primary btn-sm"
@@ -194,7 +240,7 @@
 
         <div class="{{ $ingreso->esConsultaExterna() ? 'col-md-9' : 'col-md-6' }}">
             <strong>{{ $ingreso->esConsultaExterna() ? 'Motivo de consulta' : 'Motivo de ingreso' }}</strong>
-            <p class="mb-0 text-break">{{ $ingreso->motivo_ingreso ?: ($ingreso->esConsultaExterna() && $ingreso->estado === 'Activo' ? 'Se anota en la consulta, abajo' : 'Sin registro') }}</p>
+            @if(filled($ingreso->motivo_ingreso))<p class="mb-0 text-break">{{ $ingreso->motivo_ingreso }}</p>@elseif($ingreso->esConsultaExterna() && $ingreso->estado === 'Activo')<p class="mb-0 text-muted fst-italic">Aún no registrado</p>@else<p class="mb-0 text-muted">Sin registro</p>@endif
         </div>
         <div class="col-md-3">
             <strong>{{ $ingreso->esConsultaExterna() ? 'Llegada' : 'Fecha de ingreso' }}</strong>
@@ -232,9 +278,11 @@
                 <p class="text-muted mb-0">Registra la primera evaluación del paciente.</p>
             @endif
         </div>
+        @if($ingreso->evoluciones->isNotEmpty() || app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Ingresar'))
         <a href="#modalValoracion" class="btn {{ $ingreso->evoluciones->isNotEmpty() ? 'btn-outline-primary' : 'btn-primary' }} ms-auto" role="button" data-bs-toggle="modal">
             {{ $ingreso->evoluciones->isNotEmpty() ? 'Ver valoración' : 'Iniciar valoración' }}
         </a>
+        @endif
     </div>
 </div>
 
@@ -614,6 +662,8 @@ $ingreso->hospitalizacion->estado === 'Activa'
 
                     </div>
 
+                    {{-- El documento de ingreso solo se firma cuando el paciente se interna. --}}
+                    @unless($ingreso->esConsultaExterna())
                     <div class="form-check">
 
                         <input
@@ -632,6 +682,7 @@ $ingreso->hospitalizacion->estado === 'Activa'
                         </label>
 
                     </div>
+                    @endunless
 
                 </div>
 
@@ -668,9 +719,9 @@ $ingreso->hospitalizacion->estado === 'Activa'
 @include('atencion.partials.ordenes-scripts')
 <?php
     $formularioAnterior = old('_formulario', '');
-    $modalAbierto = session('abrir_internamiento') && ! $ingreso->hospitalizacion ? 'modalAsignarHabitacion' : ((str_starts_with($formularioAnterior, 'valoracion') || request('consulta') === 'valoracion' || ($registroSeleccionado && $registroSeleccionado->getKey() === $ingreso->evoluciones->first()?->getKey() && $registroSeleccionado->ordenes_medicas === null)) ? 'modalValoracion'
+    $modalAbierto = $formularioAnterior === 'anular-atencion' && $ingreso->estado === 'Activo' ? 'modalAnularAtencion' : (session('abrir_internamiento') && ! $ingreso->hospitalizacion ? 'modalAsignarHabitacion' : ((str_starts_with($formularioAnterior, 'valoracion') || request('consulta') === 'valoracion' || ($registroSeleccionado && $registroSeleccionado->getKey() === $ingreso->evoluciones->first()?->getKey() && $registroSeleccionado->ordenes_medicas === null)) ? 'modalValoracion'
         : ($formularioAnterior === 'alta' || request('consulta') === 'alta' ? 'modalAlta'
-        : (str_starts_with($formularioAnterior, 'evolucion-') || $registroSeleccionado || request('nuevo') === '1' ? 'modalEvolucion' : null)));
+        : (str_starts_with($formularioAnterior, 'evolucion-') || $registroSeleccionado || request('nuevo') === '1' ? 'modalEvolucion' : null))));
 ?>
 @if($modalAbierto)
 <script>

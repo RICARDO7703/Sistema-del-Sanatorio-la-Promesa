@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class BitacoraAccesoTest extends TestCase
@@ -53,9 +54,39 @@ class BitacoraAccesoTest extends TestCase
         for ($i = 0; $i < 5; $i++) {
             $this->post('/login', ['usuario' => ['invalido']])->assertSessionHasErrors();
         }
-        $this->post('/login', ['usuario' => 'prueba', 'contrasena' => 'incorrecta'])->assertStatus(429);
+        $this->post('/login', ['usuario' => ['invalido']])->assertStatus(429);
         $this->assertDatabaseCount('tbl_bitacora', 6);
         $this->assertDatabaseHas('tbl_bitacora', ['descripcion' => 'Límite de intentos alcanzado.', 'resultado' => 'Fallido']);
+    }
+
+    public function test_avisos_de_salida_y_errores_de_otra_persona_no_bloquean_el_inicio_de_sesion(): void
+    {
+        DB::table('tbl_personal')->insert(['id_personal' => 2, 'id_cargo' => 1, 'nombres' => 'Otra', 'apellidos' => 'Persona', 'dpi' => '1234567890124']);
+        DB::table('tbl_usuario')->insert(['id_usuario' => 2, 'id_personal' => 2, 'id_rol' => 1, 'nombre_usuario' => 'segunda', 'contrasena' => Hash::make('Segunda-12345')]);
+
+        $this->post('/login', ['usuario' => 'prueba', 'contrasena' => 'Anterior-12345'])->assertRedirect('/inicio');
+        for ($i = 0; $i < 4; $i++) {
+            $this->post('/sesion/salida-pagina', ['pagina' => (string) Str::uuid()])->assertNoContent();
+        }
+        $this->post('/logout')->assertRedirect('/');
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/login', ['usuario' => 'segunda', 'contrasena' => 'incorrecta'])->assertSessionHas('error');
+        }
+        $this->post('/login', ['usuario' => 'Segunda ', 'contrasena' => 'incorrecta'])->assertStatus(429)
+            ->assertHeader('Retry-After')->assertSee('Demasiados intentos')->assertSee('Espere')->assertDontSee('Too Many Requests');
+
+        $this->post('/login', ['usuario' => 'prueba', 'contrasena' => 'Anterior-12345'])->assertRedirect('/inicio');
+    }
+
+    public function test_limite_por_red_usa_la_ip_real_en_railway(): void
+    {
+        config(['services.bitacora_railway' => true]);
+        for ($i = 0; $i < 30; $i++) {
+            $this->withHeaders(['X-Real-IP' => '203.0.113.10'])->post('/login', ['usuario' => 'usuario'.$i, 'contrasena' => 'incorrecta'])->assertRedirect();
+        }
+        $this->withHeaders(['X-Real-IP' => '203.0.113.10'])->post('/login', ['usuario' => 'otro', 'contrasena' => 'incorrecta'])->assertStatus(429);
+        $this->withHeaders(['X-Real-IP' => '203.0.113.11'])->post('/login', ['usuario' => 'prueba', 'contrasena' => 'Anterior-12345'])->assertRedirect('/inicio');
     }
 
     public function test_railway_ipv6_y_navegador_movil(): void

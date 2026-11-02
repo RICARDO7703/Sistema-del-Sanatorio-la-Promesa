@@ -4,7 +4,7 @@
         @csrf
         <input type="hidden" name="id_ingreso" value="{{ $ingreso->id_ingreso }}">
         <div class="row g-3">
-            <div class="col-md-4"><label class="form-label" for="signos-fecha">Fecha y hora</label><input id="signos-fecha" class="form-control" type="datetime-local" name="fecha_hora" value="{{ old('fecha_hora', now()->format('Y-m-d\TH:i')) }}" required></div>
+            <div class="col-md-4"><label class="form-label" for="signos-fecha">Fecha y hora</label><input id="signos-fecha" class="form-control" type="datetime-local" name="fecha_hora" value="{{ old('fecha_hora', now('America/Guatemala')->format('Y-m-d\TH:i')) }}" required></div>
             <div class="col-md-4"><label class="form-label" for="tipo-control">Tipo de control</label><select id="tipo-control" class="form-select" name="tipo_control">@foreach(['Ingreso', 'Consulta', 'Preoperatorio', 'Recuperación', 'Rutina'] as $tipo)<option @selected(old('tipo_control') === $tipo)>{{ $tipo }}</option>@endforeach</select></div>
             @foreach(['presion_sistolica' => ['Presión sistólica (mmHg)',30,300,1], 'presion_diastolica' => ['Presión diastólica (mmHg)',20,200,1], 'frecuencia_cardiaca' => ['Frecuencia cardíaca (lpm)',1,300,1], 'frecuencia_respiratoria' => ['Frecuencia respiratoria (rpm)',1,100,1], 'temperatura' => ['Temperatura (°C)',25,50,0.1], 'saturacion_oxigeno' => ['Saturación de oxígeno (%)',0,100,1]] as $campo => $config)
             <div class="col-md-4"><label class="form-label" for="{{ $campo }}">{{ $config[0] }}</label><input id="{{ $campo }}" type="number" class="form-control" name="{{ $campo }}" min="{{ $config[1] }}" max="{{ $config[2] }}" step="{{ $config[3] }}" value="{{ old($campo) }}"></div>

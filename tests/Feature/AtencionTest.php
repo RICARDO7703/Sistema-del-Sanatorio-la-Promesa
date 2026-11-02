@@ -23,7 +23,8 @@ class AtencionTest extends TestCase
         DB::unprepared(file_get_contents(base_path('tests/Fixtures/v3.sqlite.sql')));
         (require database_path('migrations/2026_10_12_224836_add_examen_fisico_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_14_011905_add_ordenes_to_tbl_evolucion_clinica.php'))->up();
-        $this->travelTo(now()->setDate(2026, 10, 11)->setTime(12, 0));
+        // 18:00 UTC = 12:00 en Guatemala, la hora que usan las fechas clínicas.
+        $this->travelTo(now()->setDate(2026, 10, 11)->setTime(18, 0));
         DB::table('tbl_cargo')->insert(['id_cargo' => 1, 'nombre_cargo' => 'Médico general']);
         DB::table('tbl_personal')->insert(['id_personal' => 1, 'id_cargo' => 1, 'nombres' => 'Médico', 'apellidos' => 'Prueba', 'dpi' => '1234567890123']);
         DB::table('tbl_rol')->insert(['id_rol' => 1, 'nombre_rol' => 'Administrador']);
@@ -63,6 +64,27 @@ class AtencionTest extends TestCase
         DB::table('tbl_hospitalizacion_habitacion')->insert(['id_hospitalizacion' => $id, 'id_habitacion' => 1, 'fecha_hora_inicio' => '2026-10-10 12:00:00', 'id_usuario_creacion' => 1]);
 
         return $id;
+    }
+
+    public function test_pantalla_del_medico_muestra_alergias_donde_se_receta(): void
+    {
+        $ingreso = $this->ingreso();
+        $this->hospitalizar($ingreso);
+        DB::table('tbl_paciente')->where('id_paciente', $ingreso->id_paciente)->update(['alergias' => 'Penicilina <b>']);
+        $this->sesion()->post('/evolucion', $this->evolucion($ingreso))->assertSessionHasNoErrors();
+
+        $pagina = $this->get(route('atencion.show', $ingreso))->assertOk()
+            ->assertSee('Penicilina &lt;b&gt;', false)->assertDontSee('Penicilina <b>', false)
+            ->assertDontSee('Sin alergias registradas')->getContent();
+        $this->assertSame(4, substr_count($pagina, 'aviso-alergias '), 'Ficha del paciente, valoración inicial, órdenes médicas y medicamentos para casa.');
+    }
+
+    public function test_paciente_sin_alergias_lo_indica_en_su_ficha(): void
+    {
+        $ingreso = $this->ingreso();
+
+        $pagina = $this->sesion()->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Sin alergias registradas')->getContent();
+        $this->assertSame(0, substr_count($pagina, 'aviso-alergias '));
     }
 
     public function test_visitante_no_puede_consultar_ni_modificar_atencion(): void
@@ -145,6 +167,26 @@ class AtencionTest extends TestCase
     {
         $ingreso = $this->ingreso();
         $this->sesion()->post('/evolucion', array_replace($this->evolucion($ingreso), ['diagnostico' => '']))->assertSessionHasErrors('diagnostico');
+    }
+
+    public function test_expediente_indica_cuando_se_edito_un_documento_y_no_permite_subir_archivos(): void
+    {
+        $ingreso = $this->ingreso();
+        $this->sesion()->post('/evolucion', $this->evolucion($ingreso))->assertSessionHasNoErrors();
+        $id = DB::table('tbl_evolucion_clinica')->value('id_evolucion');
+
+        $expediente = route('pacientes.expediente', $ingreso->id_paciente);
+        $this->get($expediente)->assertOk()->assertDontSee('Se editó el')
+            ->assertDontSee('Subir hoja en papel')->assertDontSee('Subir imagen o PDF');
+
+        $this->travel(5)->minutes();
+        $this->put('/evolucion/'.$id, array_replace($this->evolucion($ingreso), ['diagnostico' => 'Revisado']))->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Edición de evolución clínica', 'tabla' => 'tbl_evolucion_clinica', 'id_registro' => $id]);
+        $this->get($expediente)->assertOk()->assertSee('Se editó el 11/10/2026 a las 12:05');
+
+        $this->travel(5)->minutes();
+        $this->put('/ingresos/'.$ingreso->getKey(), ['fecha_ingreso' => '2026-10-10 12:00:00', 'motivo_ingreso' => 'Motivo corregido'])->assertSessionHasNoErrors();
+        $this->get($expediente)->assertOk()->assertSee('Se editó el 11/10/2026 a las 12:10')->assertSee('Se editó el 11/10/2026 a las 12:05');
     }
 
     public function test_evolucion_se_actualiza_y_desactiva_sin_borrarse(): void
@@ -385,17 +427,45 @@ class AtencionTest extends TestCase
     {
         $ingreso = $this->ingreso();
         $this->hospitalizar($ingreso);
-        $this->sesion()->patch('/ingresos/'.$ingreso->getKey().'/cancelar')->assertSessionHasNoErrors();
+        $this->sesion()->patch('/ingresos/'.$ingreso->getKey().'/cancelar', ['motivo_anulacion' => 'Se abrió con el paciente equivocado'])
+            ->assertSessionHasNoErrors()->assertRedirect(route('atencion.index'));
         $this->assertDatabaseHas('tbl_ingreso', ['id_ingreso' => $ingreso->getKey(), 'estado' => 'Cancelado']);
+        $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Anulación de atención', 'descripcion' => 'Motivo: Se abrió con el paciente equivocado', 'id_usuario' => 1, 'tabla' => 'tbl_ingreso', 'id_registro' => $ingreso->getKey()]);
         $this->assertDatabaseHas('tbl_hospitalizacion', ['id_ingreso' => $ingreso->getKey(), 'estado' => 'Cancelada']);
         $this->assertDatabaseHas('tbl_hospitalizacion_habitacion', ['id_habitacion' => 1, 'fecha_hora_fin' => '2026-10-11 12:00:00']);
+    }
+
+    public function test_anular_atencion_pide_motivo_y_conserva_la_atencion_si_falta(): void
+    {
+        $ingreso = $this->ingreso();
+        $this->sesion()->get(route('atencion.show', $ingreso))->assertOk()
+            ->assertSee('Anular atención')->assertSee('id="modalAnularAtencion"', false)
+            ->assertSee('action="'.route('ingresos.cancelar', $ingreso).'"', false)->assertDontSee('confirm(', false);
+
+        $this->from(route('atencion.show', $ingreso))->patch(route('ingresos.cancelar', $ingreso), ['_formulario' => 'anular-atencion', 'motivo_anulacion' => ''])
+            ->assertRedirect(route('atencion.show', $ingreso))->assertSessionHasErrors(['motivo_anulacion' => 'Escriba por qué se anula la atención.']);
+        $this->assertSame('Activo', $ingreso->fresh()->estado);
+        $this->get(route('atencion.show', $ingreso))->assertSee('document.getElementById("modalAnularAtencion")', false);
+        $this->assertDatabaseMissing('tbl_bitacora', ['accion' => 'Anulación de atención']);
+    }
+
+    public function test_consulta_anulada_vuelve_a_pacientes_y_aparece_anulada_en_el_expediente(): void
+    {
+        $ingreso = $this->ingreso(['tipo_atencion' => 'Consulta externa']);
+
+        $this->sesion()->patch(route('ingresos.cancelar', $ingreso), ['motivo_anulacion' => 'Paciente equivocado'])
+            ->assertRedirect(route('pacientes.index'))->assertSessionHas('exito', 'Atención anulada. Los registros se conservan y el motivo quedó en la bitácora.');
+        $this->get(route('atencion.show', $ingreso))->assertRedirect(route('atencion.index'));
+        $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()->assertSee('Anulada')->assertSee('Atención anulada');
+        $this->patch(route('ingresos.cancelar', $ingreso), ['motivo_anulacion' => 'Otra vez'])->assertSessionHasErrors(['ingreso' => 'El ingreso ya no se encuentra activo.']);
+        $this->assertSame(1, DB::table('tbl_bitacora')->where('accion', 'Anulación de atención')->count());
     }
 
     public function test_cancelacion_en_el_mismo_instante_no_rompe_restriccion_v3(): void
     {
         $ingreso = $this->ingreso();
         $this->sesion()->post('/atencion/'.$ingreso->getKey().'/hospitalizacion', ['id_habitacion' => 1])->assertSessionHasNoErrors();
-        $this->patch('/ingresos/'.$ingreso->getKey().'/cancelar')->assertSessionHasErrors('fecha_hora');
+        $this->patch('/ingresos/'.$ingreso->getKey().'/cancelar', ['motivo_anulacion' => 'Internado por error'])->assertSessionHasErrors('fecha_hora');
         $this->assertDatabaseHas('tbl_ingreso', ['id_ingreso' => $ingreso->getKey(), 'estado' => 'Activo']);
         $this->assertDatabaseHas('tbl_hospitalizacion_habitacion', ['id_habitacion' => 1, 'fecha_hora_fin' => null]);
     }

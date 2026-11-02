@@ -36,13 +36,14 @@
         <input type="hidden" name="_formulario" value="alta">
         @php($recuperarAlta = old('_formulario') === 'alta')
         <label class="form-label" for="alta-medico">{{ $esConsultaExterna ? 'Médico que atendió' : 'Médico responsable del alta' }}</label><select id="alta-medico" class="form-select mb-3" name="id_personal_medico" required><option value="">Seleccione un médico</option>@foreach($medicos as $medico)<option value="{{ $medico->id_personal }}" @selected(($recuperarAlta ? old('id_personal_medico') : null) == $medico->id_personal)>{{ $medico->nombres }} {{ $medico->apellidos }}</option>@endforeach</select>
-        <label class="form-label" for="alta-fecha">{{ $esConsultaExterna ? 'Fecha y hora de salida' : 'Fecha y hora' }}</label><input id="alta-fecha" class="form-control mb-3" name="fecha_hora" type="datetime-local" max="{{ now()->format('Y-m-d\TH:i') }}" value="{{ ($recuperarAlta ? old('fecha_hora') : now()->format('Y-m-d\TH:i')) }}" required>
+        <label class="form-label" for="alta-fecha">{{ $esConsultaExterna ? 'Fecha y hora de salida' : 'Fecha y hora' }}</label><input id="alta-fecha" class="form-control mb-3" name="fecha_hora" type="datetime-local" max="{{ now('America/Guatemala')->format('Y-m-d\TH:i') }}" value="{{ ($recuperarAlta ? old('fecha_hora') : now('America/Guatemala')->format('Y-m-d\TH:i')) }}" required>
         @foreach(['diagnostico_final'=>['Diagnóstico final',2000,true], 'condicion_egreso'=>[$esConsultaExterna ? 'Condición de salida' : 'Condición de egreso',150,true]] as $campo=>$config)
         <label class="form-label" for="alta-{{ $campo }}">{{ $config[0] }}</label><textarea id="alta-{{ $campo }}" class="form-control mb-3" name="{{ $campo }}" maxlength="{{ $config[1] }}" @required($config[2])>{{ $recuperarAlta ? old($campo) : '' }}</textarea>
         @endforeach
 
         <fieldset class="mb-3">
             <legend class="form-label fs-6 mb-1">Medicamentos para casa</legend>
+            @include('atencion.partials.aviso-alergias', ['paciente' => $ingreso->paciente, 'clase' => 'mb-2'])
             <p class="text-muted small mb-2">Opcional. Agregue un medicamento por fila con su dosis, frecuencia y los días que debe tomarlo.</p>
             <div id="filas-medicamentos-casa">
                 @foreach(($recuperarAlta ? array_filter((array) old('medicamentos_casa', []), 'is_array') : []) as $indice => $fila)
