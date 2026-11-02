@@ -12,6 +12,13 @@ class Personal extends Model
 
     public $timestamps = false;
 
+    /**
+     * Cargos que se consideran médicos (para avisos de enfermería y altas).
+     *
+     * @var list<string>
+     */
+    public const CARGOS_MEDICOS = ['Médico general', 'Médico especialista', 'Cirujano', 'Cirujano externo', 'Anestesiólogo'];
+
     protected $fillable = [
         'nombres',
         'apellidos',

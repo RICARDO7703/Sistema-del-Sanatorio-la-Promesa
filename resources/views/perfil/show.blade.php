@@ -3,6 +3,7 @@
         'perfil' => ['Mi perfil', 'bi-person-gear', 'Su cuenta y sus datos de contacto.'],
         'foto' => ['Cambiar foto', 'bi-camera', 'La foto aparece junto a su nombre en la parte superior del sistema.'],
         'contrasena' => ['Cambiar contraseña', 'bi-key', 'Escriba su contraseña actual y la nueva contraseña.'],
+        'apariencia' => ['Apariencia', 'bi-circle-half', 'Elija cómo se ve el sistema en este dispositivo.'],
     ];
     [$tituloPerfil, $iconoPerfil, $descripcionPerfil] = $pantallas[$seccion];
 @endphp
@@ -34,6 +35,34 @@
 <div class="d-flex flex-wrap align-items-center gap-3 mb-3">@include('perfil.avatar',['personaAvatar'=>$persona,'claseAvatar'=>'perfil-avatar-grande'])<div><h2 class="h5 mb-1">{{ $persona->foto_perfil ? 'Foto actual' : 'Todavía no tiene foto' }}</h2><p class="text-muted mb-0">{{ $persona->foto_perfil ? 'Puede reemplazarla o quitarla.' : 'Mientras no agregue una, se mostrará el icono de usuario.' }}</p></div></div>
 <form action="{{ route('perfil.foto') }}" method="POST" enctype="multipart/form-data">@csrf<label for="perfil-foto" class="form-label">Seleccione su foto</label><input id="perfil-foto" type="file" name="foto" class="form-control" accept="image/jpeg,image/png,image/webp" required><p class="text-muted mt-2">JPG, PNG o WEBP. Máximo 2 MB. Entre 64 y 4096 píxeles por lado.</p><button class="btn btn-primary"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> {{ $persona->foto_perfil ? 'Reemplazar foto' : 'Guardar foto' }}</button></form>
 @if($persona->foto_perfil)<form class="mt-3" action="{{ route('perfil.quitar-foto') }}" method="POST">@csrf @method('DELETE')<button class="btn btn-outline-danger"><i class="bi bi-trash" aria-hidden="true"></i> Quitar foto</button></form>@endif
+</section>
+@endif
+
+@if($seccion === 'apariencia')
+<section class="evolucion-card perfil-pantalla" id="apariencia" aria-labelledby="titulo-apariencia">
+    <h2 class="h5 mb-1" id="titulo-apariencia">Modo de color</h2>
+    <p class="text-muted">El cambio se aplica de inmediato y se recuerda en este dispositivo (computadora o teléfono).</p>
+    <div class="tema-opciones" role="radiogroup" aria-label="Modo de color">
+        <input type="radio" class="btn-check" name="tema" id="tema-claro" value="claro" data-tema-opcion autocomplete="off">
+        <label class="tema-opcion" for="tema-claro">
+            <span class="tema-opcion-titulo"><span><i class="bi bi-sun me-2" aria-hidden="true"></i>Claro</span><i class="bi bi-check-circle-fill" aria-hidden="true"></i></span>
+            <span class="tema-muestra tema-muestra-claro" aria-hidden="true">
+                <span class="tema-muestra-menu"><span></span><span></span><span></span><span></span></span>
+                <span class="tema-muestra-cuerpo"><span></span><span class="tema-muestra-tarjeta"><span></span><span></span><span></span></span></span>
+            </span>
+            <small class="text-muted">Fondo claro, el diseño de siempre.</small>
+        </label>
+        <input type="radio" class="btn-check" name="tema" id="tema-oscuro" value="oscuro" data-tema-opcion autocomplete="off">
+        <label class="tema-opcion" for="tema-oscuro">
+            <span class="tema-opcion-titulo"><span><i class="bi bi-moon-stars me-2" aria-hidden="true"></i>Oscuro</span><i class="bi bi-check-circle-fill" aria-hidden="true"></i></span>
+            <span class="tema-muestra tema-muestra-oscuro" aria-hidden="true">
+                <span class="tema-muestra-menu"><span></span><span></span><span></span><span></span></span>
+                <span class="tema-muestra-cuerpo"><span></span><span class="tema-muestra-tarjeta"><span></span><span></span><span></span></span></span>
+            </span>
+            <small class="text-muted">Fondo oscuro, cansa menos la vista en turnos de noche.</small>
+        </label>
+    </div>
+    <p class="small text-muted mt-3 mb-0" role="status" data-tema-aviso></p>
 </section>
 @endif
 

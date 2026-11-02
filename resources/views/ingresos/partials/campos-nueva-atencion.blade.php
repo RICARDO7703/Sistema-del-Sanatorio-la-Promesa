@@ -57,6 +57,18 @@
 </div>
 
 <div class="form-check">
-    <input class="form-check-input" type="checkbox" name="documento_firmado" value="1" id="{{ $prefijo }}-documento" @checked($recuperar && old('documento_firmado'))>
+    <input class="form-check-input" type="checkbox" name="documento_firmado" value="1" id="{{ $prefijo }}-documento" data-archivo-firmado="{{ $prefijo }}-documento-archivo" @checked($recuperar && old('documento_firmado'))>
     <label class="form-check-label" for="{{ $prefijo }}-documento">Documento de ingreso firmado</label>
+</div>
+
+{{-- Al marcar la casilla hay que subir el documento; se guarda en «Archivos médicos» del expediente. --}}
+<div class="mt-2" id="{{ $prefijo }}-documento-archivo" @unless($recuperar && old('documento_firmado')) hidden @endunless>
+    <label class="form-label" for="{{ $prefijo }}-documento-archivo-campo">Documento firmado (PDF o imagen) *</label>
+    <input type="file" id="{{ $prefijo }}-documento-archivo-campo" name="documento_archivo" class="form-control @if($recuperar) @error('documento_archivo') is-invalid @enderror @endif" accept="application/pdf,image/jpeg,image/png,image/webp" data-mensaje-requerido="Suba el documento de ingreso firmado o desmarque la casilla." @if($recuperar && old('documento_firmado')) required @else disabled @endif>
+    @if($recuperar)
+    @error('documento_archivo')
+    <div class="invalid-feedback">{{ $message }}</div>
+    @enderror
+    @endif
+    <small class="text-muted d-block">Máximo 10 MB. Quedará en «Archivos médicos» del expediente.</small>
 </div>

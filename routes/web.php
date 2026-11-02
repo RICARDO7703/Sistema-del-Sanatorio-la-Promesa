@@ -48,6 +48,7 @@ Route::middleware([SesionClinica::class, PermisoModulo::class, RegistrarOperacio
     Route::get('/mi-perfil', [PerfilController::class, 'show'])->name('perfil.show');
     Route::get('/mi-perfil/foto', [PerfilController::class, 'editarFoto'])->name('perfil.foto.editar');
     Route::get('/mi-perfil/contrasena', [PerfilController::class, 'editarContrasena'])->name('perfil.contrasena.editar');
+    Route::get('/mi-perfil/apariencia', [PerfilController::class, 'editarApariencia'])->name('perfil.apariencia.editar');
     Route::patch('/mi-perfil/contacto', [PerfilController::class, 'contacto'])->name('perfil.contacto');
     Route::post('/mi-perfil/foto', [PerfilController::class, 'foto'])->name('perfil.foto');
     Route::delete('/mi-perfil/foto', [PerfilController::class, 'quitarFoto'])->name('perfil.quitar-foto');

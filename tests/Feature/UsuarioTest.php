@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Http\Middleware\PermisoModulo;
 use App\Support\Permisos;
 use Database\Factories\IngresoFactory;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class UsuarioTest extends TestCase
@@ -180,5 +182,45 @@ class UsuarioTest extends TestCase
         $this->assertEqualsCanonicalizing($esperados, $this->permisosDe(2));
         $this->assertSame(0, DB::table('tbl_usuario_permiso')->where('id_usuario', 1)->count());
         $this->assertSame(1, DB::table('tbl_modulo')->where('nombre_modulo', 'Alta médica')->count());
+    }
+
+    public function test_foto_de_perfil_al_crear_y_editar_un_usuario(): void
+    {
+        Storage::fake('documentos_clinicos');
+        $this->admin()->get(route('usuarios.crear'))->assertOk()->assertSee('name="foto"', false)->assertSee('enctype="multipart/form-data"', false);
+
+        $this->post(route('usuarios.guardar'), $this->nuevoUsuario(['foto' => UploadedFile::fake()->create('virus.php', 5, 'application/x-php')]))->assertSessionHasErrors('foto');
+        $this->assertDatabaseMissing('tbl_usuario', ['nombre_usuario' => 'dra.medica']);
+
+        $this->post(route('usuarios.guardar'), $this->nuevoUsuario(['foto' => UploadedFile::fake()->image('rosa.jpg', 200, 200)]))->assertSessionHasNoErrors();
+        $id = (int) DB::table('tbl_usuario')->where('nombre_usuario', 'dra.medica')->value('id_usuario');
+        $primera = DB::table('tbl_personal')->where('id_personal', 2)->value('foto_perfil');
+        $this->assertStringStartsWith('fotos-personal/2/', $primera);
+        Storage::disk('documentos_clinicos')->assertExists($primera);
+        $this->get(route('usuarios.editar', $id))->assertOk()->assertSee(route('personal.foto', ['personaFoto' => 2], false), false)->assertSee('name="quitar_foto"', false);
+
+        // Cambiarla reemplaza el archivo anterior.
+        $datos = ['nombre_usuario' => 'dra.medica', 'id_rol' => 2, 'permisos' => ['Pacientes|Ver']];
+        $this->put(route('usuarios.actualizar', $id), $datos + ['foto' => UploadedFile::fake()->image('nueva.png', 300, 300)])->assertSessionHasNoErrors();
+        $segunda = DB::table('tbl_personal')->where('id_personal', 2)->value('foto_perfil');
+        $this->assertNotSame($primera, $segunda);
+        Storage::disk('documentos_clinicos')->assertMissing($primera);
+        Storage::disk('documentos_clinicos')->assertExists($segunda);
+
+        // Quitarla deja el icono de usuario.
+        $this->put(route('usuarios.actualizar', $id), $datos + ['quitar_foto' => '1'])->assertSessionHasNoErrors();
+        $this->assertNull(DB::table('tbl_personal')->where('id_personal', 2)->value('foto_perfil'));
+        Storage::disk('documentos_clinicos')->assertMissing($segunda);
+    }
+
+    public function test_apariencia_permite_elegir_modo_claro_u_oscuro(): void
+    {
+        $this->admin()->get('/inicio')->assertOk()
+            ->assertSee(route('perfil.apariencia.editar'), false)
+            ->assertSee("localStorage.getItem('sanatorio:tema') === 'oscuro'", false);
+        $this->get(route('perfil.apariencia.editar'))->assertOk()
+            ->assertSee('Modo de color')->assertSee('id="tema-claro"', false)->assertSee('id="tema-oscuro"', false);
+        $this->post('/logout');
+        $this->get('/')->assertOk()->assertSee("localStorage.getItem('sanatorio:tema') === 'oscuro'", false);
     }
 }

@@ -130,7 +130,7 @@ class AtencionTest extends TestCase
     public function test_detalle_renderiza_todos_los_formularios(): void
     {
         $ingreso = $this->ingreso();
-        $this->sesion()->get('/atencion/'.$ingreso->getKey())->assertOk()->assertSee('Síntomas')->assertSee('Presión arterial (PA, mmHg)')->assertDontSee('id="signos-tab"', false)->assertDontSee('id="form-evolucion"', false)->assertDontSee('Registrar alta médica');
+        $this->sesion()->get('/atencion/'.$ingreso->getKey())->assertOk()->assertSee('Síntomas')->assertSee('Presión arterial <span class="text-muted fw-normal">(mmHg)</span>', false)->assertDontSee('id="signos-tab"', false)->assertDontSee('id="form-evolucion"', false)->assertDontSee('Registrar alta médica');
         $this->post('/evolucion', $this->evolucion($ingreso))->assertSessionHasNoErrors();
         $this->get('/atencion/'.$ingreso->getKey())->assertOk()->assertSee('id="form-evolucion"', false)->assertSee('Órdenes médicas')->assertSee('Registrar alta médica');
     }
@@ -475,7 +475,7 @@ class AtencionTest extends TestCase
         $ingreso = $this->ingreso(['motivo_ingreso' => 'Dolor de prueba']);
         $this->sesion()->get('/atencion/'.$ingreso->getKey())->assertOk()
             ->assertSee('value="Dolor de prueba"', false)->assertSee('Síntomas')
-            ->assertSee('Talla (cm)')->assertSee('Peso (lb)')->assertSee('Cabeza')->assertSee('Tronco')->assertSee('Extremidades')
+            ->assertSee('Talla <span class="text-muted fw-normal">(cm)</span>', false)->assertSee('Peso <span class="text-muted fw-normal">(lb)</span>', false)->assertSee('Cabeza')->assertSee('Tronco')->assertSee('Extremidades')
             ->assertDontSee('Presión sistólica')->assertDontSee('Presión diastólica')->assertDontSee('data-bs-target="#signos"', false);
     }
 
@@ -669,15 +669,21 @@ class AtencionTest extends TestCase
         $this->assertDatabaseCount('tbl_evolucion_clinica', 0);
     }
 
-    public function test_ordenes_requieren_medico_y_estado_mejoria_validos(): void
+    public function test_evolucion_usa_el_personal_del_usuario_y_exige_estado_mejoria(): void
     {
         $ingreso = $this->ingreso();
         $datos = $this->ordenesNuevas();
-        $datos['id_personal_medico'] = 999;
-        $this->sesion()->post('/evolucion', $this->evolucion($ingreso) + $datos)->assertSessionHasErrors('id_personal_medico');
         $datos['estado_mejoria'] = 'Otro';
-        $this->post('/evolucion', $this->evolucion($ingreso) + $datos)->assertSessionHasErrors('estado_mejoria');
+        $this->sesion()->post('/evolucion', $this->evolucion($ingreso) + $datos)->assertSessionHasErrors('estado_mejoria');
         $this->assertDatabaseCount('tbl_evolucion_clinica', 0);
+
+        // Aunque llegue otro médico en la petición, el responsable es quien inició sesión.
+        $datos['estado_mejoria'] = 'Mejoró';
+        $datos['id_personal_medico'] = 999;
+        $this->post('/evolucion', $this->evolucion($ingreso) + $datos)->assertSessionHasNoErrors();
+        $idPersonalSesion = DB::table('tbl_usuario')->where('id_usuario', session('id_usuario'))->value('id_personal');
+        $this->assertSame((int) $idPersonalSesion, (int) EvolucionClinica::sole()->id_personal);
+        $this->get('/atencion/'.$ingreso->getKey().'?nuevo=1')->assertOk()->assertDontSee('id="evo-medico"', false)->assertSee('Médico responsable');
     }
 
     public function test_historial_paginado_solo_abre_registros_del_ingreso(): void

@@ -16,12 +16,17 @@
     <div class="row g-4">
         @if($delPaciente)
         <div class="col-12 col-md-5">
+            @if($documento->esDocumentoIngresoFirmado())
+            <label class="form-label" for="editar-categoria">Tipo</label>
+            <input id="editar-categoria" class="form-control" value="{{ $documento->etiquetaCategoria() }}" readonly>
+            @else
             <label class="form-label" for="editar-categoria">Tipo *</label>
             <select id="editar-categoria" name="categoria" class="form-select" required data-mensaje-requerido="Seleccione el tipo de archivo.">
                 @foreach(\App\Models\DocumentoClinico::CATEGORIAS as $categoria)
                 <option value="{{ $categoria }}" @selected(old('categoria', $documento->categoria) === $categoria)>{{ $categoria }}</option>
                 @endforeach
             </select>
+            @endif
         </div>
         <div class="col-12 col-md-7">
             <label class="form-label" for="editar-titulo">Nombre del archivo *</label>

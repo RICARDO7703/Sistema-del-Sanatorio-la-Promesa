@@ -23,6 +23,7 @@ class EnfermeriaTest extends TestCase
         (require database_path('migrations/2026_10_12_224836_add_examen_fisico_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_14_011905_add_ordenes_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_26_010043_add_notas_to_tbl_atencion_enfermeria.php'))->up();
+        (require database_path('migrations/2026_11_02_053000_add_medico_avisado_to_tbl_atencion_enfermeria.php'))->up();
         $this->travelTo(now()->setDate(2026, 10, 11)->setTime(18, 0));
         DB::table('tbl_cargo')->insert([['id_cargo' => 1, 'nombre_cargo' => 'Médico general'], ['id_cargo' => 6, 'nombre_cargo' => 'Enfermera']]);
         DB::table('tbl_personal')->insert([
@@ -214,26 +215,34 @@ class EnfermeriaTest extends TestCase
     public function test_enfermera_registra_nota_con_signos_actividades_y_aviso(): void
     {
         $ingreso = $this->internado();
-
-        $this->sesion()->post(route('notas-enfermeria.guardar', $ingreso), $this->nota([
+        $datos = $this->nota([
             'presion_sistolica' => 118, 'presion_diastolica' => 76, 'temperatura' => 37.8,
             'actividades' => ['Cambio de posición', 'Cambio de solución'], 'actividad_otra' => 'Control de glucosa',
             'observaciones' => 'Tolera dieta blanda. Se cambió suero salino 500 ml.', 'aviso_medico' => '1',
-        ]))->assertSessionHasNoErrors()->assertRedirect(route('atencion.enfermeria', $ingreso))
+        ]);
+
+        // Al avisar hay que indicar a qué médico, y debe tener cargo médico.
+        $this->sesion()->post(route('notas-enfermeria.guardar', $ingreso), $datos)->assertSessionHasErrors(['id_personal_avisado' => 'Seleccione a qué médico se avisó.']);
+        $this->post(route('notas-enfermeria.guardar', $ingreso), $datos + ['id_personal_avisado' => 2])->assertSessionHasErrors('id_personal_avisado');
+        $this->assertDatabaseCount('tbl_atencion_enfermeria', 0);
+
+        $this->post(route('notas-enfermeria.guardar', $ingreso), $datos + ['id_personal_avisado' => 1])->assertSessionHasNoErrors()->assertRedirect(route('atencion.enfermeria', $ingreso))
             ->assertSessionHas('exito', 'Nota de enfermería guardada correctamente.')
             ->assertSessionHas('borrador_clinico_guardado', 'nota-enfermeria');
 
         $nota = NotaEnfermeria::with('actividades')->sole();
         $this->assertSame('Mejoró', $nota->estado_paciente);
         $this->assertTrue($nota->aviso_medico);
+        $this->assertSame(1, (int) $nota->id_personal_avisado);
         $this->assertSame(2, (int) $nota->id_personal);
         $this->assertSame(['Cambio de posición', 'Cambio de solución', 'Control de glucosa'], $nota->listaActividades());
         $this->assertDatabaseHas('tbl_signos_vitales', ['id_signos_vitales' => $nota->id_signos_vitales, 'id_ingreso' => $ingreso->getKey(), 'tipo_control' => 'Rutina', 'presion_sistolica' => 118, 'temperatura' => 37.8]);
 
         $this->get(route('atencion.enfermeria', $ingreso))->assertOk()
             ->assertSee('Turno mañana')->assertSee('Laura Enfermera')->assertSee('Mejoró')
-            ->assertSee('PA 118/76 mmHg')->assertSee('Temp. 37.8 °C')
-            ->assertSee('Cambio de posición · Cambio de solución · Control de glucosa')
+            ->assertSee('<span class="doc-signo-valor">118/76<small>mmHg</small></span>', false)->assertSee('37.8<small>°C</small>', false)
+            ->assertSeeInOrder(['Se avisó al médico', 'Rosa Médica'])->assertSee('name="id_personal_avisado"', false)
+            ->assertSeeInOrder(['Cambio de posición', 'Cambio de solución', 'Control de glucosa'])
             ->assertSee('Tolera dieta blanda.')->assertSee('Se avisó al médico')
             ->assertSee('Último control de signos: 11/10/2026 11:45');
     }
@@ -294,7 +303,7 @@ class EnfermeriaTest extends TestCase
         $ingreso = $this->internado();
         $this->evolucion($ingreso, '2026-10-10 19:00:00', 'Neumonía', null);
         $this->evolucion($ingreso, '2026-10-11 08:00:00', 'Neumonía en tratamiento', $this->ordenes('Blanda', 'Ampicilina'));
-        $this->sesion()->post(route('notas-enfermeria.guardar', $ingreso), $this->nota(['fecha_hora' => '2026-10-10 22:15:00', 'estado_paciente' => 'Empeoró', 'temperatura' => 39.1, 'observaciones' => 'Fiebre persistente.', 'aviso_medico' => '1']))->assertSessionHasNoErrors();
+        $this->sesion()->post(route('notas-enfermeria.guardar', $ingreso), $this->nota(['fecha_hora' => '2026-10-10 22:15:00', 'estado_paciente' => 'Empeoró', 'temperatura' => 39.1, 'observaciones' => 'Fiebre persistente.', 'aviso_medico' => '1', 'id_personal_avisado' => 1]))->assertSessionHasNoErrors();
         $this->post(route('notas-enfermeria.guardar', $ingreso), $this->nota(['fecha_hora' => '2026-10-11 09:30:00', 'actividades' => ['Curación']]))->assertSessionHasNoErrors();
         $evolucion = DB::table('tbl_evolucion_clinica')->where('fecha_hora', '2026-10-11 08:00:00')->value('id_evolucion');
         [$primera, $segunda] = NotaEnfermeria::orderBy('fecha_hora')->pluck('id_atencion_enfermeria')->all();
@@ -305,8 +314,8 @@ class EnfermeriaTest extends TestCase
             ->assertSee('data-tipo-documento="nota"', false)->assertSee('data-tipo-documento="evolucion"', false)->assertSee('data-tipo-documento="valoracion"', false)
             ->assertSee('data-bs-target="#documento-nota-'.$primera.'"', false)
             ->assertSee('id="documento-nota-'.$segunda.'"', false)
-            ->assertSee('Turno noche')->assertSee('Temp. 39.1 °C')->assertSee('Fiebre persistente.')->assertSee('Se avisó al médico')
-            ->assertSee('Actividades:</strong> Curación', false);
+            ->assertSeeInOrder(['Turno', 'Noche'])->assertSee('39.1<small>°C</small>', false)->assertSee('Fiebre persistente.')->assertSee('Se avisó al médico')
+            ->assertSee('<i class="bi bi-check2" aria-hidden="true"></i> Curación', false);
     }
 
     public function test_migracion_de_notas_actualiza_tabla_anterior_y_es_repetible(): void
@@ -321,6 +330,10 @@ class EnfermeriaTest extends TestCase
 
         $this->assertTrue(Schema::hasColumns('tbl_atencion_enfermeria', ['estado_paciente', 'id_signos_vitales', 'aviso_medico']));
         $this->assertTrue(Schema::hasTable('tbl_atencion_enfermeria_actividad'));
+        $avisado = require database_path('migrations/2026_11_02_053000_add_medico_avisado_to_tbl_atencion_enfermeria.php');
+        $avisado->up();
+        $avisado->up();
+        $this->assertTrue(Schema::hasColumn('tbl_atencion_enfermeria', 'id_personal_avisado'));
         $this->assertTrue(collect(Schema::getColumns('tbl_atencion_enfermeria'))->firstWhere('name', 'actividad')['nullable']);
     }
 

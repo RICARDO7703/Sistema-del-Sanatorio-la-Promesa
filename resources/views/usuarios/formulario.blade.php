@@ -29,7 +29,7 @@
 @if(session('error'))<div class="alert alert-danger" role="alert">{{ session('error') }}</div>@endif
 @if($errors->any())<div class="alert alert-danger" role="alert"><strong>No se guardaron los cambios.</strong><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
-<form action="{{ $esNuevo ? route('usuarios.guardar') : route('usuarios.actualizar', $usuario->id_usuario) }}" method="POST" novalidate data-validar-en-linea data-validar-al-enviar id="form-usuario">
+<form action="{{ $esNuevo ? route('usuarios.guardar') : route('usuarios.actualizar', $usuario->id_usuario) }}" method="POST" enctype="multipart/form-data" novalidate data-validar-en-linea data-validar-al-enviar id="form-usuario">
     @csrf
     @unless($esNuevo) @method('PUT') @endunless
 
@@ -77,6 +77,26 @@
             </div>
             <div class="col-12"><small class="text-muted">Al menos 12 caracteres, con mayúsculas, minúsculas, números y un símbolo. La persona podrá cambiarla en «Mi perfil».</small></div>
             @endif
+            <div class="col-12">
+                <span class="form-label d-block">Foto de perfil <span class="text-muted fw-normal">(opcional)</span></span>
+                <div class="d-flex flex-wrap align-items-center gap-3">
+                    <span data-vista-foto>
+                        @include('perfil.avatar', ['personaAvatar' => $usuario, 'claseAvatar' => 'perfil-avatar-grande'])
+                    </span>
+                    <div class="flex-grow-1" style="min-width: 0">
+                        <label class="visually-hidden" for="usuario-foto">Foto de perfil</label>
+                        <input id="usuario-foto" type="file" name="foto" class="form-control @error('foto') is-invalid @enderror" accept="image/jpeg,image/png,image/webp" data-elegir-foto>
+                        @error('foto')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                        <small class="text-muted d-block">JPG, PNG o WEBP de hasta 2 MB. Se muestra en el menú y en «Personal».</small>
+                        @if(! $esNuevo && $usuario->foto_perfil)
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" name="quitar_foto" value="1" id="usuario-quitar-foto" @checked(old('quitar_foto'))>
+                            <label class="form-check-label" for="usuario-quitar-foto">Quitar la foto actual</label>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -149,6 +169,25 @@
 @endsection
 
 @section('scripts')
+<script>
+// Vista previa de la foto elegida antes de guardar.
+(() => {
+    const campo = document.querySelector('[data-elegir-foto]');
+    const vista = document.querySelector('[data-vista-foto] .perfil-avatar');
+    if (!campo || !vista) return;
+    const original = vista.innerHTML;
+    campo.addEventListener('change', () => {
+        const archivo = campo.files?.[0];
+        if (!archivo || !archivo.type.startsWith('image/')) { vista.innerHTML = original; return; }
+        const imagen = document.createElement('img');
+        imagen.alt = 'Vista previa de la foto';
+        imagen.src = URL.createObjectURL(archivo);
+        vista.replaceChildren(imagen);
+        const quitar = document.getElementById('usuario-quitar-foto');
+        if (quitar) quitar.checked = false;
+    });
+})();
+</script>
 <script>
 (() => {
     const roles = @json($datosRoles);

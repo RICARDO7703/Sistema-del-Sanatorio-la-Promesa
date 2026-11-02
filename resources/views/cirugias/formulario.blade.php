@@ -8,8 +8,7 @@
 <div class="row g-4">
 <div class="col-12"><label class="form-label" for="cirugia-nombre"><i class="bi bi-hospital" aria-hidden="true"></i> Nombre de la cirugía *</label><input id="cirugia-nombre" class="form-control" name="tipo_operacion" maxlength="150" required value="{{ old('tipo_operacion',$cirugia?->tipo_operacion) }}"></div>
 @if($modo === 'agendar')
-<div class="col-md-6"><label class="form-label" for="cirugia-inicio"><i class="bi bi-calendar-event" aria-hidden="true"></i> Inicio programado *</label><input id="cirugia-inicio" type="datetime-local" class="form-control" name="fecha_programada" required min="{{ now('America/Guatemala')->format('Y-m-d\TH:i') }}" value="{{ old('fecha_programada',$cirugia?->fecha_programada?->format('Y-m-d\TH:i')) }}"></div>
-<div class="col-md-6"><label class="form-label" for="cirugia-fin"><i class="bi bi-clock" aria-hidden="true"></i> Fin estimado *</label><input id="cirugia-fin" type="datetime-local" class="form-control" name="fecha_fin_programada" required value="{{ old('fecha_fin_programada',$cirugia?->fecha_fin_programada?->format('Y-m-d\TH:i')) }}"></div>
+<div class="col-md-6"><label class="form-label" for="cirugia-inicio"><i class="bi bi-calendar-event" aria-hidden="true"></i> Fecha y hora programada *</label><input id="cirugia-inicio" type="datetime-local" class="form-control" name="fecha_programada" required min="{{ now('America/Guatemala')->format('Y-m-d\TH:i') }}" value="{{ old('fecha_programada',$cirugia?->fecha_programada?->format('Y-m-d\TH:i')) }}"></div>
 @endif
 @if($modo === 'realizada')
 <div class="col-12"><div class="alert alert-info mb-0"><i class="bi bi-info-circle" aria-hidden="true"></i> Para atenciones de urgencia que se registran después de operar. Escriba las horas en que ocurrió la cirugía; el sistema conservará por separado la fecha de registro.</div></div>

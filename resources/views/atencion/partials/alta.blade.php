@@ -4,6 +4,7 @@
     <h4>{{ $esConsultaExterna ? 'Atención finalizada' : 'Alta médica registrada' }}</h4>
     <p>{{ $ingreso->altaMedica->fecha_hora->format('d/m/Y H:i') }}</p>
     <p><strong>Diagnóstico final:</strong> {{ $ingreso->altaMedica->diagnostico_final }}</p>
+    @if(filled($ingreso->altaMedica->observaciones))<p><strong>Observaciones:</strong> {{ $ingreso->altaMedica->observaciones }}</p>@endif
     <p><strong>{{ $esConsultaExterna ? 'Condición de salida' : 'Condición de egreso' }}:</strong> {{ $ingreso->altaMedica->condicion_egreso }}</p>
     @if($ingreso->altaMedica->medicamentos->isNotEmpty())
     <p class="mb-2"><strong>Medicamentos para casa:</strong></p>
@@ -19,7 +20,6 @@
     </div>
     @endif
     <p><strong>{{ $esConsultaExterna ? 'Otras indicaciones' : 'Indicaciones de alta' }}:</strong> {{ $ingreso->altaMedica->indicaciones_alta }}</p>
-    <p>{{ $ingreso->altaMedica->observaciones }}</p>
 </div>
 @else
 <div class="evolucion-card">
@@ -34,10 +34,16 @@
     <form method="POST" action="{{ route('alta.guardar', $ingreso) }}" id="form-alta">
         @csrf
         <input type="hidden" name="_formulario" value="alta">
+        @include('atencion.partials.aviso-cirugias-alta')
         @php($recuperarAlta = old('_formulario') === 'alta')
-        <label class="form-label" for="alta-medico">{{ $esConsultaExterna ? 'Médico que atendió' : 'Médico responsable del alta' }}</label><select id="alta-medico" class="form-select mb-3" name="id_personal_medico" required><option value="">Seleccione un médico</option>@foreach($medicos as $medico)<option value="{{ $medico->id_personal }}" @selected(($recuperarAlta ? old('id_personal_medico') : null) == $medico->id_personal)>{{ $medico->nombres }} {{ $medico->apellidos }}</option>@endforeach</select>
+        @php($responsableAlta = \App\Models\Personal::find($personalSesion ?? \Illuminate\Support\Facades\DB::table('tbl_usuario')->where('id_usuario', session('id_usuario'))->value('id_personal')))
+        <div class="border rounded p-3 mb-3 bg-light">
+            <span class="form-label d-block mb-1">{{ $esConsultaExterna ? 'Médico que atendió' : 'Médico responsable del alta' }}</span>
+            <strong><i class="bi bi-person-badge me-2" aria-hidden="true"></i>{{ trim($responsableAlta?->nombres.' '.$responsableAlta?->apellidos) ?: 'Sin personal vinculado' }}</strong>
+            <small class="d-block text-muted mt-1">Responsable vinculado al usuario que inició sesión.</small>
+        </div>
         <label class="form-label" for="alta-fecha">{{ $esConsultaExterna ? 'Fecha y hora de salida' : 'Fecha y hora' }}</label><input id="alta-fecha" class="form-control mb-3" name="fecha_hora" type="datetime-local" max="{{ now('America/Guatemala')->format('Y-m-d\TH:i') }}" value="{{ ($recuperarAlta ? old('fecha_hora') : now('America/Guatemala')->format('Y-m-d\TH:i')) }}" required>
-        @foreach(['diagnostico_final'=>['Diagnóstico final',2000,true], 'condicion_egreso'=>[$esConsultaExterna ? 'Condición de salida' : 'Condición de egreso',150,true]] as $campo=>$config)
+        @foreach(['diagnostico_final'=>['Diagnóstico final',2000,true], 'observaciones'=>['Observaciones',2000,false], 'condicion_egreso'=>[$esConsultaExterna ? 'Condición de salida' : 'Condición de egreso',150,true]] as $campo=>$config)
         <label class="form-label" for="alta-{{ $campo }}">{{ $config[0] }}</label><textarea id="alta-{{ $campo }}" class="form-control mb-3" name="{{ $campo }}" maxlength="{{ $config[1] }}" @required($config[2])>{{ $recuperarAlta ? old($campo) : '' }}</textarea>
         @endforeach
 
@@ -54,7 +60,7 @@
             <template id="plantilla-medicamento-casa">@include('atencion.partials.fila-medicamento-casa', ['indice' => '__INDEX__', 'fila' => []])</template>
         </fieldset>
 
-        @foreach(['indicaciones_alta'=>[$esConsultaExterna ? 'Otras indicaciones (ej. reposo, no correr)' : 'Indicaciones de alta',2000,false], 'observaciones'=>['Observaciones',2000,false]] as $campo=>$config)
+        @foreach(['indicaciones_alta'=>[$esConsultaExterna ? 'Otras indicaciones (ej. reposo, no correr)' : 'Indicaciones de alta',2000,false]] as $campo=>$config)
         <label class="form-label" for="alta-{{ $campo }}">{{ $config[0] }}</label><textarea id="alta-{{ $campo }}" class="form-control mb-3" name="{{ $campo }}" maxlength="{{ $config[1] }}" @required($config[2])>{{ $recuperarAlta ? old($campo) : '' }}</textarea>
         @endforeach
         <button class="btn btn-success">{{ $esConsultaExterna ? 'Finalizar atención' : 'Registrar alta médica' }}</button>
@@ -87,4 +93,4 @@
 </script>
 @endif
 
-@include('archivos.adjuntos',['tipoHojaArchivo'=>'Alta médica','referenciaArchivo'=>$ingreso->altaMedica?->getKey()])
+@include('archivos.adjuntos',['permitirSubir'=>false,'tipoHojaArchivo'=>'Alta médica','referenciaArchivo'=>$ingreso->altaMedica?->getKey()])

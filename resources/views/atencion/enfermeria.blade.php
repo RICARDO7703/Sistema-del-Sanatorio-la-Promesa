@@ -236,25 +236,8 @@
                         </fieldset>
                         <div class="col-12">
                             <fieldset class="border rounded p-3">
-                                <legend class="float-none w-auto px-2 fs-6 mb-0">Signos vitales <span class="text-muted fw-normal">(opcional)</span></legend>
-                                <div class="row g-2">
-                                    <div class="col-md-4">
-                                        <span class="form-label d-block">Presión arterial (mmHg)</span>
-                                        <div class="input-group">
-                                            <input type="number" name="presion_sistolica" class="form-control @if($recuperarNota) @error('presion_sistolica') is-invalid @enderror @endif" min="30" max="300" step="1" placeholder="120" aria-label="Presión sistólica" data-requerido-con="presion_diastolica" data-mensaje-requerido="Escriba también la presión sistólica." data-mensaje-rango="La sistólica debe estar entre 30 y 300." value="{{ $recuperarNota ? old('presion_sistolica') : '' }}">
-                                            <span class="input-group-text">/</span>
-                                            <input type="number" name="presion_diastolica" class="form-control @if($recuperarNota) @error('presion_diastolica') is-invalid @enderror @endif" min="20" max="200" step="1" placeholder="80" aria-label="Presión diastólica" data-requerido-con="presion_sistolica" data-mensaje-requerido="Escriba también la presión diastólica." data-mensaje-rango="La diastólica debe estar entre 20 y 200." value="{{ $recuperarNota ? old('presion_diastolica') : '' }}">
-                                        </div>
-                                        @if($recuperarNota) @error('presion_sistolica')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror @error('presion_diastolica')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror @endif
-                                    </div>
-                                    @foreach(['frecuencia_cardiaca' => ['FC (lpm)', 1, 300, 1], 'frecuencia_respiratoria' => ['FR (rpm)', 1, 100, 1], 'temperatura' => ['Temp. (°C)', 25, 50, 0.1], 'saturacion_oxigeno' => ['SpO₂ (%)', 0, 100, 1]] as $campo => [$etiqueta, $minimo, $maximo, $paso])
-                                    <div class="col-6 col-md-2">
-                                        <label class="form-label" for="nota-{{ $campo }}">{{ $etiqueta }}</label>
-                                        <input id="nota-{{ $campo }}" type="number" name="{{ $campo }}" class="form-control @if($recuperarNota) @error($campo) is-invalid @enderror @endif" min="{{ $minimo }}" max="{{ $maximo }}" step="{{ $paso }}" data-mensaje-rango="{{ ['frecuencia_cardiaca' => 'La frecuencia cardíaca debe estar entre 1 y 300 lpm.', 'frecuencia_respiratoria' => 'La frecuencia respiratoria debe estar entre 1 y 100 rpm.', 'temperatura' => 'La temperatura debe estar entre 25 y 50 °C.', 'saturacion_oxigeno' => 'La saturación debe estar entre 0 y 100 %.'][$campo] }}" value="{{ $recuperarNota ? old($campo) : '' }}">
-                                        @if($recuperarNota) @error($campo)<div class="invalid-feedback d-block">{{ $message }}</div>@enderror @endif
-                                    </div>
-                                    @endforeach
-                                </div>
+                                <legend class="float-none w-auto px-2 fs-6 mb-1">Signos vitales <span class="text-muted fw-normal">(opcional)</span></legend>
+                                @include('atencion.partials.signos-seleccionables', ['prefijo' => 'nota', 'valor' => fn ($campo) => $recuperarNota ? old($campo) : '', 'mostrarErrores' => $recuperarNota])
                             </fieldset>
                         </div>
                         <fieldset class="col-12">
@@ -282,8 +265,20 @@
                         </div>
                         <div class="col-12">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="aviso_medico" value="1" id="nota-aviso-medico" @checked($recuperarNota && old('aviso_medico'))>
+                                <input class="form-check-input" type="checkbox" name="aviso_medico" value="1" id="nota-aviso-medico" data-aviso-medico @checked($recuperarNota && old('aviso_medico'))>
                                 <label class="form-check-label" for="nota-aviso-medico">Se avisó al médico</label>
+                            </div>
+                            {{-- Al marcar el aviso hay que indicar a qué médico se avisó. --}}
+                            <div class="mt-2" data-medico-avisado @unless($recuperarNota && old('aviso_medico')) hidden @endunless>
+                                <label class="form-label" for="nota-medico-avisado">¿A qué médico se avisó? *</label>
+                                <select id="nota-medico-avisado" name="id_personal_avisado" class="form-select @if($recuperarNota) @error('id_personal_avisado') is-invalid @enderror @endif" data-mensaje-requerido="Seleccione a qué médico se avisó." @if($recuperarNota && old('aviso_medico')) required @else disabled @endif>
+                                    <option value="">Seleccione el médico</option>
+                                    @foreach($medicos as $medico)
+                                    <option value="{{ $medico->getKey() }}" @selected($recuperarNota && (string) old('id_personal_avisado') === (string) $medico->getKey())>{{ $medico->nombres }} {{ $medico->apellidos }}</option>
+                                    @endforeach
+                                </select>
+                                @if($recuperarNota) @error('id_personal_avisado')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror @endif
+                                @if($medicos->isEmpty())<small class="text-danger d-block mt-1">No hay médicos activos registrados en Personal.</small>@endif
                             </div>
                         </div>
                     </div>

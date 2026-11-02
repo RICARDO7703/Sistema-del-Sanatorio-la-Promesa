@@ -7,6 +7,7 @@ use App\Models\Ingreso;
 use App\Services\ExamenFisico;
 use App\Services\OrdenesMedicas;
 use App\Services\ReglasAtencion;
+use App\Support\EdicionClinica;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -207,7 +208,7 @@ class EvolucionController extends Controller
                 'exito',
                 $ingreso->esConsultaExterna()
                     ? 'Consulta externa registrada correctamente.'
-                    : 'Evolución clínica registrada correctamente.'
+                    : ($request->input('_formulario') === 'valoracion' ? 'Valoración inicial registrada correctamente.' : 'Evolución clínica registrada correctamente.')
             )->with('borrador_clinico_guardado', is_string($request->input('_formulario')) ? $request->input('_formulario') : null);
     }
 
@@ -244,6 +245,10 @@ class EvolucionController extends Controller
                     'error',
                     'No se puede modificar una evolución de un ingreso inactivo.'
                 );
+        }
+
+        if (! EdicionClinica::puedeEditar($evolucion, (int) $idUsuario)) {
+            return back()->with('error', EdicionClinica::MENSAJE);
         }
 
         $datos = $request->validate(
@@ -371,7 +376,7 @@ class EvolucionController extends Controller
                 'exito',
                 $evolucion->ingreso?->esConsultaExterna()
                     ? 'Consulta externa actualizada correctamente.'
-                    : 'Evolución clínica actualizada correctamente.'
+                    : ($request->input('_formulario') === 'valoracion-editar' ? 'Valoración inicial actualizada correctamente.' : 'Evolución clínica actualizada correctamente.')
             )->with('borrador_clinico_guardado', is_string($request->input('_formulario')) ? $request->input('_formulario') : null);
     }
 

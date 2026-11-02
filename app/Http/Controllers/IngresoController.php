@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Ingreso;
 use App\Models\Paciente;
+use App\Services\DocumentoIngresoFirmado;
 use App\Services\RegistroIngreso;
 use App\Services\ReglasAtencion;
+use App\Support\EdicionClinica;
 use App\Support\RegistroBitacora;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -110,8 +112,8 @@ class IngresoController extends Controller
                     'nullable',
                     'boolean',
                 ],
-            ],
-            [
+            ] + DocumentoIngresoFirmado::reglas(['exclude_if:tipo_atencion,'.Ingreso::TIPO_CONSULTA_EXTERNA]),
+            DocumentoIngresoFirmado::mensajes() + [
                 'id_paciente.required' => 'El paciente es obligatorio.',
 
                 'tipo_atencion.required' => 'Seleccione el tipo de atención.',
@@ -128,15 +130,28 @@ class IngresoController extends Controller
             ]
         );
 
+        $archivoFirmado = $request->file(DocumentoIngresoFirmado::CAMPO);
+        $firmado = $request->boolean('documento_firmado') && $datos['tipo_atencion'] !== Ingreso::TIPO_CONSULTA_EXTERNA;
+        if ($firmado) {
+            DocumentoIngresoFirmado::comprobar($archivoFirmado);
+        }
+
         try {
-            $ingreso = RegistroIngreso::registrar([
-                'id_paciente' => (int) $datos['id_paciente'],
-                'tipo_atencion' => $datos['tipo_atencion'],
-                'fecha_ingreso' => Carbon::parse($datos['fecha_ingreso'])->format('Y-m-d H:i:s'),
-                'motivo_ingreso' => $datos['motivo_ingreso'] ?? null,
-                'documento_firmado' => $request->boolean('documento_firmado'),
-                'id_habitacion' => isset($datos['id_habitacion']) ? (int) $datos['id_habitacion'] : null,
-            ], (int) $idUsuario, (int) $idPersonal);
+            $ingreso = DB::transaction(function () use ($datos, $firmado, $archivoFirmado, $idUsuario, $idPersonal): Ingreso {
+                $ingreso = RegistroIngreso::registrar([
+                    'id_paciente' => (int) $datos['id_paciente'],
+                    'tipo_atencion' => $datos['tipo_atencion'],
+                    'fecha_ingreso' => Carbon::parse($datos['fecha_ingreso'])->format('Y-m-d H:i:s'),
+                    'motivo_ingreso' => $datos['motivo_ingreso'] ?? null,
+                    'documento_firmado' => $firmado,
+                    'id_habitacion' => isset($datos['id_habitacion']) ? (int) $datos['id_habitacion'] : null,
+                ], (int) $idUsuario, (int) $idPersonal);
+                if ($firmado) {
+                    DocumentoIngresoFirmado::guardar($archivoFirmado, $ingreso, (int) $idUsuario);
+                }
+
+                return $ingreso;
+            });
         } catch (QueryException $e) {
             report($e);
 
@@ -171,6 +186,14 @@ class IngresoController extends Controller
                 ->with('error', 'El ingreso ya no se encuentra activo.');
         }
 
+        if (! EdicionClinica::puedeEditar($ingreso, (int) $idUsuario)) {
+            return back()->with('error', EdicionClinica::MENSAJE);
+        }
+
+        // Si el documento firmado ya está en el expediente no se vuelve a pedir ni se puede desmarcar.
+        $documentoExistente = $ingreso->documentoFirmado;
+        $pedirArchivo = ! $ingreso->esConsultaExterna() && ! $documentoExistente;
+
         $datos = $request->validate(
             [
                 'fecha_ingreso' => [
@@ -189,8 +212,8 @@ class IngresoController extends Controller
                     'nullable',
                     'boolean',
                 ],
-            ],
-            [
+            ] + ($pedirArchivo ? DocumentoIngresoFirmado::reglas() : []),
+            DocumentoIngresoFirmado::mensajes() + [
                 'fecha_ingreso.required' => 'La fecha de ingreso es obligatoria.',
 
                 'fecha_ingreso.before_or_equal' => 'La fecha de ingreso no puede ser futura.',
@@ -210,11 +233,20 @@ class IngresoController extends Controller
         if ($ingreso->hospitalizacion && $ingreso->hospitalizacion->historialHabitaciones()->where('fecha_hora_inicio', '<', $fechaNueva)->exists()) {
             throw ValidationException::withMessages(['fecha_ingreso' => 'El ingreso no puede ser posterior a la asignación de habitación.']);
         }
+        $subirArchivo = $pedirArchivo && $request->boolean('documento_firmado');
+        $archivoFirmado = $request->file(DocumentoIngresoFirmado::CAMPO);
+        if ($subirArchivo) {
+            DocumentoIngresoFirmado::comprobar($archivoFirmado);
+        }
+        $firmado = $documentoExistente !== null || $subirArchivo;
+
         $request->attributes->set('edicion_documento', true);
         DB::transaction(function () use (
             $ingreso,
             $datos,
-            $request,
+            $firmado,
+            $subirArchivo,
+            $archivoFirmado,
             $idUsuario
         ) {
             $ingreso->update([
@@ -222,10 +254,14 @@ class IngresoController extends Controller
 
                 'motivo_ingreso' => $datos['motivo_ingreso'] ?? null,
 
-                'documento_firmado' => $request->boolean('documento_firmado'),
+                'documento_firmado' => $firmado,
 
                 'id_usuario_modificacion' => $idUsuario,
             ]);
+
+            if ($subirArchivo) {
+                DocumentoIngresoFirmado::guardar($archivoFirmado, $ingreso, (int) $idUsuario);
+            }
 
             if ($ingreso->hospitalizacion) {
                 $ingreso->hospitalizacion->update([

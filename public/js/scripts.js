@@ -63,12 +63,14 @@
             const bloque = campoDe(signo);
             if (!bloque) return;
             bloque.hidden = !visible;
-            const entrada = bloque.querySelector('input');
-            if (!visible && entrada && entrada.value !== '') {
-                entrada.value = '';
-                entrada.dispatchEvent(new Event('input', { bubbles: true }));
+            const entradas = [...bloque.querySelectorAll('input')];
+            if (!visible) {
+                entradas.filter(entrada => entrada.value !== '').forEach(entrada => {
+                    entrada.value = '';
+                    entrada.dispatchEvent(new Event('input', { bubbles: true }));
+                });
             }
-            if (visible) entrada?.focus({ preventScroll: true });
+            if (visible) entradas[0]?.focus({ preventScroll: true });
         };
         grupo.querySelectorAll('[data-elegir-signo]').forEach(casilla => {
             casilla.addEventListener('change', () => mostrar(casilla.dataset.elegirSigno, casilla.checked));
@@ -76,8 +78,8 @@
         // Un borrador recuperado puede traer valores en signos ocultos: se muestran.
         document.addEventListener('DOMContentLoaded', () => {
             grupo.querySelectorAll('[data-elegir-signo]').forEach(casilla => {
-                const entrada = campoDe(casilla.dataset.elegirSigno)?.querySelector('input');
-                if (entrada && entrada.value !== '' && !casilla.checked) {
+                const lleno = [...(campoDe(casilla.dataset.elegirSigno)?.querySelectorAll('input') ?? [])].some(entrada => entrada.value !== '');
+                if (lleno && !casilla.checked) {
                     casilla.checked = true;
                     campoDe(casilla.dataset.elegirSigno).hidden = false;
                 }
@@ -149,11 +151,26 @@ window.validacionEnLinea = (() => {
             avisoGrupo.classList.toggle('d-block', mensaje !== '');
             return;
         }
-        let aviso = campo.nextElementSibling;
-        if (!aviso || !aviso.classList.contains('invalid-feedback')) {
+        // En un grupo con unidad o selector (goteo, dosis, presión) el aviso va debajo del grupo, no dentro:
+        // dentro del grupo empujaba y encogía los campos.
+        const grupo = campo.closest('.input-group');
+        let aviso = null;
+        if (grupo) {
+            for (let siguiente = grupo.nextElementSibling; siguiente?.classList.contains('invalid-feedback'); siguiente = siguiente.nextElementSibling) {
+                if (siguiente.dataset.avisoDe === campo.name) { aviso = siguiente; break; }
+            }
+        } else if (campo.nextElementSibling?.classList.contains('invalid-feedback')) {
+            aviso = campo.nextElementSibling;
+        }
+        if (!aviso) {
             aviso = document.createElement('div');
             aviso.className = 'invalid-feedback';
-            campo.insertAdjacentElement('afterend', aviso);
+            if (grupo) {
+                aviso.dataset.avisoDe = campo.name;
+                grupo.insertAdjacentElement('afterend', aviso);
+            } else {
+                campo.insertAdjacentElement('afterend', aviso);
+            }
         }
         aviso.textContent = mensaje;
         aviso.classList.toggle('d-block', mensaje !== '');
@@ -254,6 +271,9 @@ document.querySelectorAll('[data-filtro-documentos]').forEach(contenedor => {
             documento.classList.toggle('d-flex', mostrar);
             if (mostrar) visibles++;
         });
+        contenedor.querySelectorAll('[data-dia-documentos]').forEach(dia => {
+            dia.hidden = ![...dia.querySelectorAll('[data-tipo-documento]')].some(documento => !documento.hidden);
+        });
         const vacio = contenedor.querySelector('[data-sin-documentos]');
         if (vacio) vacio.hidden = visibles > 0;
     };
@@ -290,3 +310,73 @@ document.querySelectorAll('[data-contactos-multiples]').forEach(grupo => {
         fila.querySelector('input:not([type="hidden"])').focus();
     });
 });
+
+
+// «Documento de ingreso firmado»: al marcar la casilla aparece el campo para subirlo y se vuelve obligatorio.
+(() => {
+    const alternar = casilla => {
+        const caja = document.getElementById(casilla.dataset.archivoFirmado);
+        const campo = caja?.querySelector('input[type="file"]');
+        if (!campo) return;
+        caja.hidden = !casilla.checked;
+        campo.disabled = !casilla.checked;
+        campo.required = casilla.checked;
+        if (!casilla.checked) {
+            campo.value = '';
+            campo.classList.remove('is-invalid');
+            const aviso = campo.nextElementSibling;
+            if (aviso?.classList.contains('invalid-feedback')) aviso.classList.remove('d-block');
+        }
+    };
+    document.addEventListener('change', evento => {
+        const casilla = evento.target.closest?.('input[type="checkbox"][data-archivo-firmado]');
+        if (casilla) alternar(casilla);
+    });
+    document.querySelectorAll('input[type="checkbox"][data-archivo-firmado]').forEach(alternar);
+})();
+
+
+// Nota de enfermería: al marcar «Se avisó al médico» se pide a qué médico.
+(() => {
+    const alternar = casilla => {
+        const bloque = casilla.closest('form')?.querySelector('[data-medico-avisado]');
+        const lista = bloque?.querySelector('select');
+        if (!lista) return;
+        bloque.hidden = !casilla.checked;
+        lista.disabled = !casilla.checked;
+        lista.required = casilla.checked;
+        if (!casilla.checked) {
+            lista.value = '';
+            lista.classList.remove('is-invalid');
+        }
+    };
+    document.addEventListener('change', evento => {
+        const casilla = evento.target.closest?.('input[type="checkbox"][data-aviso-medico]');
+        if (casilla) alternar(casilla);
+    });
+    document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('input[type="checkbox"][data-aviso-medico]').forEach(alternar));
+})();
+
+
+// Apariencia: modo claro u oscuro, guardado en este dispositivo.
+(() => {
+    const opciones = document.querySelectorAll('[data-tema-opcion]');
+    if (!opciones.length) return;
+    const aviso = document.querySelector('[data-tema-aviso]');
+    let actual = 'claro';
+    try { actual = localStorage.getItem('sanatorio:tema') === 'oscuro' ? 'oscuro' : 'claro'; } catch (error) {}
+    opciones.forEach(opcion => {
+        opcion.checked = opcion.value === actual;
+        opcion.addEventListener('change', () => {
+            if (!opcion.checked) return;
+            const oscuro = opcion.value === 'oscuro';
+            if (oscuro) document.documentElement.setAttribute('data-bs-theme', 'dark');
+            else document.documentElement.removeAttribute('data-bs-theme');
+            let guardado = true;
+            try { localStorage.setItem('sanatorio:tema', opcion.value); } catch (error) { guardado = false; }
+            if (aviso) aviso.textContent = guardado
+                ? (oscuro ? 'Modo oscuro activado.' : 'Modo claro activado.')
+                : 'Se aplicó el cambio, pero este navegador no permite recordarlo.';
+        });
+    });
+})();

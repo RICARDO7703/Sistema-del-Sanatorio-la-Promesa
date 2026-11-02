@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AltaMedica;
 use App\Models\EvolucionClinica;
 use App\Models\Ingreso;
+use App\Services\CirugiasAlAlta;
 use App\Services\ExamenFisico;
 use App\Services\ReglasAtencion;
 use App\Support\Permisos;
@@ -70,8 +71,9 @@ class EmergenciaController extends Controller
         $examenFisico = ExamenFisico::validar($request);
         $fecha = Carbon::parse($datos['fecha_hora']);
         $darDeAlta = $datos['accion'] === 'alta';
+        $cancelarCirugias = $request->input('cancelar_cirugias') === '1';
 
-        DB::transaction(function () use ($ingreso, $datos, $examenFisico, $fecha, $idPersonal, $darDeAlta): void {
+        DB::transaction(function () use ($ingreso, $datos, $examenFisico, $fecha, $idPersonal, $darDeAlta, $cancelarCirugias): void {
             $actual = Ingreso::whereKey($ingreso->getKey())->lockForUpdate()->firstOrFail();
             ReglasAtencion::exigirActivo($actual->estado);
 
@@ -114,6 +116,7 @@ class EmergenciaController extends Controller
                 return;
             }
 
+            app(CirugiasAlAlta::class)->cancelar($actual, $cancelarCirugias);
             $ahoraLocal = ReglasAtencion::ahora()->startOfMinute();
             $fechaAlta = $ahoraLocal->max($fecha);
             $alta = AltaMedica::create([

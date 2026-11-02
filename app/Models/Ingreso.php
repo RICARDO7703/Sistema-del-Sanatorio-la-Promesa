@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Ingreso extends Model
 {
@@ -25,6 +26,16 @@ class Ingreso extends Model
     protected $primaryKey = 'id_ingreso';
 
     public $timestamps = false;
+
+    /**
+     * La hora de registro se guarda en UTC desde la aplicación; con ella se cuentan las 12 horas para editar.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $registro): void {
+            $registro->fecha_registro ??= now('UTC');
+        });
+    }
 
     protected $fillable = [
         'id_paciente',
@@ -150,6 +161,18 @@ class Ingreso extends Model
             'id_ingreso',
             'id_ingreso'
         );
+    }
+
+    /**
+     * Archivo del documento de ingreso firmado, guardado en los archivos médicos del paciente.
+     */
+    public function documentoFirmado(): HasOne
+    {
+        return $this->hasOne(DocumentoClinico::class, 'id_registro_origen', 'id_ingreso')
+            ->where('tabla_origen', 'tbl_ingreso')
+            ->whereNull('id_ingreso')
+            ->where('tipo_documento', DocumentoClinico::TIPO_INGRESO_FIRMADO)
+            ->where('estado', 'Activo');
     }
 
     /**

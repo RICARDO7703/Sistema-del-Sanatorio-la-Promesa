@@ -18,6 +18,7 @@
 @endphp
 <form method="POST" action="{{ $accionConsulta ?? route('emergencia.guardar', $ingreso) }}" id="form-consulta-emergencia" class="evolucion-card mb-3 consulta-emergencia" novalidate data-validar-en-linea>
     @csrf
+        @include('atencion.partials.aviso-cirugias-alta')
     <input type="hidden" name="_formulario" value="{{ $formulario }}">
     <input type="hidden" name="accion" value="alta" disabled data-accion-alta>
 

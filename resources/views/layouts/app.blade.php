@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    @include('partials.tema')
 
     <title>@yield('title', 'Sanatorio La Promesa')</title>
 
@@ -152,6 +153,7 @@
                         <li><a class="dropdown-item" href="{{ route('perfil.show') }}"><i class="bi bi-person" aria-hidden="true"></i> Mi perfil</a></li>
                         <li><a class="dropdown-item" href="{{ route('perfil.foto.editar') }}"><i class="bi bi-camera" aria-hidden="true"></i> Cambiar foto</a></li>
                         <li><a class="dropdown-item" href="{{ route('perfil.contrasena.editar') }}"><i class="bi bi-key" aria-hidden="true"></i> Cambiar contraseña</a></li>
+                        <li><a class="dropdown-item" href="{{ route('perfil.apariencia.editar') }}"><i class="bi bi-circle-half" aria-hidden="true"></i> Apariencia</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><form action="{{ route('logout') }}" method="POST">@csrf<button type="submit" class="dropdown-item text-danger"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Cerrar sesión</button></form></li>
                     </ul>

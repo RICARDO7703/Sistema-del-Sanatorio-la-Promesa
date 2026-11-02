@@ -135,7 +135,7 @@
         <div class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div class="text-break">
                 <i class="bi bi-file-earmark-{{ $archivoPaciente->tipo_archivo === 'pdf' ? 'pdf' : 'image' }} text-primary me-2" aria-hidden="true"></i><strong>{{ $archivoPaciente->titulo }}</strong>
-                <span class="badge bg-light text-dark border ms-1">{{ $archivoPaciente->categoria }}</span>
+                <span class="badge bg-light text-dark border ms-1">{{ $archivoPaciente->etiquetaCategoria() }}</span>
                 <span class="d-block small text-muted">Subido el {{ $archivoPaciente->fecha_documento?->format('d/m/Y') }} a las {{ $archivoPaciente->fecha_documento?->format('H:i') }} por {{ trim($archivoPaciente->personalResponsable?->nombres.' '.$archivoPaciente->personalResponsable?->apellidos) ?: 'Sin registro' }}</span>
                 @if($editado)<span class="d-block small documento-editado"><i class="bi bi-pencil-square" aria-hidden="true"></i> Se editó el {{ $editado->format('d/m/Y') }} a las {{ $editado->format('H:i') }}</span>@endif
             </div>
@@ -155,10 +155,11 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-2">
         <h4 class="mb-0"><i class="bi bi-clock-history"></i> Historial de atenciones</h4>
    </div>
-    <p class="text-muted mb-4">La atención más reciente aparece primero. Pulse «Ver detalles» para consultar sus documentos.</p>
+    <p class="text-muted mb-4">La atención más reciente aparece primero; la que está en curso se muestra abierta. Pulse «Ver detalles» para consultar los documentos de las demás.</p>
     <div class="d-flex flex-column gap-3">
         @forelse($ingresos as $ingreso)
-        <details class="historial-atencion border rounded-3 overflow-hidden">
+        {{-- La atención en curso se muestra abierta para ver de inmediato sus documentos y notas. --}}
+        <details class="historial-atencion border rounded-3 overflow-hidden" @if($ingreso->estado === 'Activo') open @endif>
             <summary class="historial-resumen p-3">
                 <span class="historial-fecha"><i class="bi bi-calendar-check me-2" aria-hidden="true"></i>Atendido el {{ $ingreso->fecha_ingreso->format('d/m/Y H:i') }}
                     <span class="badge {{ $ingreso->esConsultaExterna() ? 'bg-consulta' : 'bg-danger' }} ms-1">{{ $ingreso->nombreTipoAtencion() }}</span>@if($ingreso->id_ingreso_anterior)<span class="badge bg-info text-dark ms-1">Regreso</span>@endif
@@ -183,22 +184,14 @@
                     <div class="col-sm-6"><dt class="text-muted fw-normal">{{ $ingreso->esConsultaExterna() ? 'Fecha de llegada' : 'Fecha de ingreso' }}</dt><dd class="fw-semibold mb-0">{{ $ingreso->fecha_ingreso->format('d/m/Y H:i') }}</dd></div>
                     <div class="col-sm-6"><dt class="text-muted fw-normal">{{ $ingreso->esConsultaExterna() ? 'Fecha de salida' : 'Fecha de egreso' }}</dt><dd class="fw-semibold mb-0">{{ $ingreso->altaMedica?->fecha_hora?->format('d/m/Y H:i') ?? ($ingreso->estado === 'Activo' ? 'En atención' : ($ingreso->estado === 'Cancelado' ? 'Atención anulada' : 'Sin egreso médico registrado')) }}</dd></div>
                     <div class="col-12"><dt class="text-muted fw-normal">{{ $ingreso->esConsultaExterna() ? 'Motivo de consulta' : 'Motivo de ingreso' }}</dt><dd class="mb-0 text-break">{{ $ingreso->motivo_ingreso ?: 'Sin registro' }}</dd></div>
-                    @if($ingreso->altaMedica?->medicamentos->isNotEmpty())
-                    <div class="col-12"><dt class="text-muted fw-normal">Medicamentos para casa</dt><dd class="mb-0">
-                        <ul class="mb-0 ps-3">
-                            @foreach($ingreso->altaMedica->medicamentos as $medicamento)
-                            <li class="text-break">{{ $medicamento->medicamento }} · {{ $medicamento->dosis }} · {{ $medicamento->frecuencia }}@if($medicamento->duracion) · {{ $medicamento->duracion }}@endif</li>
-                            @endforeach
-                        </ul>
-                    </dd></div>
-                    @endif
+
 
                 </dl>
                 @unless($ingreso->esConsultaExterna())
                 @include('expedientes.partials.habitaciones', ['ingreso'=>$ingreso])
                 @endunless
                 @unless($ingreso->esConsultaExterna())
-                <p class="small mb-3 {{ $ingreso->documento_firmado ? 'text-success' : 'text-muted' }}"><i class="bi {{ $ingreso->documento_firmado ? 'bi-check-circle-fill' : 'bi-info-circle' }} me-1"></i>{{ $ingreso->documento_firmado ? 'Documento de ingreso firmado' : 'Documento de ingreso pendiente de firma' }}</p>
+                <p class="small mb-3 {{ $ingreso->documento_firmado ? 'text-success' : 'text-muted' }}"><i class="bi {{ $ingreso->documento_firmado ? 'bi-check-circle-fill' : 'bi-info-circle' }} me-1"></i>{{ $ingreso->documento_firmado ? 'Documento de ingreso firmado' : 'Documento de ingreso pendiente de firma' }}@if($documentosFirmados->has($ingreso->id_ingreso)) · <a href="{{ route('archivos.show', $documentosFirmados->get($ingreso->id_ingreso)) }}">Ver documento</a>@endif</p>
                 @endunless
                 @include('cirugias.panel', ['soloLecturaCirugia'=>true])
                 @include('expedientes.partials.documentos-ingreso', ['ingreso'=>$ingreso])
@@ -217,7 +210,7 @@
 <div class="modal fade" id="modalNuevoIngreso" tabindex="-1" aria-labelledby="modalNuevoIngreso-titulo" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ route('ingresos.guardar') }}" method="POST" novalidate data-validar-en-linea data-validar-al-enviar>
+            <form action="{{ route('ingresos.guardar') }}" method="POST" enctype="multipart/form-data" novalidate data-validar-en-linea data-validar-al-enviar>
                 @csrf
                 <input type="hidden" name="id_paciente" value="{{ $paciente->id_paciente }}">
                 <div class="modal-header">

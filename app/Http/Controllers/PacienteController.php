@@ -7,6 +7,7 @@ use App\Models\ContactoPaciente;
 use App\Models\Habitacion;
 use App\Models\Ingreso;
 use App\Models\Paciente;
+use App\Services\DocumentoIngresoFirmado;
 use App\Services\RegistroIngreso;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -257,8 +258,8 @@ class PacienteController extends Controller
                 'id_habitacion' => ['exclude_unless:hospitalizar,1', 'bail', 'nullable', 'integer', 'exists:tbl_habitacion,id_habitacion'],
                 'motivo_ingreso' => ['exclude_unless:hospitalizar,1', 'nullable', 'string', 'max:255'],
                 'documento_firmado' => ['exclude_unless:hospitalizar,1', 'nullable', 'boolean'],
-            ],
-            [
+            ] + DocumentoIngresoFirmado::reglas(['exclude_unless:hospitalizar,1']),
+            DocumentoIngresoFirmado::mensajes() + [
                 'fecha_ingreso.required' => 'Indique la fecha y hora de llegada.',
                 'fecha_ingreso.before_or_equal' => 'La fecha y hora de llegada no pueden ser futuras.',
                 'id_habitacion.required' => 'Seleccione la habitación donde se internará.',
@@ -268,6 +269,11 @@ class PacienteController extends Controller
         );
 
         $hospitalizar = $request->boolean('hospitalizar');
+        $firmado = $hospitalizar && $request->boolean('documento_firmado');
+        $archivoFirmado = $request->file(DocumentoIngresoFirmado::CAMPO);
+        if ($firmado) {
+            DocumentoIngresoFirmado::comprobar($archivoFirmado);
+        }
 
         $idPersonal = $hospitalizar
             ? DB::table('tbl_usuario')->where('id_usuario', $idUsuario)->value('id_personal')
@@ -309,6 +315,8 @@ class PacienteController extends Controller
                 $contactos,
                 $hospitalizar,
                 $hospitalizacion,
+                $firmado,
+                $archivoFirmado,
                 $idUsuario,
                 $idPersonal
             ) {
@@ -346,17 +354,22 @@ class PacienteController extends Controller
                 }
 
                 try {
-                    return RegistroIngreso::registrar([
+                    $ingreso = RegistroIngreso::registrar([
                         'id_paciente' => $paciente->id_paciente,
                         'tipo_atencion' => Ingreso::TIPO_HOSPITALIZACION,
                         'fecha_ingreso' => Carbon::parse($hospitalizacion['fecha_ingreso'])->format('Y-m-d H:i:s'),
                         'motivo_ingreso' => $hospitalizacion['motivo_ingreso'] ?? null,
-                        'documento_firmado' => (bool) ($hospitalizacion['documento_firmado'] ?? false),
+                        'documento_firmado' => $firmado,
                         'id_habitacion' => isset($hospitalizacion['id_habitacion']) ? (int) $hospitalizacion['id_habitacion'] : null,
                     ], (int) $idUsuario, (int) $idPersonal);
                 } catch (RuntimeException $error) {
                     throw ValidationException::withMessages(['id_habitacion' => $error->getMessage()]);
                 }
+                if ($firmado) {
+                    DocumentoIngresoFirmado::guardar($archivoFirmado, $ingreso, (int) $idUsuario);
+                }
+
+                return $ingreso;
             }
         );
 
