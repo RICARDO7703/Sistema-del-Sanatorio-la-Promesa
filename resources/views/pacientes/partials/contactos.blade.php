@@ -14,7 +14,7 @@
                 <input type="hidden" name="contactos[{{ $indice }}][id_contacto]" value="{{ $contacto['id_contacto'] ?? '' }}">
                 <div class="col-12 col-md-5"><label class="form-label w-100">Nombre del contacto<input class="form-control" name="contactos[{{ $indice }}][nombre]" value="{{ $contacto['nombre'] ?? '' }}" maxlength="150"></label></div>
                 <div class="col-12 col-md-3"><label class="form-label w-100">Parentesco<input class="form-control" name="contactos[{{ $indice }}][parentesco]" value="{{ $contacto['parentesco'] ?? '' }}" maxlength="50"></label></div>
-                <div class="col-12 col-md-4"><label class="form-label w-100">Teléfono<input class="form-control" name="contactos[{{ $indice }}][telefono]" value="{{ $contacto['telefono'] ?? '' }}" inputmode="tel" maxlength="9" pattern="[0-9]{4}-?[0-9]{4}"></label></div>
+                <div class="col-12 col-md-4"><label class="form-label w-100">Teléfono<input class="form-control telefono" name="contactos[{{ $indice }}][telefono]" value="{{ $contacto['telefono'] ?? '' }}" inputmode="numeric" maxlength="9" pattern="[0-9]{4}-?[0-9]{4}" placeholder="0000-0000" data-mensaje-formato="El teléfono debe tener 8 números, por ejemplo 5555-1234."></label></div>
                 @if(empty($contacto['id_contacto']))<div class="col-12"><button type="button" class="btn btn-outline-secondary btn-sm" data-quitar-contacto>Quitar este contacto</button></div>@endif
             </div>
         @endforeach

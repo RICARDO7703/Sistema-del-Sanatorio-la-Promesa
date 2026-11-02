@@ -3,10 +3,33 @@
 namespace App\Services;
 
 use DateTimeInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class ReglasAtencion
 {
+    /**
+     * Zona horaria del sanatorio. Las fechas clínicas se guardan como hora local de Guatemala.
+     */
+    public const ZONA_HORARIA = 'America/Guatemala';
+
+    /**
+     * Hora actual de Guatemala, con la misma forma en que se guardan las fechas clínicas,
+     * para compararla con ellas sin el desfase de la hora del servidor (UTC).
+     */
+    public static function ahora(): Carbon
+    {
+        return Carbon::parse(now(self::ZONA_HORARIA)->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * Regla de validación que rechaza fechas posteriores a la hora actual de Guatemala.
+     */
+    public static function reglaNoFutura(): string
+    {
+        return 'before_or_equal:'.self::ahora()->format('Y-m-d H:i:s');
+    }
+
     public static function ingresoActivo(string $estado): bool
     {
         return $estado === 'Activo';

@@ -6,6 +6,7 @@ use App\Models\Cirugia;
 use App\Models\Ingreso;
 use App\Models\Personal;
 use App\Models\SignoVital;
+use App\Support\Permisos;
 use App\Support\RegistroBitacora;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -20,10 +21,9 @@ class CirugiaController extends Controller
     public static function permisos(): array
     {
         $usuario = DB::table('tbl_usuario as u')->join('tbl_personal as p', 'p.id_personal', '=', 'u.id_personal')->join('tbl_cargo as c', 'c.id_cargo', '=', 'p.id_cargo')->join('tbl_rol as r', 'r.id_rol', '=', 'u.id_rol')->where('u.id_usuario', session('id_usuario'))->select('p.id_personal', 'c.nombre_cargo', 'r.nombre_rol')->first();
-        $cargo = mb_strtolower($usuario->nombre_cargo ?? '');
-        $admin = str_contains(mb_strtolower($usuario->nombre_rol ?? ''), 'admin');
+        $permisos = app(Permisos::class);
 
-        return ['agendar' => $admin || str_contains($cargo, 'enferm') || str_contains($cargo, 'secret') || str_contains($cargo, 'recepcion'), 'control' => $admin || str_contains($cargo, 'enferm'), 'personal' => $usuario->id_personal ?? null];
+        return ['agendar' => $permisos->puede('Cirugías', Permisos::GUARDAR), 'control' => $permisos->puede('Cirugías', Permisos::EDITAR), 'personal' => $usuario->id_personal ?? null];
     }
 
     public function formulario(Request $request, Ingreso $ingreso): View

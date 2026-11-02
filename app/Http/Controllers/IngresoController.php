@@ -6,6 +6,7 @@ use App\Models\Ingreso;
 use App\Models\Paciente;
 use App\Services\RegistroIngreso;
 use App\Services\ReglasAtencion;
+use App\Support\RegistroBitacora;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +25,7 @@ class IngresoController extends Controller
 
     /**
      * Inicia una consulta externa con la hora actual y lleva directo a la pantalla de la consulta.
+     * La llegada se guarda sin segundos, igual que la hora de la consulta, para poder cerrarla en el mismo minuto.
      */
     public function iniciarConsulta(Paciente $paciente): RedirectResponse
     {
@@ -38,7 +40,7 @@ class IngresoController extends Controller
             $ingreso = RegistroIngreso::registrar([
                 'id_paciente' => $paciente->id_paciente,
                 'tipo_atencion' => Ingreso::TIPO_CONSULTA_EXTERNA,
-                'fecha_ingreso' => now('America/Guatemala')->format('Y-m-d H:i:s'),
+                'fecha_ingreso' => ReglasAtencion::ahora()->format('Y-m-d H:i:00'),
             ], $idUsuario, $idPersonal);
         } catch (RuntimeException $error) {
             return back()->with('error', $error->getMessage());
@@ -95,7 +97,7 @@ class IngresoController extends Controller
                 'fecha_ingreso' => [
                     'required',
                     'date',
-                    'before_or_equal:now',
+                    ReglasAtencion::reglaNoFutura(),
                 ],
 
                 'motivo_ingreso' => [
@@ -174,7 +176,7 @@ class IngresoController extends Controller
                 'fecha_ingreso' => [
                     'required',
                     'date',
-                    'before_or_equal:now',
+                    ReglasAtencion::reglaNoFutura(),
                 ],
 
                 'motivo_ingreso' => [
@@ -208,6 +210,7 @@ class IngresoController extends Controller
         if ($ingreso->hospitalizacion && $ingreso->hospitalizacion->historialHabitaciones()->where('fecha_hora_inicio', '<', $fechaNueva)->exists()) {
             throw ValidationException::withMessages(['fecha_ingreso' => 'El ingreso no puede ser posterior a la asignación de habitación.']);
         }
+        $request->attributes->set('edicion_documento', true);
         DB::transaction(function () use (
             $ingreso,
             $datos,
@@ -242,7 +245,11 @@ class IngresoController extends Controller
             );
     }
 
-    public function cancelar(Ingreso $ingreso)
+    /**
+     * Anula una atención abierta por error. Los registros clínicos no se borran
+     * y el motivo queda en la bitácora junto con quién la anuló.
+     */
+    public function cancelar(Request $request, Ingreso $ingreso): RedirectResponse
     {
         $idUsuario = session('id_usuario');
 
@@ -258,7 +265,18 @@ class IngresoController extends Controller
                 );
         }
 
+        $datos = $request->validate([
+            'motivo_anulacion' => ['required', 'string', 'min:5', 'max:255'],
+        ], [
+            'motivo_anulacion.required' => 'Escriba por qué se anula la atención.',
+            'motivo_anulacion.min' => 'Explique el motivo de la anulación con un poco más de detalle.',
+            'motivo_anulacion.max' => 'El motivo de la anulación no puede pasar de 255 caracteres.',
+        ]);
+        $esConsultaExterna = $ingreso->esConsultaExterna();
+
         DB::transaction(function () use (
+            $request,
+            $datos,
             $ingreso,
             $idUsuario
         ) {
@@ -281,16 +299,17 @@ class IngresoController extends Controller
                 $asignacionActual =
                     $hospitalizacion->habitacionActual;
 
-                ReglasAtencion::validarCierre(now(), $hospitalizacion->fecha_inicio);
+                $ahora = ReglasAtencion::ahora();
+                ReglasAtencion::validarCierre($ahora, $hospitalizacion->fecha_inicio);
                 if ($asignacionActual) {
-                    ReglasAtencion::validarCierre(now(), $asignacionActual->fecha_hora_inicio);
+                    ReglasAtencion::validarCierre($ahora, $asignacionActual->fecha_hora_inicio);
                     $asignacionActual->update([
-                        'fecha_hora_fin' => now(),
+                        'fecha_hora_fin' => $ahora,
                     ]);
                 }
 
                 $hospitalizacion->update([
-                    'fecha_fin' => now(),
+                    'fecha_fin' => $ahora,
                     'estado' => 'Cancelada',
                     'id_usuario_modificacion' => $idUsuario,
                 ]);
@@ -300,13 +319,18 @@ class IngresoController extends Controller
                 'estado' => 'Cancelado',
                 'id_usuario_modificacion' => $idUsuario,
             ]);
+
+            app(RegistroBitacora::class)->registrar(
+                $request, 'Anulación de atención', 'Exitoso', 'Motivo: '.trim($datos['motivo_anulacion']),
+                (int) $idUsuario, (int) $ingreso->getKey(), null, 'tbl_ingreso'
+            );
         });
 
         return redirect()
-            ->route('atencion.index')
+            ->route($esConsultaExterna ? 'pacientes.index' : 'atencion.index')
             ->with(
                 'exito',
-                'Ingreso cancelado correctamente.'
+                'Atención anulada. Los registros se conservan y el motivo quedó en la bitácora.'
             );
     }
 }

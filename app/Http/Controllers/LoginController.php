@@ -53,6 +53,7 @@ class LoginController extends Controller
         }
 
         $request->attributes->set('bitacora_usuario_autenticado', $usuario->id_usuario);
+        DB::table('tbl_usuario')->where('id_usuario', $usuario->id_usuario)->update(['ultimo_acceso' => now('UTC'), 'intentos_fallidos' => 0]);
         $request->session()->regenerate();
 
         session([

@@ -51,14 +51,17 @@
     @include('atencion.partials.examen-fisico', ['registro' => $consulta, 'formulario' => $formulario, 'signosSeleccionables' => true])
 
     <section class="mb-4">
-        <h3 class="h5 border-bottom pb-2 mb-3">Diagnóstico y tratamiento</h3>
-        <div class="mb-3">
-            <label class="form-label" for="emergencia-diagnostico">Diagnóstico</label>
-            <textarea id="emergencia-diagnostico" name="diagnostico" class="form-control @error('diagnostico') is-invalid @enderror" rows="2" maxlength="1000" data-mensaje-requerido="Escriba el diagnóstico." required>{{ $valor('diagnostico') }}</textarea>
-            @error('diagnostico')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <label class="form-label" for="emergencia-tratamiento">Tratamiento aplicado en el sanatorio</label>
+        <h3 class="h5 border-bottom pb-2 mb-3">Tratamiento en el sanatorio</h3>
+        @include('atencion.partials.aviso-alergias', ['paciente' => $ingreso->paciente])
+        <label class="form-label" for="emergencia-tratamiento">Medicamentos o procedimientos aplicados (opcional)</label>
         <textarea id="emergencia-tratamiento" name="indicaciones" class="form-control" rows="2" maxlength="2000" placeholder="Ej. se aplicó diclofenaco 75 mg IM">{{ $valor('indicaciones') }}</textarea>
+    </section>
+
+    <section class="mb-4">
+        <h3 class="h5 border-bottom pb-2 mb-3">Diagnóstico</h3>
+        <label class="visually-hidden" for="emergencia-diagnostico">Diagnóstico</label>
+        <textarea id="emergencia-diagnostico" name="diagnostico" class="form-control @error('diagnostico') is-invalid @enderror" rows="2" maxlength="1000" data-mensaje-requerido="Escriba el diagnóstico." required>{{ $valor('diagnostico') }}</textarea>
+        @error('diagnostico')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </section>
 
     <section class="mb-4" data-solo-alta>
@@ -80,8 +83,13 @@
     <div class="alert alert-danger" role="alert" hidden data-resumen-errores>Revise los campos marcados en rojo.</div>
 
     <div class="d-flex flex-column flex-md-row gap-2 justify-content-md-end border-top pt-3">
-        <button type="button" class="btn btn-success btn-lg" data-pedir-alta><i class="bi bi-house-door" aria-hidden="true"></i> Dar de alta</button>
-        <button type="submit" name="accion" value="internar" class="btn btn-outline-primary btn-lg"><i class="bi bi-door-open" aria-hidden="true"></i> Internar paciente</button>
+        @php
+            $puedeDarAlta = app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Ingresar') && app(\App\Support\Permisos::class)->puede('Alta médica', 'Ingresar');
+            $puedeInternar = app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Ingresar') && app(\App\Support\Permisos::class)->puede('Hospitalización', 'Ingresar');
+        @endphp
+        @if(! $puedeDarAlta && ! $puedeInternar)<p class="text-muted mb-0 me-auto"><i class="bi bi-shield-lock" aria-hidden="true"></i> No tiene permiso para guardar la consulta, dar de alta ni internar.</p>@endif
+        @if($puedeDarAlta)<button type="button" class="btn btn-success btn-lg" data-pedir-alta><i class="bi bi-house-door" aria-hidden="true"></i> Dar de alta</button>@endif
+        @if($puedeInternar)<button type="submit" name="accion" value="internar" class="btn btn-outline-primary btn-lg"><i class="bi bi-door-open" aria-hidden="true"></i> Internar paciente</button>@endif
     </div>
 </form>
 
@@ -133,7 +141,7 @@
         if (accionAlta.disabled === false) return;
         if (!window.validacionEnLinea.validar(form, '[data-solo-alta]')) evento.preventDefault();
     });
-    form.querySelector('[data-pedir-alta]').addEventListener('click', () => {
+    form.querySelector('[data-pedir-alta]')?.addEventListener('click', () => {
         if (!window.validacionEnLinea.validar(form)) return;
         const medicamentos = contenedor.querySelectorAll('.fila-medicamento-casa').length;
         modalAlta.querySelector('[data-resumen-alta]').textContent = medicamentos
@@ -182,8 +190,8 @@
         @if($consulta->evaluacion_medica)
         <div class="col-12"><dt>Descripción adicional del examen</dt><dd class="mb-0 text-break">{{ $consulta->evaluacion_medica }}</dd></div>
         @endif
-        <div class="col-md-6"><dt>Diagnóstico</dt><dd class="mb-0 text-break">{{ $consulta->diagnostico }}</dd></div>
-        <div class="col-md-6"><dt>Tratamiento aplicado en el sanatorio</dt><dd class="mb-0 text-break">{{ $consulta->indicaciones ?: 'Sin registro' }}</dd></div>
+        <div class="col-12"><dt>Tratamiento aplicado en el sanatorio</dt><dd class="mb-0 text-break">{{ $consulta->indicaciones ?: 'Sin registro' }}</dd></div>
+        <div class="col-12"><dt>Diagnóstico</dt><dd class="mb-0 text-break">{{ $consulta->diagnostico }}</dd></div>
     </dl>
     @endif
     @if($alta)

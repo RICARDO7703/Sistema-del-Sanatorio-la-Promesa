@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Ingreso;
+use App\Services\ReglasAtencion;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +21,7 @@ class IngresoFactory extends Factory
                 'telefono' => '5555-5555', 'id_usuario_creacion' => 1,
             ]),
             'id_personal_registra' => 1,
-            'fecha_ingreso' => now()->subDay(),
+            'fecha_ingreso' => ReglasAtencion::ahora()->subDay(),
             'motivo_ingreso' => 'Ingreso de prueba',
             'estado' => 'Activo',
             'id_usuario_creacion' => 1,

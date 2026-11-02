@@ -102,6 +102,7 @@ class CirugiaTest extends TestCase
         $i = IngresoFactory::new()->create();
         $this->get(route('cirugias.formulario', $i))->assertRedirect('/');
         DB::table('tbl_rol')->where('id_rol', 1)->update(['nombre_rol' => 'Enfermería']);
+        $this->asignarPermisosDeRol(1, 'Enfermería');
         $this->withSession(['id_usuario' => 1])->post(route('cirugias.guardar', $i), ['modo' => 'indicar', 'tipo_operacion' => 'Prueba'])->assertForbidden();
         $this->post(route('cirugias.guardar', $i), $this->datos())->assertSessionHasNoErrors();
         $c = Cirugia::sole();
@@ -134,9 +135,12 @@ class CirugiaTest extends TestCase
         $this->withSession(['id_usuario' => 1])->post(route('cirugias.guardar', $ingreso), $this->datos())->assertSessionHasNoErrors();
         DB::table('tbl_rol')->where('id_rol', 1)->update(['nombre_rol' => 'Médico']);
         DB::table('tbl_usuario')->where('id_usuario', 1)->update(['id_personal' => 1]);
-        $this->withSession(['id_usuario' => 1])->post(route('cirugias.guardar', $ingreso), $this->datos())->assertForbidden();
-        $this->post(route('cirugias.guardar', $ingreso), ['modo' => 'indicar', 'tipo_operacion' => 'Indicación de prueba'])->assertForbidden();
-        $this->post(route('cirugias.control', Cirugia::sole()), ['fecha_hora' => '2026-10-11 11:30:00', 'frecuencia_cardiaca' => 80])->assertForbidden();
+        $this->asignarPermisosDeRol(1, 'Médico');
+        $this->withSession(['id_usuario' => 1])->post(route('cirugias.guardar', $ingreso), $this->datos())->assertSessionHas('permiso_denegado');
+        $this->post(route('cirugias.guardar', $ingreso), ['modo' => 'indicar', 'tipo_operacion' => 'Indicación de prueba'])->assertSessionHas('permiso_denegado');
+        $this->post(route('cirugias.control', Cirugia::sole()), ['fecha_hora' => '2026-10-11 11:30:00', 'frecuencia_cardiaca' => 80])->assertSessionHas('permiso_denegado');
+        $this->get(route('cirugias.show', Cirugia::sole()))->assertOk();
+        $this->assertDatabaseCount('tbl_cirugia', 1);
     }
 
     public function test_migracion_repetida_conserva_los_registros(): void

@@ -41,6 +41,104 @@ class ArchivoClinicoTest extends TestCase
         return array_replace(['tipo' => 'Evolución clínica', 'fecha_documento' => '2026-10-11T11:00', 'archivo' => UploadedFile::fake()->createWithContent('hoja.pdf', "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF")], $cambios);
     }
 
+    private function pdf(string $nombre = 'examen.pdf'): UploadedFile
+    {
+        return UploadedFile::fake()->createWithContent($nombre, "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF");
+    }
+
+    private function examen(array $cambios = []): array
+    {
+        return array_replace(['_formulario' => 'archivo-paciente', 'categoria' => 'Laboratorio', 'titulo' => 'Hematología completa', 'archivo' => $this->pdf()], $cambios);
+    }
+
+    private function segundoUsuario(): void
+    {
+        DB::table('tbl_usuario')->insert(['id_usuario' => 2, 'id_personal' => 1, 'id_rol' => 1, 'nombre_usuario' => 'medica', 'contrasena' => 'solo-pruebas']);
+    }
+
+    public function test_expediente_muestra_acciones_arriba_y_sube_examenes_del_paciente(): void
+    {
+        Storage::fake('documentos_clinicos');
+        $paciente = IngresoFactory::new()->create(['estado' => 'Dado de alta'])->paciente;
+        $expediente = route('pacientes.expediente', $paciente);
+
+        $this->withSession(['id_usuario' => 1])->get($expediente)->assertOk()
+            ->assertSeeInOrder(['id="acciones-expediente"', 'Subir archivo médico', 'id="datos-paciente"', 'id="archivos-paciente"', 'id="historial-evoluciones"'], false)
+            ->assertSee('Todavía no hay archivos médicos');
+
+        $this->from($expediente)->post(route('archivos.paciente.guardar', $paciente), $this->examen())->assertRedirect($expediente.'#archivos-paciente');
+        $documento = DocumentoClinico::sole();
+        $this->assertNull($documento->id_ingreso);
+        $this->assertSame('Laboratorio', $documento->categoria);
+        $this->assertSame('2026-10-11 12:00', $documento->fecha_documento->format('Y-m-d H:i'));
+        $this->assertStringStartsWith('pacientes/'.$paciente->getKey().'/', $documento->ruta_archivo);
+        Storage::disk('documentos_clinicos')->assertExists($documento->ruta_archivo);
+
+        $this->get($expediente)->assertOk()->assertSee('Hematología completa')->assertSee('Subido el 11/10/2026 a las 12:00')->assertSee(route('archivos.editar', $documento), false);
+        $this->get(route('archivos.show', $documento))->assertOk()->assertSee('Subido el')->assertSee('Laboratorio')->assertDontSee('Agregar otra página');
+        $this->get(route('archivos.contenido', $documento))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+    }
+
+    public function test_examen_del_paciente_valida_los_datos_y_reabre_la_ventana(): void
+    {
+        Storage::fake('documentos_clinicos');
+        $paciente = IngresoFactory::new()->create()->paciente;
+        $expediente = route('pacientes.expediente', $paciente);
+
+        $this->withSession(['id_usuario' => 1])->from($expediente)
+            ->post(route('archivos.paciente.guardar', $paciente), $this->examen(['categoria' => 'Receta', 'titulo' => '', 'archivo' => UploadedFile::fake()->create('virus.exe', 10)]))
+            ->assertRedirect($expediente)->assertSessionHasErrors(['categoria', 'titulo', 'archivo']);
+        $this->get($expediente)->assertSee("getElementById('modalArchivoPaciente')", false);
+        $this->assertDatabaseCount('tbl_documento_clinico', 0);
+    }
+
+    public function test_solo_quien_subio_el_archivo_lo_edita_y_solo_durante_doce_horas(): void
+    {
+        Storage::fake('documentos_clinicos');
+        $this->segundoUsuario();
+        $paciente = IngresoFactory::new()->create()->paciente;
+        $this->withSession(['id_usuario' => 1])->post(route('archivos.paciente.guardar', $paciente), $this->examen());
+        $documento = DocumentoClinico::sole();
+        $rutaAnterior = $documento->ruta_archivo;
+
+        $this->travel(2)->hours();
+        $this->get(route('archivos.editar', $documento))->assertOk()->assertSeeText('Puede corregir este archivo hasta el 12/10/2026 a las 00:00');
+        $this->put(route('archivos.actualizar', $documento), ['categoria' => 'Radiografía', 'titulo' => 'Rayos X de tórax', 'fecha_documento' => '2026-10-11T09:30', 'archivo' => $this->pdf('nuevo.pdf')])
+            ->assertRedirect(route('archivos.show', $documento));
+        $documento->refresh();
+        $this->assertSame(['Radiografía', 'Rayos X de tórax', 'nuevo.pdf'], [$documento->categoria, $documento->titulo, $documento->nombre_archivo]);
+        $this->assertSame('2026-10-11 12:00', $documento->fecha_documento->format('Y-m-d H:i'), 'La fecha de subida no cambia al editar.');
+        Storage::disk('documentos_clinicos')->assertMissing($rutaAnterior);
+        Storage::disk('documentos_clinicos')->assertExists($documento->ruta_archivo);
+        $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Edición de archivo clínico', 'tabla' => 'tbl_documento_clinico', 'id_registro' => $documento->getKey()]);
+        $this->get(route('pacientes.expediente', $paciente))->assertSee('Se editó el 11/10/2026 a las 14:00');
+
+        $this->withSession(['id_usuario' => 2]);
+        $this->get(route('pacientes.expediente', $paciente))->assertOk()->assertSee('Rayos X de tórax')->assertDontSee(route('archivos.editar', $documento), false);
+        $this->get(route('archivos.editar', $documento))->assertForbidden();
+        $this->put(route('archivos.actualizar', $documento), ['categoria' => 'Otro', 'titulo' => 'Cambio ajeno', 'fecha_documento' => '2026-10-11T09:30'])->assertForbidden();
+
+        $this->withSession(['id_usuario' => 1]);
+        $this->travel(10)->hours();
+        $this->travel(1)->minutes();
+        $this->get(route('archivos.show', $documento))->assertOk()->assertDontSee(route('archivos.editar', $documento), false);
+        $this->get(route('archivos.editar', $documento))->assertForbidden();
+        $this->assertSame('Rayos X de tórax', $documento->fresh()->titulo);
+    }
+
+    public function test_hoja_de_una_atencion_se_corrige_dentro_del_plazo_sin_fecha_anterior_a_la_llegada(): void
+    {
+        Storage::fake('documentos_clinicos');
+        $ingreso = IngresoFactory::new()->create(['fecha_ingreso' => '2026-10-11 08:00:00']);
+        $this->withSession(['id_usuario' => 1])->post(route('archivos.guardar', $ingreso), $this->datos())->assertSessionHasNoErrors();
+        $documento = DocumentoClinico::sole();
+
+        $this->get(route('archivos.show', $documento))->assertSee(route('archivos.editar', $documento), false);
+        $this->put(route('archivos.actualizar', $documento), ['fecha_documento' => '2026-10-11T07:00'])->assertSessionHasErrors('fecha_documento');
+        $this->put(route('archivos.actualizar', $documento), ['fecha_documento' => '2026-10-11T09:15', 'descripcion' => 'Hora corregida'])->assertSessionHasNoErrors();
+        $this->assertSame(['2026-10-11 09:15', 'Hora corregida', 'Evolución clínica'], [$documento->fresh()->fecha_documento->format('Y-m-d H:i'), $documento->fresh()->descripcion, $documento->fresh()->titulo]);
+    }
+
     public function test_subir_pdf_sin_transcribir_y_abrirlo_desde_expediente(): void
     {
         Storage::fake('documentos_clinicos');
@@ -64,7 +162,8 @@ class ArchivoClinicoTest extends TestCase
         $this->assertSame('tbl_ingreso', $d->tabla_origen);
         $this->get(route('archivos.show', $d))->assertOk()->assertSee('<img src=', false);
         $this->get(route('archivos.contenido', $d))->assertOk()->assertHeader('Content-Type', 'image/jpeg');
-        $this->get(route('pacientes.expediente', $i->paciente))->assertOk()->assertSee('Subir imagen o PDF');
+        $this->get(route('pacientes.expediente', $i->paciente))->assertOk()
+            ->assertSee('Hoja en papel / archivos')->assertSee(route('archivos.show', $d), false)->assertDontSee('Subir imagen o PDF');
     }
 
     public function test_validacion_archivos_fechas_y_referencia_de_otro_paciente(): void

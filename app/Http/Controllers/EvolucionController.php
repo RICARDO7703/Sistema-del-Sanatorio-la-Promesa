@@ -6,6 +6,7 @@ use App\Models\EvolucionClinica;
 use App\Models\Ingreso;
 use App\Services\ExamenFisico;
 use App\Services\OrdenesMedicas;
+use App\Services\ReglasAtencion;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +42,7 @@ class EvolucionController extends Controller
                 'fecha_hora' => [
                     'required',
                     'date',
-                    'before_or_equal:now',
+                    ReglasAtencion::reglaNoFutura(),
                 ],
 
                 'motivo_atencion' => [
@@ -250,7 +251,7 @@ class EvolucionController extends Controller
                 'fecha_hora' => [
                     'required',
                     'date',
-                    'before_or_equal:now',
+                    ReglasAtencion::reglaNoFutura(),
                 ],
 
                 'motivo_atencion' => [
@@ -335,6 +336,7 @@ class EvolucionController extends Controller
         }
 
         $ordenes = OrdenesMedicas::validar($request, $evolucion->ingreso, $evolucion);
+        $request->attributes->set('edicion_documento', true);
         $evolucion->update($ordenes + [
             'examen_fisico' => $request->exists('examen_fisico') ? $examenFisico : $evolucion->examen_fisico,
             'fecha_hora' => $fechaHora,

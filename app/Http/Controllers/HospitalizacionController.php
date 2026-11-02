@@ -7,7 +7,6 @@ use App\Models\Hospitalizacion;
 use App\Models\HospitalizacionHabitacion;
 use App\Models\Ingreso;
 use App\Services\ReglasAtencion;
-use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,14 +25,15 @@ class HospitalizacionController extends Controller
                 throw ValidationException::withMessages(['id_habitacion' => 'El ingreso ya tiene una hospitalización.']);
             }
             $habitacion = $this->habitacionDisponible((int) $datos['id_habitacion']);
+            $ahora = ReglasAtencion::ahora();
             $hospitalizacion = Hospitalizacion::create([
-                'id_ingreso' => $actual->getKey(), 'fecha_inicio' => now(), 'estado' => 'Activa',
+                'id_ingreso' => $actual->getKey(), 'fecha_inicio' => $ahora, 'estado' => 'Activa',
                 'motivo' => $datos['motivo'] ?? null, 'observaciones' => $datos['observaciones'] ?? null,
                 'id_usuario_creacion' => session('id_usuario'),
             ]);
             HospitalizacionHabitacion::create([
                 'id_hospitalizacion' => $hospitalizacion->getKey(), 'id_habitacion' => $habitacion->getKey(),
-                'fecha_hora_inicio' => now(), 'id_usuario_creacion' => session('id_usuario'),
+                'fecha_hora_inicio' => $ahora, 'id_usuario_creacion' => session('id_usuario'),
             ]);
             $actual->update(['tipo_atencion' => Ingreso::TIPO_HOSPITALIZACION, 'id_usuario_modificacion' => session('id_usuario')]);
         });
@@ -53,7 +53,7 @@ class HospitalizacionController extends Controller
             }
             $habitacion = $this->habitacionDisponible((int) $datos['id_habitacion']);
             $asignacion = $actual->habitacionActual;
-            $fecha = $asignacion ? now() : Carbon::parse(now('America/Guatemala')->format('Y-m-d H:i:s'));
+            $fecha = ReglasAtencion::ahora();
             if ($asignacion) {
                 ReglasAtencion::validarCierre($fecha, $asignacion->fecha_hora_inicio);
                 $asignacion->update(['fecha_hora_fin' => $fecha]);

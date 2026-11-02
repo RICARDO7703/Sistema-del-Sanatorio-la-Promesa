@@ -26,7 +26,7 @@ class AltaMedicaController extends Controller
             'medicamentos_casa.*.frecuencia' => ['required', 'string', 'max:100'],
             'medicamentos_casa.*.duracion' => ['nullable', 'string', 'max:100'],
             'id_personal_medico' => ['required', 'integer', Rule::exists('tbl_personal', 'id_personal')->where('estado', 'Activo')],
-            'fecha_hora' => ['required', 'date', 'before_or_equal:now'],
+            'fecha_hora' => ['required', 'date', ReglasAtencion::reglaNoFutura()],
             'diagnostico_final' => ['required', 'string', 'max:2000'],
             'condicion_egreso' => ['required', 'string', 'max:150'],
             'indicaciones_alta' => ['nullable', 'string', 'max:2000'],
@@ -49,7 +49,7 @@ class AltaMedicaController extends Controller
             $actual = Ingreso::whereKey($ingreso->getKey())->lockForUpdate()->firstOrFail();
             ReglasAtencion::exigirActivo($actual->estado);
             $fecha = Carbon::parse($datos['fecha_hora']);
-            ReglasAtencion::validarFecha($fecha, $actual->fecha_ingreso, now());
+            ReglasAtencion::validarFecha($fecha, $actual->fecha_ingreso, ReglasAtencion::ahora());
             foreach (['evoluciones' => 'fecha_hora', 'signosVitales' => 'fecha_hora', 'tratamientos' => 'fecha_indicacion'] as $relacion => $campo) {
                 if ($actual->$relacion()->where($campo, '>', $fecha)->exists()) {
                     throw ValidationException::withMessages(['fecha_hora' => 'El alta no puede ser anterior a registros clínicos del ingreso.']);

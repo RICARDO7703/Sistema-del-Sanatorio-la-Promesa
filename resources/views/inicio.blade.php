@@ -91,26 +91,32 @@
     <!-- Accesos -->
     <div class="inicio-accesos">
 
+        @puede('Pacientes', 'Ver')
         <div class="inicio-card">
             <div class="card-icono"><i class="bi bi-people"></i></div>
             <h3>Pacientes</h3>
             <p>Registre pacientes, inicie consultas externas u hospitalice.</p>
             <a href="{{ route('pacientes.index') }}" class="btn btn-primary">Ver pacientes <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
         </div>
+        @endpuede
 
+        @puede('Ingresos', 'Ver')
         <div class="inicio-card">
             <div class="card-icono"><i class="bi bi-clipboard2-pulse"></i></div>
             <h3>Atención del paciente</h3>
             <p>Pacientes internados: órdenes médicas, notas de enfermería y signos vitales.</p>
             <a href="{{ route('atencion.index') }}" class="btn btn-primary">Ver atención <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
         </div>
+        @endpuede
 
+        @puede('Personal', 'Ver')
         <div class="inicio-card">
             <div class="card-icono"><i class="bi bi-person-badge"></i></div>
             <h3>Personal</h3>
             <p>Registro y gestión del personal del sanatorio.</p>
             <a href="{{ route('personal.index') }}" class="btn btn-primary">Ver personal <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
         </div>
+        @endpuede
 
     </div>
 

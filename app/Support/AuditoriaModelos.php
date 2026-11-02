@@ -30,6 +30,9 @@ class AuditoriaModelos
         $verbo = match ($evento) {
             'created' => 'Registro de ', 'deleted' => 'Eliminación de ', default => 'Actualización de '
         };
+        if ($evento === 'updated' && $request->attributes->get('edicion_documento')) {
+            $verbo = 'Edición de ';
+        }
         if ($evento === 'updated' && $modelo->wasChanged('estado')) {
             $verbo = match ($modelo->estado) {
                 'Inactivo' => 'Desactivación de ', 'Activo' => 'Activación de ', 'Cancelado', 'Cancelada' => 'Cancelación de ', default => 'Cambio de estado de '

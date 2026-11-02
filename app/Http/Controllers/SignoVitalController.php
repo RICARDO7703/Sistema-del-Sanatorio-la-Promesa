@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Ingreso;
 use App\Models\SignoVital;
+use App\Services\ReglasAtencion;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -204,7 +205,7 @@ class SignoVitalController extends Controller
             'fecha_hora' => [
                 'required',
                 'date',
-                'before_or_equal:now',
+                ReglasAtencion::reglaNoFutura(),
             ],
 
             'presion_sistolica' => [

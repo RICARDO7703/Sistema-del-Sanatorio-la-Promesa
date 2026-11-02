@@ -8,19 +8,21 @@
 <form method="GET" action="{{ route('habitaciones.index') }}" class="d-flex gap-2 mb-3"><input class="form-control" name="buscar" value="{{ $buscar }}" maxlength="100" placeholder="Buscar habitación"><button class="btn btn-primary">Buscar</button></form>
 <div class="evolucion-card">
     <p>La ocupación se actualiza al asignar, trasladar o dar de alta a un paciente.</p>
+    @puede('Habitaciones', 'Ingresar')
     <details @if(old('_habitacion') === 'nueva') open @endif><summary class="btn btn-primary">Nueva habitación</summary>
         <form method="POST" action="{{ route('habitaciones.guardar') }}" class="mt-3">@csrf
             @include('habitaciones.formulario', ['habitacion'=>null,'contexto'=>'nueva'])
             <button class="btn btn-primary mt-3">Guardar habitación</button>
         </form>
     </details>
+    @endpuede
     <div class="table-responsive"><table class="table align-middle mt-3"><thead><tr><th>No. habitación</th><th>Tipo</th><th>Disponibilidad</th><th>Observaciones</th><th>Acciones</th></tr></thead><tbody>
     @forelse($habitaciones as $habitacion)
     <tr><td>{{ $habitacion->numero_habitacion }}</td><td>{{ $habitacion->tipo }}</td><td>{{ $habitacion->ocupada ? 'Ocupada' : ($habitacion->estado_operativo === 'Activa' ? 'Disponible' : $habitacion->estado_operativo) }}</td><td>{{ $habitacion->observaciones ?: 'Sin observaciones' }}</td><td>
-        <details @if(old('_habitacion') == $habitacion->getKey()) open @endif><summary>Editar</summary><form method="POST" action="{{ route('habitaciones.actualizar',$habitacion) }}" class="mt-2">@csrf @method('PUT')
+        @puede('Habitaciones', 'Editar')<details @if(old('_habitacion') == $habitacion->getKey()) open @endif><summary>Editar</summary><form method="POST" action="{{ route('habitaciones.actualizar',$habitacion) }}" class="mt-2">@csrf @method('PUT')
             @include('habitaciones.formulario', ['contexto'=>(string)$habitacion->getKey()])
             <button class="btn btn-primary mt-2">Guardar cambios</button>
-        </form></details>
+        </form></details>@endpuede
     </td></tr>
     @empty<tr><td colspan="5">No se encontraron habitaciones.</td></tr>@endforelse
     </tbody></table></div>

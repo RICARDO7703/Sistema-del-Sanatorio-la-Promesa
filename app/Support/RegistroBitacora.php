@@ -10,10 +10,7 @@ class RegistroBitacora
     public function registrar(Request $request, string $accion, string $resultado, string $descripcion, ?int $usuario = null, ?int $registro = null, ?string $nombre = null, string $tabla = 'tbl_usuario'): void
     {
         $agente = mb_substr($request->userAgent() ?? '', 0, 1024);
-        $ip = $request->ip();
-        if (config('services.bitacora_railway') && filter_var($request->header('X-Real-IP'), FILTER_VALIDATE_IP)) {
-            $ip = $request->header('X-Real-IP');
-        }
+        $ip = self::ipCliente($request);
         DB::table('tbl_bitacora')->insert([
             'id_usuario' => $usuario,
             'usuario_intentado' => $nombre !== null ? mb_substr($nombre, 0, 50) : null,
@@ -21,13 +18,27 @@ class RegistroBitacora
             'resultado' => $resultado,
             'descripcion' => $descripcion,
             'fecha_hora' => now('UTC')->format('Y-m-d H:i:s'),
-            'ip' => filter_var($ip, FILTER_VALIDATE_IP) ? $ip : null,
+            'ip' => $ip,
             'navegador' => $this->navegador($agente),
             'sistema_operativo' => $this->sistema($agente),
             'agente_usuario' => $agente ?: null,
             'tabla' => $tabla,
             'id_registro' => $registro,
         ]);
+    }
+
+    /**
+     * IP de quien hizo la solicitud. En Railway la aplicación está detrás de su proxy,
+     * así que la IP real llega en X-Real-IP; fuera de Railway no se confía en ese encabezado.
+     */
+    public static function ipCliente(Request $request): ?string
+    {
+        $ip = $request->ip();
+        if (config('services.bitacora_railway') && filter_var($request->header('X-Real-IP'), FILTER_VALIDATE_IP)) {
+            $ip = $request->header('X-Real-IP');
+        }
+
+        return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : null;
     }
 
     private function navegador(string $agente): string

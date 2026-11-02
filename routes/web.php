@@ -21,27 +21,29 @@ use App\Http\Controllers\RecuperarContrasenaController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\SignoVitalController;
 use App\Http\Controllers\TratamientoController;
+use App\Http\Controllers\UsuarioController;
+use App\Http\Middleware\PermisoModulo;
 use App\Http\Middleware\RegistrarOperaciones;
 use App\Http\Middleware\SesionClinica;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LoginController::class, 'index']);
 Route::get('/recuperar-contrasena', [RecuperarContrasenaController::class, 'solicitar'])->name('password.request');
-Route::post('/recuperar-contrasena', [RecuperarContrasenaController::class, 'enviar'])->middleware('throttle:5,1')->name('password.email');
+Route::post('/recuperar-contrasena', [RecuperarContrasenaController::class, 'enviar'])->middleware('throttle:solicitud-recuperacion')->name('password.email');
 Route::get('/verificar-codigo', [RecuperarContrasenaController::class, 'codigo'])->name('password.code');
-Route::post('/verificar-codigo', [RecuperarContrasenaController::class, 'verificar'])->middleware('throttle:5,1')->name('password.verify');
+Route::post('/verificar-codigo', [RecuperarContrasenaController::class, 'verificar'])->middleware('throttle:codigo-recuperacion')->name('password.verify');
 Route::get('/restablecer-contrasena', [RecuperarContrasenaController::class, 'formulario'])->name('password.reset');
-Route::post('/restablecer-contrasena', [RecuperarContrasenaController::class, 'actualizar'])->middleware('throttle:5,1')->name('password.update');
+Route::post('/restablecer-contrasena', [RecuperarContrasenaController::class, 'actualizar'])->middleware('throttle:nueva-contrasena')->name('password.update');
 
 Route::post('/login', [LoginController::class, 'validar'])
-    ->middleware('throttle:5,1')->name('login.validar');
+    ->middleware('throttle:inicio-sesion')->name('login.validar');
 
 Route::post('/logout', [LoginController::class, 'cerrarSesion'])
     ->name('logout');
 
-Route::middleware([SesionClinica::class, RegistrarOperaciones::class])->group(function () {
+Route::middleware([SesionClinica::class, PermisoModulo::class, RegistrarOperaciones::class])->group(function () {
 
-    Route::post('/sesion/salida-pagina', [LoginController::class, 'salidaPagina'])->middleware('throttle:60,1')->name('sesion.salida-pagina');
+    Route::post('/sesion/salida-pagina', [LoginController::class, 'salidaPagina'])->middleware('throttle:salida-pagina')->name('sesion.salida-pagina');
 
     Route::get('/mi-perfil', [PerfilController::class, 'show'])->name('perfil.show');
     Route::get('/mi-perfil/foto', [PerfilController::class, 'editarFoto'])->name('perfil.foto.editar');
@@ -49,10 +51,10 @@ Route::middleware([SesionClinica::class, RegistrarOperaciones::class])->group(fu
     Route::patch('/mi-perfil/contacto', [PerfilController::class, 'contacto'])->name('perfil.contacto');
     Route::post('/mi-perfil/foto', [PerfilController::class, 'foto'])->name('perfil.foto');
     Route::delete('/mi-perfil/foto', [PerfilController::class, 'quitarFoto'])->name('perfil.quitar-foto');
-    Route::post('/mi-perfil/contrasena', [PerfilController::class, 'contrasena'])->middleware('throttle:5,1')->name('perfil.contrasena');
+    Route::post('/mi-perfil/contrasena', [PerfilController::class, 'contrasena'])->middleware('throttle:cambio-contrasena')->name('perfil.contrasena');
     Route::get('/personal/{personaFoto}/foto', [PerfilController::class, 'imagen'])->name('personal.foto');
 
-    Route::get('/inicio', [InicioController::class, 'index']);
+    Route::get('/inicio', [InicioController::class, 'index'])->name('inicio');
 
     Route::get('/pacientes', [PacienteController::class, 'index'])
         ->name('pacientes.index');
@@ -93,7 +95,15 @@ Route::middleware([SesionClinica::class, RegistrarOperaciones::class])->group(fu
     Route::delete('/evolucion/{evolucion}', [EvolucionController::class, 'eliminar'])
         ->name('evolucion.eliminar');
 
-    Route::get('/bitacora', [BitacoraController::class, 'index']);
+    Route::get('/bitacora', [BitacoraController::class, 'index'])->name('bitacora.index');
+
+    Route::get('/usuarios', [UsuarioController::class, 'index'])->name('usuarios.index');
+    Route::get('/usuarios/nuevo', [UsuarioController::class, 'crear'])->name('usuarios.crear');
+    Route::post('/usuarios', [UsuarioController::class, 'guardar'])->name('usuarios.guardar');
+    Route::get('/usuarios/{usuario}/editar', [UsuarioController::class, 'editar'])->whereNumber('usuario')->name('usuarios.editar');
+    Route::put('/usuarios/{usuario}', [UsuarioController::class, 'actualizar'])->whereNumber('usuario')->name('usuarios.actualizar');
+    Route::patch('/usuarios/{usuario}/contrasena', [UsuarioController::class, 'contrasena'])->whereNumber('usuario')->name('usuarios.contrasena');
+    Route::patch('/usuarios/{usuario}/estado', [UsuarioController::class, 'estado'])->whereNumber('usuario')->name('usuarios.estado');
 
     Route::get('/personal', [PersonalController::class, 'index'])
         ->name('personal.index');
@@ -170,6 +180,9 @@ Route::middleware([SesionClinica::class, RegistrarOperaciones::class])->group(fu
     // Archivar una hoja en papel también está permitido tras el alta; no modifica la atención.
     Route::get('/hojas/{atencionArchivo}/subir', [ArchivoClinicoController::class, 'formulario'])->name('archivos.formulario');
     Route::post('/hojas/{atencionArchivo}/subir', [ArchivoClinicoController::class, 'guardar'])->name('archivos.guardar');
+    Route::post('/pacientes/{paciente}/archivos', [ArchivoClinicoController::class, 'guardarPaciente'])->name('archivos.paciente.guardar');
+    Route::get('/archivos-clinicos/{archivoClinico}/editar', [ArchivoClinicoController::class, 'editar'])->name('archivos.editar');
+    Route::put('/archivos-clinicos/{archivoClinico}', [ArchivoClinicoController::class, 'actualizar'])->name('archivos.actualizar');
     Route::get('/archivos-clinicos/{archivoClinico}', [ArchivoClinicoController::class, 'show'])->name('archivos.show');
     Route::get('/archivos-clinicos/{archivoClinico}/contenido', [ArchivoClinicoController::class, 'contenido'])->name('archivos.contenido');
     // El origen está cerrado; RegistroIngreso protege la creación nueva con sus propios bloqueos.

@@ -8,7 +8,7 @@
     <div class="col-md-6"><dt>{{ $emergenciaDocumento ? 'Fecha y hora de llegada' : 'Fecha de ingreso' }}</dt><dd>{{ $ingreso->fecha_ingreso->format('d/m/Y H:i') }}</dd></div>
     <div class="col-md-6"><dt>Registrado por</dt><dd>{{ $ingreso->personalRegistra?->nombres }} {{ $ingreso->personalRegistra?->apellidos }}</dd></div>
     <div class="col-12"><dt>{{ $emergenciaDocumento ? 'Motivo de consulta' : 'Motivo de ingreso' }}</dt><dd style="white-space: pre-wrap">{{ $ingreso->motivo_ingreso ?: 'Sin registro' }}</dd></div>
-    <div class="col-md-6"><dt>Documento firmado</dt><dd>{{ $ingreso->documento_firmado ? 'Sí' : 'No' }}</dd></div>
+    @unless($emergenciaDocumento)<div class="col-md-6"><dt>Documento de ingreso firmado</dt><dd>{{ $ingreso->documento_firmado ? 'Sí' : 'No' }}</dd></div>@endunless
     <div class="col-md-6"><dt>Estado</dt><dd>{{ $emergenciaDocumento && $ingreso->estado === 'Dado de alta' ? 'Atención finalizada' : $ingreso->estado }}</dd></div>
 </dl>
 @unless($emergenciaDocumento)
@@ -82,4 +82,4 @@
     $tipoHojaArchivo = match($tipo) { 'ingreso'=>'Hoja de ingreso', 'valoracion'=>($ingreso->esConsultaExterna()?'Consulta externa':'Valoración inicial'), 'evolucion'=>'Evolución clínica', 'nota'=>'Nota de enfermería', 'alta'=>'Alta médica', default=>'Otro documento' };
     $referenciaArchivo = match($tipo) { 'ingreso'=>$ingreso->getKey(), 'valoracion','evolucion'=>$registro->getKey(), 'nota'=>$nota->getKey(), 'alta'=>$ingreso->altaMedica->getKey(), default=>null };
 ?>
-@include('archivos.adjuntos',['tipoHojaArchivo'=>$tipoHojaArchivo,'referenciaArchivo'=>$referenciaArchivo])
+@include('archivos.adjuntos',['tipoHojaArchivo'=>$tipoHojaArchivo,'referenciaArchivo'=>$referenciaArchivo,'permitirSubir'=>false])

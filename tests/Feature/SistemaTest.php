@@ -25,7 +25,8 @@ class SistemaTest extends TestCase
         DB::unprepared(file_get_contents(base_path('tests/Fixtures/v3.sqlite.sql')));
         (require database_path('migrations/2026_10_12_224836_add_examen_fisico_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_14_011905_add_ordenes_to_tbl_evolucion_clinica.php'))->up();
-        $this->travelTo(now()->setDate(2026, 10, 11)->setTime(12, 0));
+        // 18:00 UTC = 12:00 en Guatemala, la hora que usan las fechas clínicas.
+        $this->travelTo(now()->setDate(2026, 10, 11)->setTime(18, 0));
         DB::table('tbl_cargo')->insert(['id_cargo' => 1, 'nombre_cargo' => 'Médico general']);
         DB::table('tbl_personal')->insert(['id_personal' => 1, 'id_cargo' => 1, 'nombres' => 'Médico', 'apellidos' => 'Prueba', 'dpi' => '1234567890123']);
         DB::table('tbl_rol')->insert(['id_rol' => 1, 'nombre_rol' => 'Administrador']);
@@ -60,6 +61,26 @@ class SistemaTest extends TestCase
     public static function pacientesInvalidos(): array
     {
         return [['nombres', 'Ana123'], ['apellidos', '123'], ['dpi', '123'], ['telefono', 'abc'], ['tipo_sangre', '12'], ['sexo', 'Otro'], ['fecha_nacimiento', '2027-01-01'], ['nombres', []], ['contacto', 'texto']];
+    }
+
+    public function test_lista_de_pacientes_muestra_todas_las_acciones_a_la_vista(): void
+    {
+        $this->withSession(['id_usuario' => 1])->post('/pacientes', $this->pacienteValido())->assertSessionHasNoErrors();
+        $paciente = Paciente::firstOrFail();
+
+        $this->get('/pacientes')->assertOk()
+            ->assertSeeInOrder(['Iniciar consulta', 'Hospitalizar', 'Expediente', 'Editar', 'Contactos', 'Desactivar'])->assertDontSee('Más acciones')
+            ->assertSee('data-bs-target="#modalEditar'.$paciente->getKey().'"', false)
+            ->assertSee('data-bs-target="#modalContactos'.$paciente->getKey().'"', false)
+            ->assertSee('action="'.route('pacientes.desactivar', $paciente->getKey()).'"', false);
+    }
+
+    public function test_telefono_de_contactos_usa_el_mismo_formato_que_el_del_paciente(): void
+    {
+        $this->withSession(['id_usuario' => 1])->get('/pacientes')->assertOk()
+            ->assertSee('class="form-control telefono" name="contactos[0][telefono]"', false)
+            ->assertSee('placeholder="0000-0000" data-mensaje-formato="El teléfono debe tener 8 números, por ejemplo 5555-1234."', false)
+            ->assertSee("document.addEventListener('input'", false);
     }
 
     public function test_paciente_contacto_edicion_y_expediente(): void
@@ -237,7 +258,7 @@ class SistemaTest extends TestCase
         $this->patch('/hospitalizacion/'.$ingreso->hospitalizacion->getKey().'/cambiar-habitacion', ['id_habitacion' => 2])->assertSessionHasNoErrors();
         $this->get(route('pacientes.expediente', $paciente))->assertOk()->assertSee('Habitación actual')->assertSee('Cambios de habitación')->assertSee('101')->assertSee('102');
         $this->travel(2)->minutes();
-        $this->post('/atencion/'.$ingreso->getKey().'/alta', ['id_personal_medico' => 1, 'fecha_hora' => now()->format('Y-m-d H:i:s'), 'diagnostico_final' => 'De prueba', 'condicion_egreso' => 'Estable'])->assertSessionHasNoErrors();
+        $this->post('/atencion/'.$ingreso->getKey().'/alta', ['id_personal_medico' => 1, 'fecha_hora' => now('America/Guatemala')->format('Y-m-d H:i:s'), 'diagnostico_final' => 'De prueba', 'condicion_egreso' => 'Estable'])->assertSessionHasNoErrors();
         $this->get('/atencion/'.$ingreso->getKey().'?registro='.$id)->assertOk()->assertSee('modo consulta');
         $this->get(route('pacientes.expediente', $paciente))->assertOk()->assertSee('Última habitación ocupada')->assertSee('Cambios de habitación')->assertSee('102');
         self::assertSame('Dado de alta', $ingreso->fresh()->estado);
