@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Cirugia;
 use App\Models\ContactoPaciente;
 use App\Models\Habitacion;
 use App\Models\Ingreso;
 use App\Models\Paciente;
 use App\Services\DocumentoIngresoFirmado;
 use App\Services\RegistroIngreso;
+use App\Support\SituacionPaciente;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -103,121 +103,7 @@ class PacienteController extends Controller
             )
             ->get();
 
-        foreach ($pacientes as $paciente) {
-
-            $ingresoActivo = $paciente
-                ->ingresos
-                ->where(
-                    'estado',
-                    'Activo'
-                )
-                ->sortByDesc(
-                    'fecha_ingreso'
-                )
-                ->first();
-
-            $paciente->situacion_actual =
-                'Sin ingresos';
-
-            $paciente->habitacion_actual =
-                null;
-
-            $paciente->fecha_ultima_alta =
-                null;
-
-            $paciente->ultima_alta_emergencia = false;
-
-            if ($ingresoActivo) {
-
-                $hospitalizacion =
-                    $ingresoActivo
-                        ->hospitalizacion;
-
-                if (
-                    $hospitalizacion &&
-                    $hospitalizacion->estado
-                    === 'Activa'
-                ) {
-
-                    $paciente->situacion_actual =
-                        'Hospitalizado';
-
-                    if (
-                        $hospitalizacion
-                            ->habitacionActual &&
-                        $hospitalizacion
-                            ->habitacionActual
-                            ->habitacion
-                    ) {
-
-                        $paciente
-                            ->habitacion_actual =
-                            $hospitalizacion
-                                ->habitacionActual
-                                ->habitacion
-                                ->numero_habitacion;
-                    }
-                } elseif ($ingresoActivo->esConsultaExterna()) {
-
-                    $paciente->situacion_actual =
-                        'En consulta';
-                } else {
-
-                    $paciente->situacion_actual =
-                        'En atención';
-                }
-
-                continue;
-            }
-
-            $ultimoIngresoConAlta =
-                $paciente
-                    ->ingresos
-                    ->filter(
-                        function ($ingreso) {
-
-                            return
-                                $ingreso
-                                    ->altaMedica
-                                !== null;
-                        }
-                    )
-                    ->sortByDesc(
-                        function ($ingreso) {
-
-                            return
-                                $ingreso
-                                    ->altaMedica
-                                    ->fecha_hora;
-                        }
-                    )
-                    ->first();
-
-            if ($ultimoIngresoConAlta) {
-
-                $paciente->situacion_actual =
-                    'Dado de alta';
-
-                $paciente->ultima_alta_emergencia = $ultimoIngresoConAlta->esConsultaExterna();
-
-                $paciente
-                    ->fecha_ultima_alta =
-                    $ultimoIngresoConAlta
-                        ->altaMedica
-                        ->fecha_hora;
-            }
-        }
-
-        $cirugiasEnCurso = Cirugia::with('ingreso.paciente')->whereIn('estado', ['En cirugía', 'Programada', 'Aprobada', 'Evaluación preoperatoria'])
-            ->orderByRaw("CASE WHEN estado = 'En cirugía' THEN 0 ELSE 1 END")->orderBy('fecha_programada')->get()
-            ->filter(fn (Cirugia $cirugia) => $cirugia->atencionQuirurgicaDisponible());
-        foreach ($pacientes as $paciente) {
-            $cirugiaActual = $cirugiasEnCurso->first(fn (Cirugia $cirugia) => (int) $cirugia->ingreso->id_paciente === (int) $paciente->getKey());
-            $paciente->setRelation('cirugiaActual', $cirugiaActual);
-            if ($cirugiaActual?->estado === 'En cirugía') {
-                $paciente->situacion_actual = 'En cirugía';
-            }
-        }
+        SituacionPaciente::asignar($pacientes);
 
         $habitacionesDisponibles = Habitacion::where('estado_operativo', 'Activa')
             ->whereDoesntHave('asignacionesHospitalizacion', fn ($consulta) => $consulta->whereNull('fecha_hora_fin'))
