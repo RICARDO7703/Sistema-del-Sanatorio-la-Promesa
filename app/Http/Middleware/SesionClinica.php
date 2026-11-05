@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Controllers\EmergenciaController;
+use App\Models\Cirugia;
 use App\Models\Ingreso;
 use App\Services\ReglasAtencion;
 use Closure;
@@ -46,7 +48,16 @@ class SesionClinica
         return DB::transaction(function () use ($idIngreso, $request, $next): Response {
             $ingreso = Ingreso::whereKey($idIngreso)->lockForUpdate()->first();
             if ($ingreso) {
-                ReglasAtencion::exigirActivo($ingreso->estado);
+                if ($request->route()?->getName() === 'emergencia.guardar' && $request->input('accion') === 'corregir') {
+                    abort_unless(EmergenciaController::puedeCorregir($ingreso), 403);
+                } else {
+                    $cancelacionQuirurgica = $request->route()?->getName() === 'evolucion.cancelar-ordenes'
+                        && $request->filled('cirugia_posoperatoria')
+                        && Cirugia::whereKey($request->input('cirugia_posoperatoria'))->where('id_ingreso', $ingreso->getKey())->where('estado', 'Realizada')->first()?->atencionQuirurgicaDisponible();
+                    if (! $cancelacionQuirurgica) {
+                        ReglasAtencion::exigirActivo($ingreso->estado);
+                    }
+                }
             }
 
             return $next($request);

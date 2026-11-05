@@ -3,7 +3,7 @@
     $asignacionVigente = $asignaciones->first(fn ($asignacion) => $asignacion->fecha_hora_fin === null);
     $asignacionMostrar = $asignacionVigente ?? $asignaciones->last();
 @endphp
-<div class="mb-3">
+<div class="{{ $claseHabitaciones ?? 'mb-3' }}">
     <dl class="mb-0">
         <dt class="text-muted fw-normal">{{ $asignacionVigente ? 'Habitación actual' : ($asignacionMostrar ? 'Última habitación ocupada' : 'Habitación') }}</dt>
         <dd class="mb-0">{{ $asignacionMostrar?->habitacion?->numero_habitacion ?? 'Sin habitación asignada' }}@if($asignacionMostrar?->habitacion?->tipo) <span class="text-muted">· {{ $asignacionMostrar->habitacion->tipo }}</span>@endif</dd>

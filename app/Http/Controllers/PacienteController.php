@@ -54,6 +54,8 @@ class PacienteController extends Controller
 
         $pacientes = Paciente::with([
             'contactos',
+            // Para saber si una consulta externa ya se llenó o el paciente sigue esperando al médico.
+            'ingresos' => fn ($consulta) => $consulta->withCount(['evoluciones' => fn ($evoluciones) => $evoluciones->where('estado', 'Activo')]),
             'ingresos.hospitalizacion.habitacionActual.habitacion',
             'ingresos.altaMedica',
         ])
@@ -206,9 +208,13 @@ class PacienteController extends Controller
             }
         }
 
-        $ingresosEnCirugia = Cirugia::where('estado', 'En cirugía')->pluck('id_ingreso')->all();
+        $cirugiasEnCurso = Cirugia::with('ingreso.paciente')->whereIn('estado', ['En cirugía', 'Programada', 'Aprobada', 'Evaluación preoperatoria'])
+            ->orderByRaw("CASE WHEN estado = 'En cirugía' THEN 0 ELSE 1 END")->orderBy('fecha_programada')->get()
+            ->filter(fn (Cirugia $cirugia) => $cirugia->atencionQuirurgicaDisponible());
         foreach ($pacientes as $paciente) {
-            if ($paciente->ingresos->contains(fn ($ingreso) => $ingreso->estado === 'Activo' && in_array($ingreso->getKey(), $ingresosEnCirugia))) {
+            $cirugiaActual = $cirugiasEnCurso->first(fn (Cirugia $cirugia) => (int) $cirugia->ingreso->id_paciente === (int) $paciente->getKey());
+            $paciente->setRelation('cirugiaActual', $cirugiaActual);
+            if ($cirugiaActual?->estado === 'En cirugía') {
                 $paciente->situacion_actual = 'En cirugía';
             }
         }
@@ -248,6 +254,13 @@ class PacienteController extends Controller
             $this->validarPaciente(
                 $request
             );
+
+        $fechaRegistro = $request->validate([
+            'fecha_registro' => ['nullable', 'date_format:Y-m-d\TH:i', 'before_or_equal:'.now('America/Guatemala')->format('Y-m-d H:i:s')],
+        ], ['fecha_registro.before_or_equal' => 'La fecha de registro no puede ser futura.']);
+        $datos['fecha_registro'] = ! empty($fechaRegistro['fecha_registro'])
+            ? Carbon::createFromFormat('Y-m-d\TH:i', $fechaRegistro['fecha_registro'], 'America/Guatemala')->second(0)->utc()
+            : now('UTC');
 
         $contactos = $this->validarContactos($request);
 
@@ -782,6 +795,20 @@ class PacienteController extends Controller
                     'in:A+,A-,B+,B-,AB+,AB-,O+,O-',
                 ],
 
+                'talla' => [
+                    'nullable',
+                    'regex:/^\d{1,3}(\.\d{1,2})?$/',
+                    'numeric',
+                    'between:30,250',
+                ],
+
+                'peso' => [
+                    'nullable',
+                    'regex:/^\d{1,3}(\.\d{1,2})?$/',
+                    'numeric',
+                    'between:1,700',
+                ],
+
                 'alergias' => [
                     'nullable',
                     'string',
@@ -839,6 +866,14 @@ class PacienteController extends Controller
                 'direccion.max' => 'La dirección no puede superar los 255 caracteres.',
 
                 'tipo_sangre.in' => 'El tipo de sangre seleccionado no es válido.',
+
+                'talla.regex' => 'La talla solo lleva números, con hasta 2 decimales (por ejemplo 165 o 165.5).',
+                'talla.numeric' => 'La talla debe ser un número en centímetros.',
+                'talla.between' => 'La talla debe estar entre 30 y 250 cm.',
+
+                'peso.regex' => 'El peso solo lleva números, con hasta 2 decimales (por ejemplo 150 o 150.5).',
+                'peso.numeric' => 'El peso debe ser un número en libras.',
+                'peso.between' => 'El peso debe estar entre 1 y 700 lb.',
 
                 'alergias.max' => 'Las alergias no pueden superar los 1000 caracteres.',
 

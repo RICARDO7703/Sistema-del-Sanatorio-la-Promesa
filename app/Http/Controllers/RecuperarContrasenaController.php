@@ -180,7 +180,7 @@ class RecuperarContrasenaController extends Controller
             return redirect()->route('password.request');
         }
         $datos = $request->validate([
-            'password' => ['required', 'string', 'confirmed', 'max:72', Password::min(12)->letters()->mixedCase()->numbers()->symbols()],
+            'password' => ['required', 'string', 'confirmed', 'max:72', Password::min(5)->numbers()],
         ]);
         DB::transaction(function () use ($datos, $permiso, $request): void {
             $usuario = $this->usuarios()->where('id_usuario', $permiso['usuario'])->lockForUpdate()->first();

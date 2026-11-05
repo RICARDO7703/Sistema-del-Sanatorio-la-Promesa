@@ -1,29 +1,35 @@
 @php
+    $puedeCorregirConsulta=\App\Http\Controllers\EmergenciaController::puedeCorregir($ingreso);
+    $corrigiendoConsulta=$puedeCorregirConsulta && (request()->boolean('editar_consulta') || old('accion')==='corregir');
     $consulta = $ingreso->evoluciones->first();
+    $cirugiasDelAlta = \App\Models\Cirugia::whereHas('ingreso', fn ($q) => $q->where('id_paciente', $ingreso->id_paciente))->whereIn('estado', array_merge(\App\Services\CirugiasAlAlta::PENDIENTES, ['En cirugía']))->get();
+    $cirugiaEnCursoAlta = $cirugiasDelAlta->contains('estado', 'En cirugía');
     $formulario = 'consulta-emergencia';
     $recuperar = old('_formulario') === $formulario;
     $valor = fn ($campo, $defecto = '') => $recuperar ? old($campo) : ($consulta?->{$campo} ?? $defecto);
     $fechaConsulta = $recuperar ? old('fecha_hora') : ($consulta?->fecha_hora?->format('Y-m-d\TH:i') ?? now('America/Guatemala')->format('Y-m-d\TH:i'));
     $consultasAnteriores = $consultasAnteriores ?? collect();
     $anteriorConsulta = $ingreso->atencionAnterior ?? $consultasAnteriores->first();
-    $medicamentosCasa = $recuperar ? array_filter((array) old('medicamentos_casa', []), 'is_array') : [];
+    $medicamentosCasa = $recuperar ? array_filter((array) old('medicamentos_casa', []), 'is_array') : ($corrigiendoConsulta ? $ingreso->altaMedica->medicamentos->map(fn($m)=>$m->only(['medicamento','dosis','frecuencia','duracion']))->all() : []);
 @endphp
 
 <div class="consulta-con-historial" data-consulta-historial>
 <div class="consulta-actual">
-@if($ingreso->estado === 'Activo')
+@if($ingreso->estado === 'Activo' || $corrigiendoConsulta)
 @php
     $ahoraLocal = now('America/Guatemala')->format('Y-m-d\TH:i');
+    $consultaVacia = !$consulta && blank($ingreso->motivo_ingreso) && (int)$ingreso->id_usuario_creacion === (int)session('id_usuario') && !$ingreso->documentosClinicos()->exists() && !$ingreso->hospitalizacion()->exists();
     $llegada = ($minimoConsulta ?? $ingreso->fecha_ingreso)->format('Y-m-d\TH:i');
 @endphp
-<form method="POST" action="{{ $accionConsulta ?? route('emergencia.guardar', $ingreso) }}" id="form-consulta-emergencia" class="evolucion-card mb-3 consulta-emergencia" novalidate data-validar-en-linea>
+<form method="POST" action="{{ $accionConsulta ?? route('emergencia.guardar', $ingreso) }}" data-borrador id="form-consulta-emergencia" class="evolucion-card mb-3 consulta-emergencia" novalidate data-validar-en-linea>
     @csrf
-        @include('atencion.partials.aviso-cirugias-alta')
+    <div class="alert alert-info" data-aviso-borrador role="status" hidden><i class="bi bi-clock-history"></i> Recuperamos lo que estaba escribiendo. Todavía debe guardar la consulta.</div>
+        @include('atencion.partials.aviso-cirugias-alta', ['soloAvisoCirugias' => true])
     <input type="hidden" name="_formulario" value="{{ $formulario }}">
-    <input type="hidden" name="accion" value="alta" disabled data-accion-alta>
+    @if($corrigiendoConsulta)<input type="hidden" name="accion" value="corregir">@else<input type="hidden" name="accion" value="alta" disabled data-accion-alta>@endif
 
-    <h2 class="h4 mb-1"><i class="bi bi-person-walking text-consulta" aria-hidden="true"></i> Consulta externa @if($ingreso->id_ingreso_anterior)<span class="badge bg-primary ms-2 fs-6">Seguimiento</span>@endif</h2>
-    <p class="text-muted mb-4">Registre la consulta y, al terminar, dé de alta al paciente o intérnelo.</p>
+    <h2 class="h4 mb-1"><i class="bi {{ !$consulta ? 'bi-clipboard2-pulse text-primary' : 'bi-person-walking text-consulta' }}" aria-hidden="true"></i> {{ !$consulta ? 'Valoración inicial' : 'Consulta externa' }} @if($ingreso->id_ingreso_anterior)<span class="badge bg-primary ms-2 fs-6">Seguimiento</span>@endif</h2>
+    <p class="text-muted mb-4">{{ !$consulta ? 'Complete la primera evaluación y, al terminar, dé de alta al paciente o continúe al internamiento.' : 'Registre la consulta y, al terminar, dé de alta al paciente o intérnelo.' }}</p>
 
     @if($anteriorConsulta)
     <div class="consulta-referencia border rounded-3 p-3 mb-4 bg-light d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -37,7 +43,8 @@
         <div class="row g-3">
             <div class="col-md-4">
                 <label class="form-label" for="emergencia-fecha">Fecha y hora</label>
-                <input id="emergencia-fecha" type="datetime-local" name="fecha_hora" class="form-control @error('fecha_hora') is-invalid @enderror" value="{{ $fechaConsulta }}" min="{{ $llegada }}" max="{{ $ahoraLocal }}" data-mensaje-requerido="Indique la fecha y hora de la consulta." data-mensaje-minimo="No puede ser anterior a la llegada ({{ $ingreso->fecha_ingreso->format('d/m/Y H:i') }})." data-max-ahora data-mensaje-maximo="La fecha y hora no pueden ser futuras." required>
+                <input id="emergencia-fecha" type="datetime-local" name="fecha_hora" class="form-control @error('fecha_hora') is-invalid @enderror" value="{{ $fechaConsulta }}" @unless($consultaVacia) min="{{ $llegada }}" @endunless max="{{ $ahoraLocal }}" data-mensaje-requerido="Indique la fecha y hora de la consulta." data-mensaje-minimo="No puede ser anterior a la llegada ({{ $ingreso->fecha_ingreso->format('d/m/Y H:i') }})." data-max-ahora data-mensaje-maximo="La fecha y hora no pueden ser futuras." required>
+                @if($consultaVacia)<small class="text-muted">Puede indicar una fecha anterior. Se usará también como fecha de llegada de esta consulta.</small>@endif
                 @error('fecha_hora')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
             <div class="col-md-8">
@@ -53,7 +60,6 @@
 
     <section class="mb-4">
         <h3 class="h5 border-bottom pb-2 mb-3">Tratamiento en el sanatorio</h3>
-        @include('atencion.partials.aviso-alergias', ['paciente' => $ingreso->paciente])
         <label class="form-label" for="emergencia-tratamiento">Medicamentos o procedimientos aplicados (opcional)</label>
         <textarea id="emergencia-tratamiento" name="indicaciones" class="form-control" rows="2" maxlength="2000" placeholder="Ej. se aplicó diclofenaco 75 mg IM">{{ $valor('indicaciones') }}</textarea>
     </section>
@@ -78,21 +84,38 @@
         <button type="button" class="btn btn-outline-primary mb-3" data-agregar-medicamento-casa><i class="bi bi-plus-lg" aria-hidden="true"></i> Agregar medicamento</button>
         <template id="plantilla-medicamento-casa">@include('atencion.partials.fila-medicamento-casa', ['indice' => '__INDEX__', 'fila' => []])</template>
         <label class="form-label d-block" for="emergencia-indicaciones-casa">Otras indicaciones</label>
-        <textarea id="emergencia-indicaciones-casa" name="indicaciones_casa" class="form-control" rows="3" maxlength="2000" placeholder="Ej. reposo 3 días, no correr, regresar si sube la fiebre">{{ $recuperar ? old('indicaciones_casa') : '' }}</textarea>
+        <textarea id="emergencia-indicaciones-casa" name="indicaciones_casa" class="form-control" rows="3" maxlength="2000" placeholder="Ej. reposo 3 días, no correr, regresar si sube la fiebre">{{ $recuperar ? old('indicaciones_casa') : ($corrigiendoConsulta ? $ingreso->altaMedica->indicaciones_alta : '') }}</textarea>
     </section>
 
     <div class="alert alert-danger" role="alert" hidden data-resumen-errores>Revise los campos marcados en rojo.</div>
 
+    @if(!$corrigiendoConsulta)<p class="text-muted small"><i class="bi bi-info-circle"></i> Al continuar al internamiento se guarda esta consulta y después se elige la habitación. La hoja quedará como valoración inicial. Los medicamentos e indicaciones ambulatorias son únicamente para el alta a casa.</p>@endif
+    @if(!$corrigiendoConsulta && \App\Http\Controllers\CirugiaController::permisos()['agendar'])
+    <section class="border rounded-3 p-3 mb-4">
+        <h3 class="h5"><i class="bi bi-calendar-plus text-primary"></i> Cirugía (opcional)</h3>
+        <input type="hidden" name="cirugia_pendiente" value="{{ old('cirugia_pendiente') }}" data-borrador-incluir>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalProgramarConsulta"><i class="bi bi-calendar-plus"></i> <span data-texto-programacion>Agendar cirugía</span></button>
+        <div class="alert alert-info mt-3 mb-0" data-resumen-programacion hidden><strong data-nombre-programacion></strong><span class="d-block">Pendiente de guardar junto con esta valoración.</span><button type="button" class="btn btn-outline-danger btn-sm mt-2" data-quitar-programacion><i class="bi bi-trash"></i> Quitar programación</button></div>
+    </section>
+    @endif
     <div class="d-flex flex-column flex-md-row gap-2 justify-content-md-end border-top pt-3">
         @php
             $puedeDarAlta = app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Ingresar') && app(\App\Support\Permisos::class)->puede('Alta médica', 'Ingresar');
             $puedeInternar = app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Ingresar') && app(\App\Support\Permisos::class)->puede('Hospitalización', 'Ingresar');
         @endphp
+        @if($corrigiendoConsulta)<a class="btn btn-outline-secondary" href="{{ route('atencion.show',$ingreso) }}">Cancelar</a><button class="btn btn-primary btn-lg"><i class="bi bi-check-lg"></i> Confirmar cambios</button>
+        @else
         @if(! $puedeDarAlta && ! $puedeInternar)<p class="text-muted mb-0 me-auto"><i class="bi bi-shield-lock" aria-hidden="true"></i> No tiene permiso para guardar la consulta, dar de alta ni internar.</p>@endif
         @if($puedeDarAlta)<button type="button" class="btn btn-success btn-lg" data-pedir-alta><i class="bi bi-house-door" aria-hidden="true"></i> Dar de alta</button>@endif
-        @if($puedeInternar)<button type="submit" name="accion" value="internar" class="btn btn-outline-primary btn-lg"><i class="bi bi-door-open" aria-hidden="true"></i> Internar paciente</button>@endif
+        @if($puedeInternar)<button type="submit" name="accion" value="internar" class="btn btn-outline-primary btn-lg"><i class="bi bi-door-open" aria-hidden="true"></i> Guardar consulta y continuar al internamiento</button>@endif
+    @endif
     </div>
 </form>
+@if(!$corrigiendoConsulta && \App\Http\Controllers\CirugiaController::permisos()['agendar'])
+@push('modales')
+@include('cirugias.modal-programacion-pendiente')
+@endpush
+@endif
 
 <div class="modal fade modal-confirmacion" id="modalConfirmarAlta" tabindex="-1" aria-labelledby="modalConfirmarAlta-titulo" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -102,12 +125,24 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-2">La consulta externa quedará cerrada y ya no se podrá modificar.</p>
+                <p class="mb-2">La consulta externa quedará cerrada. Su autor podrá corregirla durante las primeras 12 horas.</p>
+                <div class="alert alert-warning mt-3" data-decision-programacion @if($cirugiasDelAlta->isEmpty()) hidden @endif>
+                    <strong><i class="bi bi-calendar-event me-2" aria-hidden="true"></i>Cirugías pendientes</strong>
+                    <ul class="my-2">@foreach($cirugiasDelAlta as $cirugiaDelAlta)<li>{{ $cirugiaDelAlta->tipo_operacion }} · {{ $cirugiaDelAlta->fecha_programada?->format('d/m/Y H:i') }}</li>@endforeach</ul>
+                    @if($cirugiaEnCursoAlta)
+                    <p class="mb-0">Primero debe finalizar la cirugía en curso.</p>
+                    @else
+                    <p>¿Qué desea hacer con las cirugías al dar de alta?</p>
+                    <div class="form-check mb-2"><input class="form-check-input" type="radio" id="alta-mantener-cirugias" name="decision_cirugias" value="mantener" form="form-consulta-emergencia" required @checked(old('decision_cirugias') === 'mantener')><label class="form-check-label" for="alta-mantener-cirugias"><strong>Mantener programadas</strong><span class="d-block small">El paciente se va a casa y regresará para la cirugía. Se conserva el personal asignado.</span></label></div>
+                    <div class="form-check"><input class="form-check-input" type="radio" id="alta-cancelar-cirugias-consulta" name="decision_cirugias" value="cancelar" form="form-consulta-emergencia" required @checked(old('decision_cirugias') === 'cancelar')><label class="form-check-label" for="alta-cancelar-cirugias-consulta"><strong>Cancelar cirugías</strong><span class="d-block small">Se cancelan la programación y las asignaciones de personal; el historial se conserva.</span></label></div>
+                    <p class="text-danger mt-2 mb-0" data-error-decision-cirugias hidden>Seleccione mantener o cancelar las cirugías.</p>
+                    @endif
+                </div>
                 <p class="text-muted small mb-0" data-resumen-alta></p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Revisar otra vez</button>
-                <button type="button" class="btn btn-success" data-confirmar-alta>Sí, dar de alta</button>
+                <button type="button" class="btn btn-success" data-confirmar-alta @disabled($cirugiaEnCursoAlta)>Sí, dar de alta</button>
             </div>
         </div>
     </div>
@@ -129,6 +164,7 @@
             return;
         }
         if (!evento.target.closest('[data-agregar-medicamento-casa]') || contenedor.children.length >= 20) return;
+        siguiente = Math.max(siguiente, ...[...contenedor.querySelectorAll('[name]')].map(campo => Number(campo.name.split('[')[1]?.split(']')[0]) + 1).filter(Number.isFinite));
         const fila = plantilla.content.cloneNode(true);
         fila.querySelectorAll('[name]').forEach(campo => { campo.name = campo.name.replace('__INDEX__', siguiente); });
         siguiente++;
@@ -137,6 +173,7 @@
     });
 
     const accionAlta = form.querySelector('[data-accion-alta]');
+    if (!accionAlta) return;
     const modalAlta = document.getElementById('modalConfirmarAlta');
     form.addEventListener('submit', evento => {
         if (accionAlta.disabled === false) return;
@@ -144,6 +181,10 @@
     });
     form.querySelector('[data-pedir-alta]')?.addEventListener('click', () => {
         if (!window.validacionEnLinea.validar(form)) return;
+        const decision = modalAlta.querySelector('[data-decision-programacion]');
+        const hayCirugia = @json($cirugiasDelAlta->isNotEmpty()) && !form.querySelector('[name="cirugia_pendiente"]')?.value;
+        decision.hidden = !hayCirugia;
+        decision.querySelectorAll('[name="decision_cirugias"]').forEach(campo => { campo.disabled = !hayCirugia; });
         const medicamentos = contenedor.querySelectorAll('.fila-medicamento-casa').length;
         modalAlta.querySelector('[data-resumen-alta]').textContent = medicamentos
             ? (medicamentos === 1 ? 'Se registrará 1 medicamento ambulatorio.' : `Se registrarán ${medicamentos} medicamentos ambulatorios.`)
@@ -151,6 +192,12 @@
         bootstrap.Modal.getOrCreateInstance(modalAlta).show();
     });
     modalAlta.querySelector('[data-confirmar-alta]').addEventListener('click', evento => {
+        const opcionesCirugia = modalAlta.querySelectorAll('[name="decision_cirugias"]:not(:disabled)');
+        if (opcionesCirugia.length && !modalAlta.querySelector('[name="decision_cirugias"]:checked')) {
+            modalAlta.querySelector('[data-error-decision-cirugias]').hidden = false;
+            opcionesCirugia[0].focus();
+            return;
+        }
         evento.currentTarget.disabled = true;
         accionAlta.disabled = false;
         form.submit();
@@ -162,7 +209,11 @@
     $alta = $ingreso->altaMedica;
 @endphp
 <section class="evolucion-card mb-3">
-    <h2 class="h4 mb-1"><i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i> Consulta externa</h2>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
+        <h2 class="h4 mb-0"><i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i> Consulta externa</h2>
+        @if($puedeCorregirConsulta)<a class="btn btn-primary" href="{{ route('atencion.show',[$ingreso,'editar_consulta'=>1]) }}"><i class="bi bi-pencil"></i> Editar consulta</a>@endif
+        @if($alta)@puede('Ingresos', 'Ver')<a class="btn btn-outline-primary" href="{{ route('alta.receta', [$alta, 'imprimir' => 1]) }}" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i> Imprimir o descargar receta</a>@endpuede @endif
+    </div>
     <p class="text-muted mb-4">
         @if($alta)Dado de alta el {{ $alta->fecha_hora->format('d/m/Y H:i') }} @if($alta->medico)por {{ $alta->medico->nombres }} {{ $alta->medico->apellidos }}@endif @endif
     </p>

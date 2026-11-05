@@ -168,7 +168,7 @@
                     <th>Cargo</th>
                     <th>Especialidad</th>
                     <th>Teléfono</th>
-                    <th>Tipo</th>
+                    
                     <th>Acciones</th>
                 </tr>
 
@@ -226,23 +226,7 @@
                         </td>
 
 
-                        <td>
-
-                            @if($persona->es_externo)
-
-                                <span class="badge bg-info text-dark">
-                                    Externo
-                                </span>
-
-                            @else
-
-                                <span class="badge bg-secondary">
-                                    Interno
-                                </span>
-
-                            @endif
-
-                        </td>
+                        
 
 
                         <td>
@@ -698,7 +682,7 @@
                                                                 ? old('numero_colegiado')
                                                                 : $persona->numero_colegiado
                                                         }}"
-                                                        maxlength="30"
+                                                        maxlength="5" inputmode="numeric" pattern="[1-9][0-9]{0,4}" data-mensaje-patron="Ingrese de 1 a 5 dígitos, sin cero inicial."
                                                         autocomplete="off"
                                                     >
 
@@ -715,37 +699,7 @@
                                                 </div>
 
 
-                                                <div class="col-12">
-
-                                                    <div class="form-check">
-
-                                                        <input
-                                                            class="form-check-input"
-                                                            type="checkbox"
-                                                            name="es_externo"
-                                                            value="1"
-                                                            id="externoEditar{{ $persona->id_personal }}"
-                                                            {{
-                                                                (
-                                                                    $editarConError
-                                                                        ? old('es_externo')
-                                                                        : $persona->es_externo
-                                                                )
-                                                                    ? 'checked'
-                                                                    : ''
-                                                            }}
-                                                        >
-
-                                                        <label
-                                                            class="form-check-label"
-                                                            for="externoEditar{{ $persona->id_personal }}"
-                                                        >
-                                                            Personal externo
-                                                        </label>
-
-                                                    </div>
-
-                                                </div>
+                                                
 
                                             </div>
 
@@ -766,7 +720,7 @@
                                                 type="submit"
                                                 class="btn btn-primary"
                                             >
-                                                Guardar cambios
+                                                Confirmar cambios
                                             </button>
 
                                         </div>
@@ -786,7 +740,7 @@
                     <tr>
 
                         <td
-                            colspan="6"
+                            colspan="5"
                             class="text-center py-4"
                         >
                             No hay personal registrado.
@@ -1096,7 +1050,7 @@
                                     @enderror
                                 "
                                 value="{{ old('numero_colegiado') }}"
-                                maxlength="30"
+                                maxlength="5" inputmode="numeric" pattern="[1-9][0-9]{0,4}" data-mensaje-patron="Ingrese de 1 a 5 dígitos, sin cero inicial."
                                 autocomplete="off"
                             >
 
@@ -1109,29 +1063,7 @@
                         </div>
 
 
-                        <div class="col-12">
-
-                            <div class="form-check">
-
-                                <input
-                                    class="form-check-input"
-                                    type="checkbox"
-                                    name="es_externo"
-                                    value="1"
-                                    id="esExterno"
-                                    {{ old('es_externo') ? 'checked' : '' }}
-                                >
-
-                                <label
-                                    class="form-check-label"
-                                    for="esExterno"
-                                >
-                                    Personal externo
-                                </label>
-
-                            </div>
-
-                        </div>
+                        
 
                     </div>
 
@@ -1212,8 +1144,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             /(^|[\s'-])\p{L}/gu,
                             function (letra) {
 
-                                return letra
-                                    .toLocaleUpperCase('es');
+                                return letra.toLocaleUpperCase('es');
 
                             }
                         );
@@ -1275,6 +1206,14 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
 
+    const cargosColegiado = @json(\App\Models\Personal::CARGOS_CON_COLEGIADO);
+    document.querySelectorAll('form').forEach(form=>{
+        const cargo=form.querySelector('[name="id_cargo"]'),campo=form.querySelector('[name="numero_colegiado"]');
+        if(!cargo || !campo)return;
+        const ayuda=document.createElement('small');ayuda.className='text-muted d-block';campo.after(ayuda);
+        const actualizar=()=>{campo.required=cargosColegiado.includes(cargo.selectedOptions[0]?.textContent.trim());ayuda.textContent=campo.required?'Obligatorio para este cargo. De 1 a 5 dígitos, sin cero inicial.':'Opcional para este cargo. Si lo ingresa, use de 1 a 5 dígitos, sin cero inicial.';};
+        cargo.addEventListener('change',actualizar);actualizar();
+    });
     // Número de colegiado
     document
         .querySelectorAll('.colegiado-mayuscula')
@@ -1286,7 +1225,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     campo.value =
                         campo.value
-                            .toLocaleUpperCase('es');
+                            .replace(/[^0-9]/g,'').slice(0,5);
 
                 }
             );

@@ -154,6 +154,14 @@ class Ingreso extends Model
         return $this->hasMany(NotaEnfermeria::class, 'id_ingreso', 'id_ingreso');
     }
 
+    /**
+     * Controles de recuperación registrados sin nota de enfermería (antes se tomaban desde la cirugía).
+     */
+    public function controlesSinNota(): HasMany
+    {
+        return $this->hasMany(SignoVital::class, 'id_ingreso', 'id_ingreso')->whereNotNull('id_cirugia')->whereDoesntHave('nota');
+    }
+
     public function documentosClinicos()
     {
         return $this->hasMany(

@@ -8,6 +8,7 @@ use App\Models\Cirugia;
 use App\Models\Hospitalizacion;
 use App\Models\NotaEnfermeria;
 use App\Support\AuditoriaModelos;
+use App\Support\CambiosEdicion;
 use App\Support\Permisos;
 use App\Support\RegistroBitacora;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -27,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton(CambiosEdicion::class);
         //
     }
 
@@ -45,9 +47,20 @@ class AppServiceProvider extends ServiceProvider
         });
         View::composer('cirugias.panel', function ($view): void {
             $ingreso = $view->getData()['ingreso'];
-            $view->with('cirugiasPanel', Cirugia::where('id_ingreso', $ingreso->getKey())->with('equipo.cargo')->orderByDesc('fecha_programada')->orderByDesc('id_cirugia')->get());
-            $view->with('permisosCirugia', CirugiaController::permisos());
+            $cirugias = Cirugia::where('id_ingreso', $ingreso->getKey())->with(['equipo.cargo', 'controles.personal', 'controles.nota'])->orderByDesc('fecha_programada')->orderByDesc('id_cirugia')->get();
+            $permisos = CirugiaController::permisos();
+            $view->with('cirugiasPanel', $cirugias);
+            $view->with('idCirugiaControl', $cirugias->where('estado', 'Realizada')->whereNotNull('fecha_fin_real')
+                ->sortBy([['fecha_fin_real', 'desc'], ['id_cirugia', 'desc']])->first()?->getKey());
+            $view->with('permisosCirugia', $permisos);
+            // La lista de personal solo hace falta si alguna cirugía todavía puede corregirse.
+            $editable = $permisos['editar'] && $cirugias->contains(fn (Cirugia $cirugia) => $cirugia->setRelation('ingreso', $ingreso)->puedeCorregirDatos());
+            $finalizable = $cirugias->contains(fn (Cirugia $cirugia) => $cirugia->estado === 'En cirugía' && $cirugia->permiteAccion('terminar'));
+            $view->with('personalQuirurgico', ($editable || $finalizable) ? CirugiaController::personalQuirurgico() : collect());
         });
+        // Formularios de edición: se cuenta lo que cambia y no se guarda un registro si solo cambiaría quién lo modificó.
+        Event::listen('eloquent.updating: *', fn (string $nombre, array $datos) => app(CambiosEdicion::class)->antesDeActualizar($datos[0]));
+        Event::listen(['eloquent.created: *', 'eloquent.updated: *', 'eloquent.deleted: *'], fn () => app(CambiosEdicion::class)->registrar());
         foreach (['created', 'updated', 'deleted'] as $evento) {
             Event::listen('eloquent.'.$evento.': *', function (string $nombre, array $datos) use ($evento): void {
                 app(AuditoriaModelos::class)->registrar($evento, $datos[0]);

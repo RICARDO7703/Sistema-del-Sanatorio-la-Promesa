@@ -1,38 +1,23 @@
 @extends('layouts.app')
-@section('title', 'Bitácora - Sanatorio La Promesa')
-@section('menu-bitacora', 'activo')
+@section('title','Bitácora - Sanatorio La Promesa')
+@section('menu-bitacora','activo')
 @section('content')
-<div class="inicio-encabezado">
-    <div class="inicio-icono"><i class="bi bi-clipboard-data"></i></div>
-    <div><h1>Bitácora</h1><p>Accesos y acciones realizadas en el sistema. Hora de Guatemala.</p></div>
-</div>
-<form method="GET" action="{{ url('/bitacora') }}" class="mb-4">
-    <div class="row g-3 align-items-end">
-        <div class="col-md-4"><label for="fecha" class="form-label">Fecha</label><input id="fecha" name="fecha" type="date" value="{{ request('fecha') }}" class="form-control"></div>
-        <div class="col-md-4"><label for="resultado" class="form-label">Resultado</label><select id="resultado" name="resultado" class="form-select"><option value="">Todos</option>@foreach(['Exitoso', 'Fallido'] as $resultado)<option @selected(request('resultado') === $resultado)>{{ $resultado }}</option>@endforeach</select></div>
-        <div class="col-md-4"><label for="accion" class="form-label">Acción</label><input id="accion" name="accion" class="form-control" maxlength="100" value="{{ request('accion') }}" placeholder="Ej.: paciente, evolución, contraseña"></div>
-        <div class="col-12 d-flex gap-2"><button class="btn btn-primary">Buscar</button><a href="{{ url('/bitacora') }}" class="btn btn-outline-secondary">Limpiar</a></div>
-    </div>
-    @foreach($errors->all() as $error)<p class="text-danger mt-2">{{ $error }}</p>@endforeach
-</form>
-<div class="bitacora-card">
-    <h2 class="h4">Registro de acciones</h2>
-    <p>{{ $registros->total() }} registros. El nombre intentado no acredita la identidad de quien intentó entrar.</p>
-    <div class="table-responsive"><table class="table align-middle bitacora-tabla">
-        <thead><tr><th>ID bitácora</th><th>Fecha y hora</th><th>Usuario autenticado</th><th>Usuario intentado</th><th>Acción</th><th>Resultado</th><th>IP</th><th>Navegador</th><th>Sistema operativo</th><th>Tabla</th><th>ID registro</th><th>Detalle</th></tr></thead>
-        <tbody>@forelse($registros as $registro)
-        <tr>
-            <td>{{ $registro->id_bitacora }}</td>
-            <td>{{ \Illuminate\Support\Carbon::parse($registro->fecha_hora, 'UTC')->setTimezone('America/Guatemala')->format('d/m/Y H:i:s') }}</td>
-            <td>{{ $registro->nombre_usuario ?? 'Sin autenticar' }}@if($registro->id_usuario)<span class="d-block text-muted">ID: {{ $registro->id_usuario }}</span>@endif</td>
-            <td>{{ $registro->usuario_intentado ?: 'Sin nombre' }}</td>
-            <td>{{ $registro->accion }}</td>
-            <td><span class="badge {{ $registro->resultado === 'Exitoso' ? 'bg-success' : 'bg-danger' }}">{{ $registro->resultado }}</span></td>
-            <td>{{ $registro->ip ?: 'Sin registro' }}</td><td>{{ $registro->navegador ?: 'Sin registro' }}</td><td>{{ $registro->sistema_operativo ?: 'Sin registro' }}</td>
-            <td>{{ $registro->tabla ?: '—' }}</td><td>{{ $registro->id_registro ?? '—' }}</td><td>{{ $registro->descripcion }}</td>
-        </tr>
-        @empty<tr><td colspan="12" class="text-center">No hay registros para estos filtros.</td></tr>@endforelse</tbody>
-    </table></div>
-    {{ $registros->links('pagination::bootstrap-5') }}
-</div>
+<div class="inicio-encabezado"><div class="inicio-icono"><i class="bi bi-clock-history"></i></div><div><h1>Bitácora</h1><p>Consulte quién realizó cada acción y cuándo ocurrió. Hora de Guatemala.</p></div></div>
+<div class="card p-4 mb-4"><h2 class="h4"><i class="bi bi-funnel"></i> Buscar acciones</h2>
+<form method="GET" action="{{ route('bitacora.index') }}" class="row g-3">
+@foreach(['desde'=>'Desde','hasta'=>'Hasta'] as $campo=>$etiqueta)<div class="col-md-6"><label class="form-label" for="{{ $campo }}">{{ $etiqueta }}</label><input class="form-control" type="date" id="{{ $campo }}" name="{{ $campo }}" value="{{ request($campo,request('fecha')) }}"></div>@endforeach
+<div class="col-12 text-muted">Una fecha consulta solo ese día; dos fechas consultan el rango. Deje ambos campos vacíos para consultar todo.</div>
+<div class="col-md-4"><label class="form-label" for="accion">Acción</label><select name="accion" id="accion" class="form-select"><option value="">Todas las acciones</option>@foreach($acciones as $accion)<option @selected(request('accion')===$accion)>{{ $accion }}</option>@endforeach</select></div>
+<div class="col-md-4"><label class="form-label" for="usuario">Usuario</label><select name="usuario" id="usuario" class="form-select"><option value="">Todos los usuarios</option>@foreach($usuarios as $usuario)<option value="{{ $usuario->id_usuario }}" @selected(request('usuario')==$usuario->id_usuario)>{{ $usuario->nombre_usuario }}</option>@endforeach</select></div>
+<div class="col-md-4"><label class="form-label" for="resultado">Resultado</label><select name="resultado" id="resultado" class="form-select"><option value="">Todos</option>@foreach(['Exitoso','Fallido'] as $resultado)<option @selected(request('resultado')===$resultado)>{{ $resultado }}</option>@endforeach</select></div>
+@foreach($errors->all() as $error)<div class="col-12 text-danger">{{ $error }}</div>@endforeach
+<div class="col-12 d-flex flex-wrap gap-2"><button class="btn btn-primary"><i class="bi bi-search"></i> Buscar</button><a class="btn btn-outline-secondary" href="{{ route('bitacora.index') }}">Limpiar</a></div></form></div>
+<div class="d-flex flex-wrap justify-content-between gap-3 mb-3"><div><h2 class="h4">Registro de acciones</h2><p>{{ $registros->total() }} registros · 5 por página</p></div><div class="d-flex flex-wrap gap-2 align-items-start"><a class="btn btn-primary" href="{{ route('bitacora.pdf',$filtros+['descargar'=>1]) }}"><i class="bi bi-download"></i> Descargar PDF</a><a class="btn btn-outline-primary" target="_blank" rel="noopener" href="{{ route('bitacora.pdf',array_diff_key($filtros,['descargar'=>true])) }}"><i class="bi bi-printer"></i> Ver e imprimir</a></div></div>
+@forelse($registros as $registro)
+<article class="card p-3 p-md-4 mb-3"><div class="d-flex flex-wrap justify-content-between gap-2 mb-3"><strong><i class="bi bi-activity text-primary"></i> {{ $registro->accion }}</strong><span class="badge align-self-start {{ $registro->resultado==='Exitoso'?'bg-success':'bg-danger' }}">{{ $registro->resultado }}</span></div>
+<div class="row g-3"><div class="col-md-4"><small class="text-muted"><i class="bi bi-calendar3"></i> Fecha y hora</small><div>{{ $registro->fecha_local }}</div></div><div class="col-md-4"><small class="text-muted"><i class="bi bi-person"></i> Usuario</small><div>{{ $registro->nombre_usuario ?? 'Sin autenticar' }}</div>@if($registro->usuario_intentado)<small>Nombre intentado: {{ $registro->usuario_intentado }}</small>@endif</div><div class="col-md-4"><small class="text-muted"><i class="bi bi-file-earmark-text"></i> Registro relacionado</small><div>{{ $registro->registro_nombre }}</div></div></div>
+<details class="mt-3"><summary class="text-primary">Ver detalle y datos del dispositivo</summary><p class="mt-3" style="white-space:pre-wrap;overflow-wrap:anywhere">{{ $registro->descripcion }}</p><div class="row g-2 text-muted"><div class="col-md-4"><i class="bi bi-globe"></i> IP: {{ $registro->ip ?: 'Sin registro' }}</div><div class="col-md-4"><i class="bi bi-window"></i> {{ $registro->navegador ?: 'Sin registro' }}</div><div class="col-md-4"><i class="bi bi-display"></i> {{ $registro->sistema_operativo ?: 'Sin registro' }}</div></div></details></article>
+@empty<div class="card p-4">No hay registros con los filtros seleccionados.</div>@endforelse
+{{ $registros->links('pagination::bootstrap-5') }}
+<p class="small text-muted">El nombre intentado no acredita la identidad de quien intentó entrar. El PDF incluye todos los resultados de los filtros, hasta 1,000 registros.</p>
 @endsection

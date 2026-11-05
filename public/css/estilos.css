@@ -885,6 +885,12 @@ fieldset.atencion-contenido:disabled a.btn:not(.disabled) {
 .enfermeria-datos dt { color:#526075; font-weight:400; margin-bottom:6px; }
 .enfermeria-datos dt i,.enfermeria-bloque dt i { color:#2463aa; margin-right:5px; }
 .enfermeria-datos dd { margin:0; overflow-wrap:anywhere; font-size:1rem; }
+/* Datos del paciente en Atención: tantas columnas como datos registrados, sin huecos. */
+.atencion-datos-paciente { display:grid; grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr)); gap:16px 20px; margin:0; }
+.atencion-datos-paciente dt { color:#526075; font-weight:400; margin-bottom:6px; }
+.atencion-datos-paciente dt i { color:#2463aa; margin-right:5px; }
+.atencion-datos-paciente dd { margin:0; font-weight:600; overflow-wrap:anywhere; }
+@media(max-width:575.98px) { .atencion-datos-paciente { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .enfermeria-diagnostico { grid-column:1 / -1; padding:14px 16px; background:#f4f7fb; border-radius:10px; }
 .enfermeria-ordenes-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .enfermeria-bloque { background:#f4f7fb; border-radius:10px; padding:18px; min-width:0; }
@@ -1072,6 +1078,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 { font-weight: 800; letter-
 .modal-title { font-weight: 800; }
 details > summary { font-weight: 700; }
 .paciente-avatar { flex-basis: 40px; width: 40px; height: 40px; font-weight: 800; background: var(--sp-primario-suave); color: var(--sp-primario-oscuro); }
+.paciente-avatar:has(.paciente-avatar-desconocido) { background: #fff3cd; color: #8a5a00; }
+.paciente-avatar-desconocido { font-size: 1.15rem; line-height: 1; }
 
 /* Inicio */
 .inicio-cifras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
@@ -1312,6 +1320,11 @@ details > summary { font-weight: 700; }
 
 .doc-aviso { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 12px; background: #fff4d6; border: 1px solid #f5d98b; color: #6b4600; }
 .doc-aviso > .bi { font-size: 1.3rem; }
+.doc-aviso-info { background: #e8f3ff; border-color: #b6d4fe; color: #0a3d78; }
+.doc-aviso + .doc-aviso { margin-top: 0.6rem; }
+.cirugia-control { border: 1px solid var(--sp-borde); border-radius: 12px; padding: 0.85rem 1rem; }
+.cirugia-control + .cirugia-control { margin-top: 0.6rem; }
+@media (max-width: 575.98px) { .cirugia-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .doc-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .doc-chips > li, .doc-chips > span { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.7rem; border-radius: 999px; background: #fff; border: 1px solid var(--sp-borde); font-weight: 600; font-size: 0.9rem; }
@@ -1406,13 +1419,15 @@ details > summary { font-weight: 700; }
 /* Bloques suaves y pequeños textos con color fijo */
 [data-bs-theme="dark"] :is(.ficha-contactos, .ficha-nota, .enfermeria-diagnostico, .enfermeria-bloque, .doc-regiones > div, .doc-lateral) { background: var(--sp-superficie-2); }
 [data-bs-theme="dark"] :is(.paciente-avatar, .ficha-avatar, .card-icono, .expediente-avatar, .modulo-badge, .accion-badge.consulta, .enfermeria-habitacion, .expediente-acciones, #enfermeria-ordenes thead) { background: var(--sp-primario-suave); color: var(--sp-primario-oscuro); }
+/* La regla oscura general incluye un #id, por eso esta necesita !important para ganarle. */
+[data-bs-theme="dark"] .paciente-avatar:has(.paciente-avatar-desconocido) { background: rgba(255, 193, 7, 0.15) !important; color: #ffd56b !important; }
 [data-bs-theme="dark"] .card-icono i, [data-bs-theme="dark"] .expediente-avatar i { color: var(--sp-primario); }
 [data-bs-theme="dark"] .ficha-alergias { background: rgba(245, 158, 11, 0.12); }
 [data-bs-theme="dark"] .accion-badge.registro { background: rgba(25, 135, 84, 0.18); color: #6fdba5; }
 [data-bs-theme="dark"] .accion-badge.modificacion { background: rgba(255, 193, 7, 0.15); color: #ffd56b; }
-[data-bs-theme="dark"] :is(.ficha-nombre p, .ficha-dato dt, .ficha-contactos li > div > span, .expediente-guia p, .enfermeria-datos dt,
+[data-bs-theme="dark"] :is(.atencion-datos-paciente dt, .ficha-nombre p, .ficha-dato dt, .ficha-contactos li > div > span, .expediente-guia p, .enfermeria-datos dt,
     .tabla-adaptable .etiqueta-movil, .dato-label, .medicamento-item span, .evolucion-paciente p, .bitacora-titulo p, .inicio-card p) { color: var(--sp-tenue); }
-[data-bs-theme="dark"] :is(.ficha-dato dt i, .ficha-contactos h3 i, .ficha-nota h3 i, .enfermeria-datos dt i, .enfermeria-bloque dt i, #enfermeria-ordenes summary) { color: var(--sp-primario); }
+[data-bs-theme="dark"] :is(.atencion-datos-paciente dt i, .ficha-dato dt i, .ficha-contactos h3 i, .ficha-nota h3 i, .enfermeria-datos dt i, .enfermeria-bloque dt i, #enfermeria-ordenes summary) { color: var(--sp-primario); }
 [data-bs-theme="dark"] .text-consulta { color: #3dd6c3 !important; }
 [data-bs-theme="dark"] .documento-editado { color: #ffc861; }
 [data-bs-theme="dark"] .acceso-error { color: #ff8a95; }
@@ -1438,6 +1453,7 @@ details > summary { font-weight: 700; }
 [data-bs-theme="dark"] .doc-pastilla-alerta { background: rgba(255, 193, 7, 0.16); color: #ffd56b; }
 [data-bs-theme="dark"] .doc-pastilla-neutra { background: rgba(255, 255, 255, 0.08); color: #c3cedd; }
 [data-bs-theme="dark"] .doc-aviso { background: rgba(255, 193, 7, 0.12); border-color: rgba(255, 193, 7, 0.35); color: #ffd56b; }
+[data-bs-theme="dark"] .doc-aviso-info { background: rgba(13, 110, 253, 0.14); border-color: rgba(110, 168, 254, 0.4); color: #9ec5fe; }
 [data-bs-theme="dark"] .doc-chips-compactos > span { background: var(--sp-primario-tenue); }
 
 /* Pantalla «Apariencia» */
@@ -1479,4 +1495,303 @@ details > summary { font-weight: 700; }
 @media (max-width: 767.98px) {
     .evolucion-historial-encabezado { flex-direction: column; }
     .evolucion-nueva-accion { width: 100%; }
+}
+
+/* Reportes: un solo formulario en tres pasos. */
+.reporte-paso { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .75rem; margin-bottom: .75rem; }
+.reporte-paso-numero { flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--sp-primario-suave); color: var(--sp-primario); font-weight: 800; }
+.reporte-paso-titulo { margin: 0; font-size: 1.15rem; font-weight: 800; color: var(--sp-texto); }
+.reporte-paso-nota { color: var(--sp-tenue); font-size: .9rem; font-weight: 400; }
+.reporte-descripcion { margin: .6rem 0 0; color: var(--sp-tenue); }
+.reporte-datos { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--sp-borde); }
+.reporte-fechas { margin: 0; padding: 0; border: 0; min-width: 0; }
+.reporte-fechas legend { float: none; width: auto; font-size: 1rem; }
+.reporte-atajos { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+.reporte-atajos .btn { min-height: 40px; border-radius: 999px; }
+.reporte-mas { border: 1px solid var(--sp-borde); border-radius: 14px; padding: 0 1rem; }
+.reporte-mas[open] { padding-bottom: 1rem; }
+.reporte-mas summary { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; min-height: 48px; cursor: pointer; font-weight: 700; color: var(--sp-primario); }
+.reporte-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.reporte-acciones-grupo { display: flex; flex-wrap: wrap; gap: .75rem; }
+.reporte-cifra { height: 100%; padding: 1rem 1.25rem; border: 1px solid var(--sp-borde); border-radius: 14px; background: var(--sp-primario-tenue); }
+.reporte-cifra span { display: block; color: var(--sp-tenue); }
+.reporte-cifra strong { display: block; font-size: 2rem; line-height: 1.2; color: var(--sp-texto); }
+.reporte-vista-previa summary { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; cursor: pointer; font-weight: 700; color: var(--sp-primario); }
+.reporte-vista-previa iframe { display: block; width: 100%; height: 70vh; min-height: 400px; border: 1px solid var(--sp-borde); border-radius: 10px; background: #fff; }
+@media (max-width: 575.98px) {
+    .reporte-acciones, .reporte-acciones-grupo { flex-direction: column; align-items: stretch; width: 100%; }
+    .reporte-acciones .btn { width: 100%; }
+}
+/* En el expediente se elige primero el paciente; en reportes del personal, primero el empleado. */
+#form-reporte[data-reporte="expediente"] [data-campo="id_paciente"],
+#form-reporte[data-reporte^="personal."] [data-campo="personal"] { order: -1; }
+
+/* Nota de enfermería: marcar el control de recuperación de la cirugía más reciente. */
+.nota-control-cirugia { padding: .85rem 1rem; border: 1px solid var(--sp-borde); border-radius: 14px; background: var(--sp-primario-tenue); }
+.nota-control-cirugia.is-invalid { border-color: var(--bs-danger); }
+.nota-control-cirugia .form-check { display: flex; align-items: center; gap: .75rem; min-height: 44px; margin: 0; padding-left: 0; }
+.nota-control-cirugia .form-check-input { flex: none; float: none; width: 2.75em; height: 1.5em; margin: 0; cursor: pointer; }
+.nota-control-cirugia .form-check-label { font-weight: 700; cursor: pointer; }
+.nota-control-cirugia-detalle { margin: .15rem 0 .35rem calc(2.75em + .75rem); color: var(--sp-texto); }
+.nota-control-cirugia small { display: block; margin-left: calc(2.75em + .75rem); }
+@media (max-width: 575.98px) {
+    .nota-control-cirugia-detalle, .nota-control-cirugia small { margin-left: 0; }
+}
+
+/* Nota de enfermería: órdenes médicas aplicadas o no aplicadas. */
+.nota-ordenes { display: flex; flex-direction: column; gap: .6rem; }
+.nota-orden { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem 1rem; padding: .75rem 1rem; border: 1px solid var(--sp-borde); border-radius: 14px; }
+.nota-orden-texto { min-width: 0; overflow-wrap: anywhere; }
+.nota-orden-tipo { display: block; font-size: .8rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: var(--sp-tenue); }
+.nota-orden-opciones { display: flex; gap: .5rem; }
+.nota-orden-opciones .btn { min-height: 44px; white-space: nowrap; }
+.nota-orden-motivo { grid-column: 1 / -1; }
+.nota-orden:has(.btn-check[value="Aplicada"]:checked) { border-color: var(--bs-success); background: var(--bs-success-bg-subtle); }
+.nota-orden:has(.btn-check[value="No aplicada"]:checked) { border-color: var(--bs-danger); background: var(--bs-danger-bg-subtle); }
+@media (max-width: 575.98px) {
+    .nota-orden { grid-template-columns: minmax(0, 1fr); }
+    .nota-orden-opciones .btn { flex: 1 1 0; }
+}
+/* Documento de la nota: resultado de cada orden. */
+.doc-ordenes-aplicadas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.doc-ordenes-aplicadas li { display: flex; gap: .6rem; align-items: flex-start; overflow-wrap: anywhere; }
+.doc-ordenes-aplicadas .bi-check-circle-fill { color: var(--bs-success); }
+.doc-ordenes-aplicadas .bi-x-circle-fill { color: var(--bs-danger); }
+
+/* Menú lateral dividido en grupos numerados según el orden de trabajo. */
+.menu-grupo { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.menu-grupo-boton { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 10px; border: 0; border-radius: 14px; background: transparent; color: var(--sp-texto); text-align: left; cursor: pointer; }
+.menu-grupo-boton:hover { background: var(--sp-primario-tenue); }
+.menu-grupo-boton:focus-visible { outline: 2px solid var(--sp-primario); outline-offset: 2px; }
+.menu-grupo-numero { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--sp-vino); color: #fff; font-size: 13px; font-weight: 800; }
+.menu-grupo-numero-icono { background: var(--sp-primario-suave); color: var(--sp-primario); }
+.menu-grupo-texto { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.menu-grupo-titulo { font-size: 12.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.menu-grupo-detalle { font-size: 12px; color: var(--sp-tenue); }
+.menu-grupo-flecha { flex: none; font-size: 13px; color: var(--sp-tenue); transition: transform .15s ease; }
+.menu-grupo-boton[aria-expanded="false"] .menu-grupo-flecha { transform: rotate(180deg); }
+.menu-grupo-opciones { display: flex; flex-direction: column; gap: 2px; padding-left: 14px; margin-left: 12px; border-left: 2px solid var(--sp-borde); }
+.menu-grupo-opciones[hidden] { display: none; }
+.sidebar .menu-grupo-opciones .nav-link { padding: 9px 12px; font-size: 14.5px; }
+.sidebar-footer .sidebar-perfil { margin-bottom: 12px; }
+[data-bs-theme="dark"] .menu-grupo-numero { color: #131c2b; }
+[data-bs-theme="dark"] .menu-grupo-numero-icono { color: var(--sp-primario); }
+@media (max-width: 767.98px) { .sidebar-footer .sistema-pie { display: none; } }
+
+/* Historial del expediente: los datos de cada atención arriba y, al abrir, solo cirugías y documentos. */
+.historial-cabecera { background: var(--sp-primario-tenue); }
+.historial-datos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; }
+.historial-datos dt { font-weight: 400; color: var(--sp-tenue); }
+.historial-datos dd { margin-bottom: 0; font-weight: 600; }
+.historial-datos .historial-dato-ancho { grid-column: span 3; }
+.historial-datos .historial-dato-ancho dd { font-weight: 400; }
+#historial-evoluciones .historial-documentos .historial-resumen { min-height: 52px; flex-direction: row; align-items: center; }
+.historial-documentos[open] > summary { border-bottom: 1px solid var(--sp-borde); }
+.historial-documentos[open] .historial-abrir { display: none; }
+.historial-documentos[open] .historial-cerrar { display: inline; }
+.historial-documentos[open] .historial-ver i { display: inline-block; transform: rotate(180deg); }
+@media (max-width: 767.98px) {
+    .historial-datos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .historial-datos .historial-dato-ancho { grid-column: 1 / -1; }
+}
+@media (max-width: 400px) {
+    .historial-datos { grid-template-columns: minmax(0, 1fr); }
+}
+/* Los datos de la atención y sus documentos van en recuadros separados. */
+.historial-documentos { margin-top: 10px; overflow: hidden; }
+.historial-cabecera { border-color: var(--sp-borde) !important; }
+/* Documentos del expediente por día. */
+.dia-documentos { overflow: hidden; }
+.dia-documentos-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 12px 16px; background: var(--sp-primario-tenue); border-bottom: 1px solid var(--sp-borde); }
+.dia-documentos-cabecera h5 { font-size: 1.05rem; }
+.dia-documentos .list-group-item { border-left: 0; border-right: 0; }
+.documento-atencion { margin-left: .35rem; font-weight: 600; border: 1px solid; }
+.documento-atencion-ingreso { color: #a71930; border-color: #f3c6cf; background: #fff1f3; }
+.documento-atencion-consulta { color: #0b6e66; border-color: #b6e3dd; background: #ecfaf8; }
+[data-bs-theme="dark"] .documento-atencion-ingreso { color: #ff8197; border-color: rgba(255,129,151,.35); background: rgba(255,129,151,.12); }
+[data-bs-theme="dark"] .documento-atencion-consulta { color: #6fd6c9; border-color: rgba(111,214,201,.35); background: rgba(111,214,201,.1); }
+/* Cada atención es un solo recuadro: datos arriba y, con la flecha, sus documentos por día. */
+.historial-atencion { overflow: hidden; border-color: var(--sp-borde) !important; }
+.historial-flecha { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; padding: 10px 16px; border: 0; border-top: 1px solid var(--sp-borde); background: transparent; color: var(--sp-texto); font-weight: 600; text-align: left; cursor: pointer; }
+.historial-flecha:hover { background: var(--sp-primario-tenue); }
+.historial-flecha:focus-visible { outline: 2px solid var(--sp-primario); outline-offset: -2px; }
+.historial-flecha-texto { display: inline-flex; align-items: center; gap: 8px; color: var(--sp-primario); white-space: nowrap; }
+.historial-flecha .bi-chevron-down { transition: transform .15s ease; transform: rotate(180deg); }
+.historial-flecha.collapsed .bi-chevron-down { transform: none; }
+.historial-flecha .historial-cerrar { display: inline; }
+.historial-flecha .historial-abrir { display: none; }
+.historial-flecha.collapsed .historial-cerrar { display: none; }
+.historial-flecha.collapsed .historial-abrir { display: inline; }
+.historial-dias { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px 16px; border-top: 1px solid var(--sp-borde); }
+.historial-flecha > span:first-child { white-space: nowrap; }
+@media (max-width: 380px) { .historial-flecha { font-size: .92rem; padding-inline: 12px; } }
+/* Menú lateral: los grupos solo se separan con una línea fina. */
+.sidebar .menu-separador { margin: 6px 14px; border: 0; border-top: 1px solid var(--sp-borde); opacity: 1; }
+/* Órdenes médicas canceladas: se conservan, pero atenuadas y con su aviso. */
+.doc-ordenes-canceladas { opacity: .55; text-decoration: line-through; text-decoration-color: rgba(167, 25, 48, .45); }
+.doc-aviso-cancelado { border-color: var(--bs-danger-border-subtle); background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); margin-bottom: 12px; }
+.nota-orden > .invalid-feedback { grid-column: 1 / -1; margin-top: 0; }
+.nota-orden > .nota-orden-error { grid-column: 1 / -1; }
+fieldset.nota-orden { min-width: 0; margin: 0; }
+
+/* Contenido de cada celda: no cambia nada en computadora; en el teléfono se acomoda junto a su etiqueta. */
+.valor-movil { display: contents; }
+
+/* ==========================================================================
+   Teléfono y tablet
+   - Tablet (768–1199 px): el menú es una franja de íconos; se abre completo encima del contenido.
+   - Teléfono (menos de 768 px): barra de accesos abajo, encabezado compacto y listados como fichas.
+   ========================================================================== */
+.barra-emblema, .barra-inferior { display: none; }
+.menu-fondo { position: fixed; inset: 0; z-index: 1039; background: rgba(15, 23, 42, 0.45); }
+
+@media (min-width: 768px) and (max-width: 1199.98px) {
+    .sidebar { flex: 0 0 78px; width: 78px; padding: 16px 10px 14px; transition: width .18s ease; z-index: 1040; }
+    .sidebar-logo { margin: 0 0 18px; text-align: center; }
+    .sidebar-logo img { width: 52px; height: 52px; object-fit: cover; object-position: left center; border-radius: 12px; }
+    .sidebar .nav-link { justify-content: center; padding: 12px 0; }
+    .sidebar .nav-link span { display: none; }
+    .sidebar .nav-link:hover { transform: none; }
+    .sidebar-menu .menu-separador { margin: 6px 8px; }
+    .sidebar-footer { padding: 10px 0 0; }
+    .sidebar-footer .turno-actual, .sidebar-footer .sistema-pie { display: none; }
+    .btn-cerrar-sesion { font-size: 0; gap: 0; padding: 10px 0; }
+    .btn-cerrar-sesion i { font-size: 20px; }
+    /* Menú abierto: se muestra completo encima del contenido sin moverlo. */
+    body.menu-abierto .sidebar {
+        position: fixed; left: 0; top: 0; width: 280px; height: 100dvh; padding: 22px 14px 16px;
+        box-shadow: 0 20px 50px rgba(23, 32, 51, 0.25);
+    }
+    body.menu-abierto .sistema-contenedor { padding-left: 78px; }
+    body.menu-abierto .sidebar-logo { text-align: left; margin: 0 6px 22px; }
+    body.menu-abierto .sidebar-logo img { width: 190px; height: auto; object-fit: contain; border-radius: 0; }
+    body.menu-abierto .sidebar .nav-link { justify-content: flex-start; padding: 11px 14px; }
+    body.menu-abierto .sidebar .nav-link span { display: inline; }
+    body.menu-abierto .sidebar-footer .turno-actual, body.menu-abierto .sidebar-footer .sistema-pie { display: block; }
+    body.menu-abierto .btn-cerrar-sesion { font-size: 14px; gap: 8px; padding: 10px 14px; }
+    .contenido-principal { padding: 24px 22px 48px; }
+    .barra-superior { padding: 10px 20px; }
+    /* Tablas en tablet: un poco más juntas para que quepan sin desplazar la página. */
+    .table > thead > tr > th { padding: 10px 10px; white-space: normal; }
+    .table > tbody > tr > td { padding: 12px 10px; }
+    .bitacora-card .table-responsive, .evolucion-card .table-responsive { overflow-x: auto; }
+}
+
+@media (max-width: 767.98px) {
+    /* Encabezado compacto: emblema, nombre de la pantalla y la cuenta. El menú se abre desde abajo. */
+    .barra-superior { min-height: 56px; padding: 6px 12px; gap: 10px; flex-wrap: nowrap; }
+    .barra-superior .sidebar-toggle { display: none; }
+    .barra-emblema { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border-radius: 12px; overflow: hidden; background: #fff; border: 1px solid var(--sp-borde); }
+    .barra-emblema img { width: 34px; height: 34px; object-fit: contain; }
+    .barra-titulo strong { font-size: 16px; }
+    .sidebar { top: 0; height: 100dvh; padding-bottom: calc(16px + env(safe-area-inset-bottom)); border-radius: 0 20px 20px 0; }
+
+    /* Barra de accesos abajo, siempre visible. */
+    .barra-inferior {
+        display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 1035;
+        padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+        background: var(--sp-superficie, #fff); border-top: 1px solid var(--sp-borde);
+        box-shadow: 0 -6px 24px rgba(23, 32, 51, 0.08);
+    }
+    .barra-inferior-opcion {
+        flex: 1 1 0; min-width: 0; min-height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+        border: 0; border-radius: 14px; background: transparent; color: var(--sp-tenue);
+        font: inherit; font-size: 12px; font-weight: 700; text-decoration: none; line-height: 1.1;
+    }
+    .barra-inferior-opcion i { font-size: 22px; line-height: 1; }
+    .barra-inferior-opcion span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .barra-inferior-opcion.activo, .barra-inferior-opcion[aria-expanded="true"] { background: var(--sp-vino-suave); color: var(--sp-vino); }
+    .sistema-body { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
+    .contenido-principal { padding: 16px 12px 28px; }
+    .inicio-encabezado { margin-bottom: 16px; }
+    .inicio-encabezado h1 { font-size: 24px; }
+    .inicio-encabezado p { font-size: 15px; }
+    .inicio-icono { width: 44px; height: 44px; border-radius: 14px; }
+    .inicio-icono i { font-size: 22px; }
+
+    /* Listados como fichas: la primera columna es el título; cada dato lleva su etiqueta a la izquierda. */
+    .tabla-adaptable > tbody > tr {
+        position: relative; margin-bottom: 12px; padding: 4px 14px 4px 18px;
+        background: var(--sp-superficie, #fff); border: 1px solid var(--sp-borde); border-radius: 16px; overflow: hidden;
+    }
+    .tabla-adaptable > tbody > tr::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--sp-primario); }
+    .tabla-adaptable > tbody > tr > td {
+        display: grid; grid-template-columns: minmax(92px, 36%) minmax(0, 1fr); column-gap: 12px; align-items: baseline;
+        padding: 9px 0; font-size: 15px;
+    }
+    .tabla-adaptable > tbody > tr > td > .etiqueta-movil { margin: 0; font-size: 13px; color: var(--sp-tenue); }
+    .tabla-adaptable > tbody > tr > td > .valor-movil { display: block; min-width: 0; }
+    /* Primera columna: encabezado de la ficha, sin etiqueta. */
+    .tabla-adaptable > tbody > tr > td.celda-titulo { display: block; padding: 12px 0 10px; font-size: 17px; font-weight: 800; }
+    .tabla-adaptable > tbody > tr > td.celda-titulo > .etiqueta-movil { display: none; }
+    /* Columna de acciones: botones a todo lo ancho de la ficha. */
+    .tabla-adaptable > tbody > tr > td.celda-acciones { display: block; padding: 12px 0 10px; }
+    .tabla-adaptable > tbody > tr > td.celda-acciones > .etiqueta-movil { display: none; }
+    .tabla-adaptable > tbody > tr > td.celda-acciones > .valor-movil { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tabla-adaptable > tbody > tr > td.celda-acciones > .valor-movil > * { flex: 1 1 100%; margin: 0; }
+    .tabla-adaptable td.celda-acciones .btn { margin: 0; }
+    /* Celdas vacías (sin dato) no ocupan espacio en la ficha. */
+    .tabla-adaptable > tbody > tr > td.celda-vacia { display: none; }
+
+    /* Ventanas: título y botones siempre a la vista; el contenido se desplaza en medio. */
+    .modal-header { position: sticky; top: 0; z-index: 2; background: var(--sp-superficie, #fff); }
+    .modal-footer { position: sticky; bottom: 0; z-index: 2; background: var(--sp-superficie, #fff); flex-wrap: nowrap; }
+    .modal-footer > .small, .modal-footer > .text-muted { flex: 1 1 100%; }
+    .modal-footer:has(> .small, > .text-muted) { flex-wrap: wrap; }
+    .modal-footer .btn { flex: 1 1 0; }
+}
+@media (min-width: 768px) and (max-width: 991.98px) {
+    /* Pacientes en tablet vertical: las acciones en una columna para que no se corten. */
+    .acciones-paciente { grid-template-columns: minmax(0, 1fr); min-width: 138px; }
+    .acciones-paciente .btn { white-space: normal; }
+    .pacientes-tabla .table-responsive { overflow-x: auto; }
+}
+@media (max-width: 767.98px) {
+    /* Datos del paciente en dos columnas para no alargar la pantalla. */
+    .enfermeria-datos, .atencion-datos-paciente { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+    .enfermeria-habitacion { width: 100%; }
+}
+
+/* Documentos por día: el selector de días solo aparece en el teléfono. */
+.dias-documentos { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; min-width: 0; }
+.selector-dias, .dias-documentos > .dia-documentos { min-width: 0; }
+.selector-dias { display: none; }
+@media (max-width: 767.98px) {
+    .selector-dias { display: flex; align-items: center; gap: 6px; }
+    .selector-dias-lista { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding: 2px; scrollbar-width: none; }
+    .selector-dias-lista::-webkit-scrollbar { display: none; }
+    .selector-dia {
+        flex: 0 0 64px; scroll-snap-align: center; display: flex; flex-direction: column; align-items: center; gap: 0; padding: 8px 4px;
+        border: 1px solid var(--sp-borde); border-radius: 14px; background: var(--sp-superficie, #fff); color: var(--sp-texto); font: inherit; line-height: 1.15;
+    }
+    .selector-dia span { font-size: 13px; color: var(--sp-tenue); font-weight: 700; }
+    .selector-dia strong { font-size: 20px; font-weight: 800; }
+    .selector-dia small { font-size: 11px; color: var(--sp-tenue); }
+    .selector-dia[aria-pressed="true"] { background: var(--sp-primario); border-color: var(--sp-primario); color: #fff; box-shadow: 0 6px 16px rgba(13, 110, 253, 0.25); }
+    .selector-dia[aria-pressed="true"] span, .selector-dia[aria-pressed="true"] small { color: rgba(255, 255, 255, 0.85); }
+    .selector-dias-flecha { flex: 0 0 36px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--sp-primario); font-size: 18px; }
+    .selector-dias-flecha:disabled { color: var(--sp-borde); }
+    .con-selector-dias > .dia-documentos:not(.dia-activo) { display: none; }
+    /* Encabezado del día y filtros más compactos; documentos como fichas. */
+    .dia-documentos-cabecera { padding: 10px 12px; }
+    .dia-documentos-cabecera h5 { font-size: 1rem; }
+    .dia-documentos-cabecera .btn-sm { min-height: 36px; padding: 4px 10px; font-size: 13px; }
+    .dia-documentos .list-group-item { padding: 12px; gap: 4px 8px !important; font-size: 15px; }
+    .dia-documentos .list-group-item > span:last-child { width: 100%; text-align: left !important; font-size: 13px; }
+    .dia-documentos .list-group-item .badge { white-space: normal; }
+}
+@media (max-width: 400px) {
+    /* Datos de cada atención en dos columnas también en teléfonos angostos. */
+    .historial-datos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+}
+@media (max-width: 767.98px) {
+    .tabla-adaptable td.celda-acciones form, .tabla-adaptable td.celda-acciones form .btn { width: 100%; }
+    .tabla-adaptable td.celda-acciones .d-grid, .tabla-adaptable td.celda-acciones .d-flex { width: 100%; }
+}
+@media (min-width: 576px) and (max-width: 991.98px) {
+    /* Ventanas grandes en tablet: usan casi todo el ancho en vez de quedarse en 500 px. */
+    .modal-lg, .modal-xl { --bs-modal-width: calc(100vw - 48px); }
+}
+@media (max-width: 1199.98px) {
+    .modal fieldset > .d-flex { flex-wrap: wrap; }
 }

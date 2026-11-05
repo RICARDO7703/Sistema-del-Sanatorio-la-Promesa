@@ -20,9 +20,13 @@ class HospitalizacionController extends Controller
         $eraEmergencia = $ingreso->esConsultaExterna();
         DB::transaction(function () use ($ingreso, $datos): void {
             $actual = Ingreso::whereKey($ingreso->getKey())->lockForUpdate()->firstOrFail();
+            $actual->paciente->exigirFueraDeCirugia();
             ReglasAtencion::exigirActivo($actual->estado);
             if ($actual->hospitalizacion()->exists()) {
                 throw ValidationException::withMessages(['id_habitacion' => 'El ingreso ya tiene una hospitalización.']);
+            }
+            if ($actual->esConsultaExterna() && ! $actual->evoluciones()->where('estado', 'Activo')->exists()) {
+                throw ValidationException::withMessages(['consulta' => 'Primero complete la consulta y pulse «Guardar consulta y continuar al internamiento».']);
             }
             $habitacion = $this->habitacionDisponible((int) $datos['id_habitacion']);
             $ahora = ReglasAtencion::ahora();
@@ -66,7 +70,7 @@ class HospitalizacionController extends Controller
             $actual->update(['id_usuario_modificacion' => session('id_usuario')]);
         });
 
-        return redirect()->route('atencion.show', $hospitalizacion->id_ingreso)->with('exito', 'Habitación cambiada correctamente.');
+        return redirect()->route($request->input('_desde') === 'enfermeria' ? 'atencion.enfermeria' : 'atencion.show', $hospitalizacion->id_ingreso)->with('exito', 'Habitación cambiada correctamente.');
     }
 
     private function validar(Request $request): array

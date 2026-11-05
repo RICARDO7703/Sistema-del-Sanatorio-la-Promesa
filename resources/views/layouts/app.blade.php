@@ -20,7 +20,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
     <!-- Estilos propios -->
-    <link rel="stylesheet" href="{{ asset('css/estilos.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/estilos.css') }}?v={{ filemtime(public_path('css/estilos.css')) }}">
 </head>
 
 @php
@@ -41,61 +41,51 @@
                 >
             </a>
 
-            <nav class="nav flex-column sidebar-menu">
+            @php
+                $permisosMenu = app(\App\Support\Permisos::class);
+                $activo = fn (string $seccion): bool => trim($__env->yieldContent('menu-'.$seccion)) !== '';
+                $verPermisos = request()->routeIs('usuarios.index') && request('seccion') === 'permisos';
+                // Módulos en el orden de trabajo, agrupados; un grupo sin opciones permitidas no se muestra.
+                $gruposMenu = array_filter([
+                    ['clave' => 'datos', 'opciones' => array_filter([
+                        $permisosMenu->puede('Personal', 'Ver') ? ['personal', route('personal.index'), 'bi-person-badge', 'Personal'] : null,
+                        $permisosMenu->puede('Habitaciones', 'Ver') ? ['habitaciones', route('habitaciones.index'), 'bi-door-open', 'Habitaciones'] : null,
+                    ])],
+                    ['clave' => 'pacientes', 'opciones' => array_filter([
+                        $permisosMenu->puede('Pacientes', 'Ver') ? ['pacientes', url('/pacientes'), 'bi-people', 'Pacientes'] : null,
+                        $permisosMenu->puede('Ingresos', 'Ver') ? ['atencion', route('atencion.index'), 'bi-clipboard2-pulse', 'Atención del paciente'] : null,
+                    ])],
+                    ['clave' => 'consultas', 'opciones' => array_filter([
+                        $permisosMenu->puede('Expedientes', 'Ver') ? ['expedientes', route('expedientes.index'), 'bi-folder2-open', 'Expedientes'] : null,
+                        $permisosMenu->puede('Reportes', 'Ver') ? ['reportes', route('reportes.index'), 'bi-file-earmark-pdf', 'Reportes'] : null,
+                    ])],
+                    ['clave' => 'seguridad', 'opciones' => array_filter([
+                        $permisosMenu->esAdministrador() ? ['usuarios', route('usuarios.index'), 'bi-person-lock', 'Usuarios', ! $verPermisos] : null,
+                        $permisosMenu->esAdministrador() ? ['usuarios', route('usuarios.index', ['seccion' => 'permisos']), 'bi-shield-check', 'Asignación de permisos', $verPermisos] : null,
+                        $permisosMenu->puede('Bitácora', 'Ver') ? ['bitacora', url('/bitacora'), 'bi-clipboard-data', 'Bitácora'] : null,
+                    ])],
+                ], fn (array $grupo): bool => $grupo['opciones'] !== []);
+            @endphp
+            <nav class="nav flex-column sidebar-menu" aria-label="Menú principal">
 
-                <a class="nav-link @yield('menu-inicio')" href="{{ url('/inicio') }}">
+                <a class="nav-link @yield('menu-inicio')" href="{{ url('/inicio') }}" title="Inicio">
                     <i class="bi bi-house-door"></i>
                     <span>Inicio</span>
                 </a>
 
-                @puede('Pacientes', 'Ver')
-                <a class="nav-link @yield('menu-pacientes')" href="{{ url('/pacientes') }}">
-                    <i class="bi bi-people"></i>
-                    <span>Pacientes</span>
+                @foreach($gruposMenu as $grupo)
+                {{-- Los módulos van en el orden de trabajo; una línea fina separa cada grupo. --}}
+                <hr class="menu-separador" aria-hidden="true">
+                @foreach($grupo['opciones'] as $opcion)
+                @php
+                    $opcionActiva = ($opcion[4] ?? true) && $activo($opcion[0]);
+                @endphp
+                <a class="nav-link {{ $opcionActiva ? 'activo' : '' }}" href="{{ $opcion[1] }}" title="{{ $opcion[3] }}" @if($opcionActiva) aria-current="page" @endif>
+                    <i class="bi {{ $opcion[2] }}"></i>
+                    <span>{{ $opcion[3] }}</span>
                 </a>
-                @endpuede
-
-                @puede('Expedientes', 'Ver')
-                <a class="nav-link @yield('menu-expedientes')" href="{{ route('expedientes.index') }}">
-                    <i class="bi bi-folder2-open"></i>
-                    <span>Expedientes</span>
-                </a>
-                @endpuede
-
-                @puede('Ingresos', 'Ver')
-                <a class="nav-link @yield('menu-atencion')" href="{{ route('atencion.index') }}">
-                    <i class="bi bi-clipboard2-pulse"></i>
-                    <span>Atención del paciente</span>
-                </a>
-                @endpuede
-
-                @puede('Personal', 'Ver')
-                <a class="nav-link @yield('menu-personal')" href="{{ route('personal.index') }}">
-                    <i class="bi bi-person-badge"></i>
-                    <span>Personal</span>
-                </a>
-                @endpuede
-
-                @puede('Habitaciones', 'Ver')
-                <a class="nav-link @yield('menu-habitaciones')" href="{{ route('habitaciones.index') }}">
-                    <i class="bi bi-door-open"></i>
-                    <span>Habitaciones</span>
-                </a>
-                @endpuede
-
-                @administrador
-                <a class="nav-link @yield('menu-usuarios')" href="{{ route('usuarios.index') }}">
-                    <i class="bi bi-person-lock"></i>
-                    <span>Usuarios</span>
-                </a>
-                @endadministrador
-
-                @puede('Bitácora', 'Ver')
-                <a class="nav-link @yield('menu-bitacora')" href="{{ url('/bitacora') }}">
-                    <i class="bi bi-clipboard-data"></i>
-                    <span>Bitácora</span>
-                </a>
-                @endpuede
+                @endforeach
+                @endforeach
 
             </nav>
 
@@ -111,7 +101,7 @@
 
                 <form action="{{ route('logout') }}" method="POST">
                     @csrf
-                    <button type="submit" class="btn-cerrar-sesion">
+                    <button type="submit" class="btn-cerrar-sesion" title="Cerrar sesión">
                         <i class="bi bi-box-arrow-left" aria-hidden="true"></i>
                         Cerrar sesión
                     </button>
@@ -133,6 +123,9 @@
                     <span>Ocultar menú</span>
                 </button>
 
+                {{-- En el teléfono, el emblema lleva al inicio; el menú se abre desde la barra de abajo. --}}
+                <a class="barra-emblema" href="{{ url('/inicio') }}" aria-label="Ir al inicio"><img src="{{ asset('imagenes/emblema-sanatorio.png') }}" alt=""></a>
+
                 <div class="barra-titulo">
                     <p>Sanatorio La Promesa</p>
                     <strong>{{ $tituloPagina }}</strong>
@@ -153,7 +146,7 @@
                         <li><a class="dropdown-item" href="{{ route('perfil.show') }}"><i class="bi bi-person" aria-hidden="true"></i> Mi perfil</a></li>
                         <li><a class="dropdown-item" href="{{ route('perfil.foto.editar') }}"><i class="bi bi-camera" aria-hidden="true"></i> Cambiar foto</a></li>
                         <li><a class="dropdown-item" href="{{ route('perfil.contrasena.editar') }}"><i class="bi bi-key" aria-hidden="true"></i> Cambiar contraseña</a></li>
-                        <li><a class="dropdown-item" href="{{ route('perfil.apariencia.editar') }}"><i class="bi bi-circle-half" aria-hidden="true"></i> Apariencia</a></li>
+                        <li><button type="button" class="dropdown-item" data-tema-alternar><i class="bi bi-moon-stars" aria-hidden="true" data-tema-icono></i> <span data-tema-texto>Cambiar a modo oscuro</span></button></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><form action="{{ route('logout') }}" method="POST">@csrf<button type="submit" class="dropdown-item text-danger"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Cerrar sesión</button></form></li>
                     </ul>
@@ -171,13 +164,51 @@
 
     </div>
 
+    {{-- Fondo oscuro detrás del menú abierto en teléfono y tablet; tocarlo cierra el menú. --}}
+    <div class="menu-fondo" data-cerrar-menu hidden></div>
+
+    {{-- Teléfono: accesos a los módulos de uso diario; «Menú» abre la barra lateral con todos los demás. --}}
+    @php
+        $accesosInferiores = array_filter([
+            ['inicio', url('/inicio'), 'bi-house-door', 'Inicio'],
+            $permisosMenu->puede('Pacientes', 'Ver') ? ['pacientes', url('/pacientes'), 'bi-people', 'Pacientes'] : null,
+            $permisosMenu->puede('Ingresos', 'Ver') ? ['atencion', route('atencion.index'), 'bi-clipboard2-pulse', 'Atención'] : null,
+            $permisosMenu->puede('Expedientes', 'Ver') ? ['expedientes', route('expedientes.index'), 'bi-folder2-open', 'Expedientes'] : null,
+        ]);
+    @endphp
+    <nav class="barra-inferior" aria-label="Accesos rápidos">
+        @foreach($accesosInferiores as $acceso)
+        @php
+            $accesoActivo = $activo($acceso[0]);
+        @endphp
+        <a class="barra-inferior-opcion {{ $accesoActivo ? 'activo' : '' }}" href="{{ $acceso[1] }}" @if($accesoActivo) aria-current="page" @endif>
+            <i class="bi {{ $acceso[2] }}" aria-hidden="true"></i><span>{{ $acceso[3] }}</span>
+        </a>
+        @endforeach
+        <button type="button" class="barra-inferior-opcion" data-abrir-menu aria-controls="barra-lateral" aria-expanded="false">
+            <i class="bi bi-list" aria-hidden="true"></i><span>Menú</span>
+        </button>
+    </nav>
+
+    @stack('modales')
+    <div class="modal fade" id="visorDocumentoSubido" tabindex="-1" aria-labelledby="visorDocumentoTitulo" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
+            <div class="modal-header"><h2 class="modal-title h5"><i class="bi bi-file-earmark-check text-primary" aria-hidden="true"></i> <span id="visorDocumentoTitulo">Documento del expediente</span></h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+            <div class="modal-body"><p class="text-break text-muted" data-visor-nombre></p><div data-visor-contenido></div></div>
+            <div class="modal-footer"><a class="btn btn-outline-primary" data-visor-descargar><i class="bi bi-download" aria-hidden="true"></i> Descargar</a><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div>
+        </div></div>
+    </div>
+    @if(session('abrir_archivo_subido'))
+    <a hidden data-documento-inicial data-abrir-documento href="{{ session('abrir_archivo_subido.url') }}" data-tipo-archivo="{{ session('abrir_archivo_subido.tipo') }}" data-titulo-archivo="{{ session('abrir_archivo_subido.titulo') }}" data-nombre-archivo="{{ session('abrir_archivo_subido.nombre') }}"></a>
+    @endif
+
     <!-- Bootstrap -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- JavaScript propio -->
-    <script src="{{ asset('js/scripts.js') }}"></script>
+    <script src="{{ asset('js/scripts.js') }}?v={{ filemtime(public_path('js/scripts.js')) }}"></script>
 
-    <script src="{{ asset('js/bitacora-salida.js') }}" data-salida="{{ route('sesion.salida-pagina') }}" data-csrf="{{ csrf_token() }}" data-pagina="{{ (string) \Illuminate\Support\Str::uuid() }}" defer></script>
+    <script src="{{ asset('js/bitacora-salida.js') }}?v={{ filemtime(public_path('js/bitacora-salida.js')) }}" data-salida="{{ route('sesion.salida-pagina') }}" data-csrf="{{ csrf_token() }}" data-pagina="{{ (string) \Illuminate\Support\Str::uuid() }}" defer></script>
     @yield('scripts')
 
 </body>

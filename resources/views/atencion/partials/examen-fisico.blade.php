@@ -1,10 +1,9 @@
 @php
     $examen = $registro?->examen_fisico ?? [];
     $recuperar = old('_formulario') === $formulario;
-    $valoresIniciales = $valoresIniciales ?? [];
-    $valorExamen = fn ($campo) => $recuperar ? old('examen_fisico.'.$campo) : ($campo === 'peso' ? (\App\Services\ExamenFisico::pesoEnLibras($examen) ?? ($valoresIniciales['peso'] ?? '')) : ($examen[$campo] ?? ($valoresIniciales[$campo] ?? '')));
+    $valorExamen = fn ($campo) => $recuperar ? old('examen_fisico.'.$campo) : ($examen[$campo] ?? '');
     // En todas las hojas el examen por regiones se despliega con la flecha y los signos se eligen tocándolos.
-    // Mismo orden en todas las hojas: PA, FC, FR, temperatura, saturación, talla y peso.
+    // Mismo orden en todas las hojas: PA, FC, FR, temperatura y saturación. La talla y el peso son datos del paciente.
     // [botón, nombre, unidad, valor de ejemplo]
     $signos = [
         'presion_arterial' => ['PA', 'Presión arterial', 'mmHg', '120/80'],
@@ -12,10 +11,8 @@
         'frecuencia_respiratoria' => ['FR', 'Frecuencia respiratoria', 'rpm', '18'],
         'temperatura' => ['Temp.', 'Temperatura', '°C', '36.5'],
         'saturacion_oxigeno' => ['SpO₂', 'Saturación de oxígeno', '%', '98'],
-        'talla' => ['Talla', 'Talla', 'cm', '165'],
-        'peso' => ['Peso', 'Peso', 'lb', '150'],
     ];
-    $numericos = ['frecuencia_cardiaca' => [1, 300, 1], 'frecuencia_respiratoria' => [1, 100, 1], 'talla' => [0.01, 999.99, 0.01], 'peso' => [0.01, 999.99, 0.01], 'temperatura' => [25, 50, 0.1], 'saturacion_oxigeno' => [0, 100, 1]];
+    $numericos = ['frecuencia_cardiaca' => [1, 300, 1], 'frecuencia_respiratoria' => [1, 100, 1], 'temperatura' => [25, 50, 0.1], 'saturacion_oxigeno' => [0, 100, 1]];
     $tieneValor = fn ($campo) => filled($valorExamen($campo));
     $regionesConDatos = collect(['cabeza', 'tronco', 'extremidades'])->contains(fn ($campo) => filled($valorExamen($campo))) || filled($recuperar ? old('evaluacion_medica') : $registro?->evaluacion_medica);
 @endphp
@@ -56,11 +53,16 @@
             @else
             <input id="{{ $formulario }}-{{ $campo }}" class="form-control" type="number" name="examen_fisico[{{ $campo }}]" min="{{ $numericos[$campo][0] }}" max="{{ $numericos[$campo][1] }}" step="{{ $numericos[$campo][2] }}" placeholder="{{ $ejemplo }}" value="{{ $valorExamen($campo) }}">
             @endif
-            @if(! $recuperar && ! $registro && filled($valoresIniciales[$campo] ?? null))
-            <small class="text-muted">Tomado del registro anterior; corríjalo si cambió.</small>
-            @endif
             @error('examen_fisico.'.$campo)<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
         </div>
         @endforeach
     </div>
+    {{-- Hojas antiguas con talla y peso: se conservan al corregirlas aunque ya no se pidan aquí. --}}
+    @if($registro)
+    @foreach(['talla', 'peso'] as $medidaAnterior)
+    @if(filled($examen[$medidaAnterior] ?? null))
+    <input type="hidden" name="examen_fisico[{{ $medidaAnterior }}]" value="{{ $medidaAnterior === 'peso' ? \App\Services\ExamenFisico::pesoEnLibras($examen) : $examen[$medidaAnterior] }}">
+    @endif
+    @endforeach
+    @endif
 </fieldset>

@@ -26,7 +26,7 @@
     >
 
     <!-- Estilos propios -->
-    <link rel="stylesheet" href="{{ asset('css/estilos.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/estilos.css') }}?v={{ filemtime(public_path('css/estilos.css')) }}">
 </head>
 
 <body class="login-body login-acceso">

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\AvisarSinCambios;
 use App\Models\EvolucionClinica;
 use App\Models\Ingreso;
 use App\Models\Paciente;
@@ -25,6 +26,7 @@ class SistemaTest extends TestCase
         DB::unprepared(file_get_contents(base_path('tests/Fixtures/v3.sqlite.sql')));
         (require database_path('migrations/2026_10_12_224836_add_examen_fisico_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_14_011905_add_ordenes_to_tbl_evolucion_clinica.php'))->up();
+        (require database_path('migrations/2026_11_03_012257_add_talla_peso_to_tbl_paciente.php'))->up();
         // 18:00 UTC = 12:00 en Guatemala, la hora que usan las fechas clínicas.
         $this->travelTo(now()->setDate(2026, 10, 11)->setTime(18, 0));
         DB::table('tbl_cargo')->insert(['id_cargo' => 1, 'nombre_cargo' => 'Médico general']);
@@ -60,7 +62,7 @@ class SistemaTest extends TestCase
 
     public static function pacientesInvalidos(): array
     {
-        return [['nombres', 'Ana123'], ['apellidos', '123'], ['dpi', '123'], ['telefono', 'abc'], ['tipo_sangre', '12'], ['sexo', 'Otro'], ['fecha_nacimiento', '2027-01-01'], ['nombres', []], ['contacto', 'texto']];
+        return [['nombres', 'Ana123'], ['apellidos', '123'], ['dpi', '123'], ['telefono', 'abc'], ['tipo_sangre', '12'], ['sexo', 'Otro'], ['fecha_nacimiento', '2027-01-01'], ['nombres', []], ['contacto', 'texto'], ['talla', 10], ['talla', 'alto'], ['peso', 0], ['peso', 900]];
     }
 
     public function test_lista_de_pacientes_muestra_todas_las_acciones_a_la_vista(): void
@@ -73,6 +75,60 @@ class SistemaTest extends TestCase
             ->assertSee('data-bs-target="#modalEditar'.$paciente->getKey().'"', false)
             ->assertSee('data-bs-target="#modalContactos'.$paciente->getKey().'"', false)
             ->assertSee('action="'.route('pacientes.desactivar', $paciente->getKey()).'"', false);
+    }
+
+    public function test_talla_y_peso_se_registran_con_los_datos_del_paciente(): void
+    {
+        $this->withSession(['id_usuario' => 1])->get('/pacientes')->assertOk()
+            ->assertSee('id="nuevo-talla" name="talla"', false)->assertSee('id="nuevo-peso" name="peso"', false)
+            ->assertSeeInOrder(['name="tipo_sangre"', 'name="talla"', 'name="peso"', 'name="alergias"', 'name="antecedentes_medicos"', 'name="antecedentes_familiares"', 'name="observaciones_generales"'], false);
+        // Solo números con hasta 2 decimales: ni letras, ni símbolos, ni notación como «1e2».
+        foreach (['abc', '1e2', '-160', '+160', '16o', '165.555', '1,65'] as $invalido) {
+            $this->post('/pacientes', $this->pacienteValido() + ['talla' => $invalido])->assertSessionHasErrors('talla');
+        }
+        $this->post('/pacientes', $this->pacienteValido() + ['peso' => '15O'])->assertSessionHasErrors(['peso' => 'El peso solo lleva números, con hasta 2 decimales (por ejemplo 150 o 150.5).']);
+        $this->post('/pacientes', $this->pacienteValido() + ['talla' => '20'])->assertSessionHasErrors(['talla' => 'La talla debe estar entre 30 y 250 cm.']);
+        $this->assertDatabaseCount('tbl_paciente', 0);
+        $this->get('/pacientes')->assertSee('inputmode="decimal" data-solo-decimal', false);
+        $this->post('/pacientes', $this->pacienteValido() + ['talla' => '165.5', 'peso' => '150'])->assertSessionHasNoErrors();
+        $paciente = Paciente::firstOrFail();
+        $this->assertDatabaseHas('tbl_paciente', ['id_paciente' => $paciente->getKey(), 'talla' => 165.5, 'peso' => 150]);
+        $this->get('/pacientes/'.$paciente->getKey().'/expediente')->assertOk()->assertSeeInOrder(['Tipo de sangre', 'O+', 'Talla', '165.5 cm', 'Peso', '150 lb']);
+        $this->put('/pacientes/'.$paciente->getKey(), $this->pacienteValido() + ['talla' => '166', 'peso' => ''])->assertSessionHasNoErrors();
+        $this->assertSame(166.0, $paciente->fresh()->talla);
+        $this->assertNull($paciente->fresh()->peso);
+        $this->get('/pacientes')->assertOk()->assertSee('id="editar-'.$paciente->getKey().'-talla"', false);
+    }
+
+    public function test_atencion_muestra_solo_nombre_expediente_y_alergias_del_paciente(): void
+    {
+        $this->withSession(['id_usuario' => 1])->post('/pacientes', $this->pacienteValido() + ['talla' => '160', 'antecedentes_medicos' => 'Asma', 'direccion' => 'Zona 1, Guatemala'])->assertSessionHasNoErrors();
+        $paciente = Paciente::firstOrFail();
+        $ingreso = Ingreso::create(['id_paciente' => $paciente->getKey(), 'id_personal_registra' => 1, 'fecha_ingreso' => '2026-10-11 09:00:00', 'estado' => 'Activo', 'id_usuario_creacion' => 1]);
+        $this->get(route('atencion.show', $ingreso))->assertOk()
+            ->assertSee($paciente->numero_expediente)->assertSee('Sin alergias registradas')
+            // El resto de sus datos ya está en el expediente; aquí sería repetirlo.
+            ->assertDontSee('Tipo de sangre')->assertDontSee('160 cm')->assertDontSee('Antecedentes médicos')->assertDontSee('Zona 1, Guatemala');
+    }
+
+    public function test_editar_sin_cambiar_nada_avisa_que_todo_sigue_igual(): void
+    {
+        $this->withSession(['id_usuario' => 1])->post('/pacientes', $this->pacienteValido() + ['talla' => '165'])->assertSessionHasNoErrors();
+        $paciente = Paciente::firstOrFail();
+        $bitacora = DB::table('tbl_bitacora')->count();
+        $this->put('/pacientes/'.$paciente->getKey(), $this->pacienteValido() + ['talla' => '165.00', 'peso' => ''])
+            ->assertSessionHasNoErrors()->assertSessionHas('exito', AvisarSinCambios::MENSAJE);
+        $this->assertNull($paciente->fresh()->id_usuario_modificacion, 'Sin cambios no se marca como modificado.');
+        $this->assertSame($bitacora, DB::table('tbl_bitacora')->count(), 'Sin cambios no se registra una edición.');
+        $this->get('/pacientes')->assertSee(AvisarSinCambios::MENSAJE);
+
+        $this->put('/pacientes/'.$paciente->getKey(), $this->pacienteValido() + ['talla' => '170'])->assertSessionHasNoErrors();
+        $this->assertNotSame(AvisarSinCambios::MENSAJE, session('exito'));
+        $this->assertSame(170.0, $paciente->fresh()->talla);
+
+        $habitacion = ['numero_habitacion' => '101', 'tipo' => 'Privada', 'estado_operativo' => 'Activa'];
+        $this->put('/habitaciones/1', $habitacion)->assertSessionHasNoErrors();
+        $this->put('/habitaciones/1', $habitacion)->assertSessionHas('exito', AvisarSinCambios::MENSAJE);
     }
 
     public function test_telefono_de_contactos_usa_el_mismo_formato_que_el_del_paciente(): void
@@ -249,7 +305,7 @@ class SistemaTest extends TestCase
         $paciente = Paciente::firstOrFail();
         $this->post('/ingresos', ['id_paciente' => $paciente->getKey(), 'id_habitacion' => 1, 'fecha_ingreso' => '2026-10-11 08:00:00', 'motivo_ingreso' => 'Control de prueba'])->assertSessionHasNoErrors();
         $ingreso = Ingreso::firstOrFail();
-        $this->get('/pacientes')->assertOk()->assertSee('href="'.route('atencion.show', $ingreso).'"', false);
+        $this->get('/pacientes')->assertOk()->assertSee('href="'.route('atencion.enfermeria', $ingreso).'"', false)->assertDontSee('href="'.route('atencion.show', $ingreso).'"', false);
         $this->get(route('pacientes.expediente', $paciente))->assertOk()->assertSee('Habitación actual')->assertDontSee('Cambios de habitación');
         $datos = ['id_ingreso' => $ingreso->getKey(), 'fecha_hora' => '2026-10-11 09:00:00', 'motivo_atencion' => 'Control de prueba', 'diagnostico' => 'Diagnóstico de prueba', 'examen_fisico' => ['presion_arterial' => '120/80', 'frecuencia_cardiaca' => 80], 'estado_mejoria' => 'Sin cambios', 'id_personal_medico' => 1, 'ordenes' => ['dieta' => 'Libre', 'medicamentos' => [['nombre' => 'Medicina escrita libremente', 'dosis' => 75, 'via' => 'Intramuscular', 'frecuencia' => 8]]]];
         $this->post('/evolucion', $datos)->assertSessionHasNoErrors();
@@ -308,5 +364,29 @@ class SistemaTest extends TestCase
         ]]))->assertSessionHasErrors('contactos.0.id_contacto');
         $this->assertDatabaseHas('tbl_contacto_paciente', ['id_contacto' => $contacto->getKey(), 'nombre' => 'María López']);
         $this->assertDatabaseHas('tbl_paciente', ['id_paciente' => $segundo->getKey(), 'nombres' => 'Ana María']);
+    }
+
+    public function test_fecha_registro_paciente_pasada_actual_y_futura(): void
+    {
+        $this->withSession(['id_usuario' => 1]);
+        $this->post('/pacientes', $this->pacienteValido() + ['fecha_registro' => '2025-01-10T09:30'])->assertSessionHasNoErrors();
+        $p = Paciente::latest('id_paciente')->firstOrFail();
+        $this->assertSame('2025-01-10 15:30:00', $p->fecha_registro->format('Y-m-d H:i:s'));
+        $this->post('/pacientes', array_replace($this->pacienteValido(), ['dpi' => '1234567890124', 'fecha_registro' => now('America/Guatemala')->addDay()->format('Y-m-d\TH:i')]))->assertSessionHasErrors('fecha_registro');
+    }
+
+    public function test_colegiado_numerico_obligatorio_segun_cargo(): void
+    {
+        $this->withSession(['id_usuario' => 1]);
+        DB::table('tbl_cargo')->insert(['id_cargo' => 9, 'nombre_cargo' => 'Administrativo']);
+        $datos = ['nombres' => 'Persona', 'apellidos' => 'Prueba', 'dpi' => '2234567890123', 'id_cargo' => 1];
+        foreach (['', '0', '0123', '123456', 'AB12', '12-3'] as $valor) {
+            $this->post('/personal', $datos + ['numero_colegiado' => $valor])->assertSessionHasErrors('numero_colegiado');
+        }
+        $this->post('/personal', $datos + ['numero_colegiado' => '87'])->assertSessionHasNoErrors();
+        $p = Personal::where('dpi', $datos['dpi'])->firstOrFail();
+        $this->put('/personal/'.$p->getKey(), $datos + ['numero_colegiado' => '901'])->assertSessionHasNoErrors();
+        $this->put('/personal/'.$p->getKey(), $datos + ['numero_colegiado' => '01'])->assertSessionHasErrors('numero_colegiado');
+        $this->post('/personal', array_replace($datos, ['dpi' => '3234567890123', 'id_cargo' => 9]))->assertSessionHasNoErrors();
     }
 }

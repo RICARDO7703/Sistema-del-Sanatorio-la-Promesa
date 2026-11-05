@@ -26,6 +26,8 @@ class RegistroIngreso
         return DB::transaction(function () use ($datos, $idUsuario, $idPersonal): Ingreso {
             $paciente = Paciente::whereKey($datos['id_paciente'])->lockForUpdate()->firstOrFail();
 
+            $paciente->exigirFueraDeCirugia();
+
             if ($paciente->estado !== 'Activo') {
                 throw new RuntimeException('El paciente no se encuentra activo.');
             }

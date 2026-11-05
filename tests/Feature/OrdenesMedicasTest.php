@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\AvisarSinCambios;
 use App\Models\EvolucionClinica;
 use App\Models\Ingreso;
+use App\Services\OrdenesMedicas;
 use App\Support\EdicionClinica;
 use Database\Factories\IngresoFactory;
 use Illuminate\Support\Facades\DB;
@@ -181,8 +183,10 @@ class OrdenesMedicasTest extends TestCase
             ->assertSee('data-diagnostico-anterior="Neumonía adquirida en la comunidad"', false)
             ->getContent();
 
-        $this->assertMatchesRegularExpression('/name="examen_fisico\[talla\]"[^>]*value="165"/', $html);
-        $this->assertMatchesRegularExpression('/name="examen_fisico\[peso\]"[^>]*value="150"/', $html);
+        // La talla y el peso ya no se piden en la evolución; la hoja anterior los conserva ocultos al corregirla.
+        $this->assertDoesNotMatchRegularExpression('/type="number"[^>]*name="examen_fisico\[(talla|peso)\]"/', $html);
+        $this->assertMatchesRegularExpression('/type="hidden" name="examen_fisico\[talla\]" value="165"/', $html);
+        $this->assertMatchesRegularExpression('/type="hidden" name="examen_fisico\[peso\]" value="150"/', $html);
         $this->assertDoesNotMatchRegularExpression('/id="evolucion-nueva-temperatura"[^>]*value="38\.2"/', $html);
         $this->assertMatchesRegularExpression('/id="evo-diagnostico"[^>]*readonly[^>]*>Neumonía adquirida en la comunidad</', $html);
     }
@@ -223,6 +227,13 @@ class OrdenesMedicasTest extends TestCase
 
         $this->withSession(['id_usuario' => 1])->get(route('atencion.show', $ingreso))->assertOk()
             ->assertSee('Órdenes médicas (opcional)')->assertSee('name="con_ordenes"', false);
+        $html = $this->get(route('atencion.show', $ingreso))->getContent();
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$html);
+        $xpath = new \DOMXPath($dom);
+        $this->assertSame(1, $xpath->query('//div[@id="modalValoracion"]//form//button[contains(., "Guardar valoración")]')->length);
+        $this->assertSame(1, $xpath->query('//div[@id="modalValoracion"]//section[@id="valoracion-ordenes" and @hidden]/fieldset')->length);
+        $this->assertSame(0, $xpath->query('//section[@data-valoracion-clinica and contains(@class, "col-xl-6")]')->length);
         $this->post('/evolucion', $valoracion + ['con_ordenes' => '1', 'ordenes' => ['dieta' => '']])->assertSessionHasErrors('ordenes.dieta');
         $this->assertDatabaseCount('tbl_evolucion_clinica', 0);
 
@@ -281,5 +292,75 @@ class OrdenesMedicasTest extends TestCase
             ->assertSessionHas('error', EdicionClinica::MENSAJE);
         $this->assertNotSame('Cambio tardío', $valoracion->fresh()->diagnostico);
         $this->get($expediente)->assertOk()->assertDontSee('Puede editarla hasta');
+    }
+
+    public function test_volver_a_guardar_sin_tocar_nada_no_cuenta_como_edicion(): void
+    {
+        $ingreso = $this->ingreso();
+        $this->valoracion($ingreso);
+        $this->post('/evolucion', $this->evolucion($ingreso))->assertSessionHasNoErrors();
+        [$valoracion, $evolucion] = EvolucionClinica::orderBy('id_evolucion')->get()->all();
+        $examenVacio = ['cabeza' => '', 'tronco' => '', 'extremidades' => '', 'presion_arterial' => '', 'frecuencia_cardiaca' => '', 'frecuencia_respiratoria' => '', 'temperatura' => '', 'saturacion_oxigeno' => ''];
+
+        // Lo mismo que envía el formulario al abrirlo y guardarlo: campos vacíos, números como texto y la hora sin segundos.
+        $this->put(route('evolucion.actualizar', $valoracion), [
+            '_formulario' => 'valoracion-editar', 'fecha_hora' => '2026-10-11T08:00', 'motivo_atencion' => 'Tos', 'sintomas' => '', 'evaluacion_medica' => '',
+            'diagnostico' => 'Neumonía adquirida en la comunidad', 'indicaciones' => '', 'observaciones' => '',
+            'examen_fisico' => array_replace($examenVacio, ['talla' => '165', 'peso' => '150', 'temperatura' => '38.2']),
+        ])->assertSessionHasNoErrors()->assertSessionHas('exito', AvisarSinCambios::MENSAJE);
+        $formulario = array_replace($this->evolucion($ingreso), ['_formulario' => 'evolucion-'.$evolucion->getKey(), 'fecha_hora' => '2026-10-11T10:00', 'examen_fisico' => $examenVacio, 'observaciones' => '']);
+        $formulario['ordenes']['soluciones'][0] = ['tipo' => 'Salina', 'volumen' => '500', 'velocidad' => '40', 'unidad' => 'gotas/min'];
+        $formulario['ordenes']['medicamentos'][0] = ['nombre' => 'Diclofenaco', 'dosis' => '75', 'via' => 'Intramuscular', 'frecuencia' => '8'];
+        $formulario['ordenes']['plan_educacional'] = '';
+        $this->put(route('evolucion.actualizar', $evolucion), $formulario)->assertSessionHasNoErrors()->assertSessionHas('exito', AvisarSinCambios::MENSAJE);
+        $this->assertNull($evolucion->fresh()->id_usuario_modificacion);
+
+        // Un cambio de verdad sí se guarda.
+        $formulario['ordenes']['medicamentos'][0]['dosis'] = '50';
+        $this->put(route('evolucion.actualizar', $evolucion), $formulario)->assertSessionHasNoErrors()->assertSessionHas('exito', 'Evolución clínica actualizada correctamente.');
+        $this->assertEquals(50, $evolucion->fresh()->ordenes_medicas['medicamentos'][0]['dosis']);
+    }
+
+    public function test_editor_bloquea_ordenes_canceladas_hasta_reactivacion_explicita(): void
+    {
+        $ingreso = $this->ingreso();
+        $this->valoracion($ingreso);
+        $this->post('/evolucion', $this->evolucion($ingreso))->assertSessionHasNoErrors();
+        $registro = EvolucionClinica::orderByDesc('id_evolucion')->first();
+        $this->post(route('evolucion.cancelar-ordenes', $registro), ['motivo_cancelacion' => 'Cancelación de prueba'])->assertSessionHasNoErrors();
+        $canceladas = $registro->fresh()->ordenes_medicas;
+        $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()
+            ->assertDontSee('Reactivar estas órdenes')->assertDontSee('data-lapiz-ordenes');
+        $this->get(route('atencion.show', ['ingreso' => $ingreso->getKey(), 'registro' => $registro->getKey()]))->assertOk()
+            ->assertDontSee('Órdenes canceladas y bloqueadas.')->assertSee('Reactivar y editar estas órdenes')
+            ->assertSee('data-edicion-canceladas', false)->assertDontSee('Órdenes guardadas de este registro');
+
+        $datos = $this->evolucion($ingreso, ['dieta' => 'Libre']);
+        $datos['_formulario'] = 'evolucion-'.$registro->getKey();
+        $datos['diagnostico'] = 'Diagnóstico corregido';
+        // Ni los datos manipulados ni la ausencia de órdenes desbloquean la cancelación.
+        $this->put(route('evolucion.actualizar', $registro), $datos)->assertSessionHasNoErrors();
+        $this->assertSame($canceladas, $registro->fresh()->ordenes_medicas);
+        unset($datos['ordenes']);
+        $this->put(route('evolucion.actualizar', $registro), $datos)->assertSessionHasNoErrors();
+        $this->assertSame('Diagnóstico corregido', $registro->fresh()->diagnostico);
+        $this->assertSame($canceladas, $registro->fresh()->ordenes_medicas);
+
+        $datos['reactivar_ordenes'] = 1;
+        $datos['ordenes'] = ['dieta' => ''];
+        $this->put(route('evolucion.actualizar', $registro), $datos)->assertSessionHasErrors('ordenes.dieta');
+        $this->assertSame($canceladas, $registro->fresh()->ordenes_medicas);
+        $datos['ordenes'] = ['dieta' => 'Líquida', 'indicaciones' => 'Nueva indicación'];
+        $this->put(route('evolucion.actualizar', $registro), $datos)->assertSessionHasNoErrors();
+        $this->assertSame('Líquida', $registro->fresh()->ordenes_medicas['dieta']);
+        $this->assertNull(OrdenesMedicas::cancelacion($registro->fresh()->ordenes_medicas));
+
+        $this->post(route('evolucion.cancelar-ordenes', $registro), ['motivo_cancelacion' => 'Nueva cancelación'])->assertSessionHasNoErrors();
+        $this->post('/evolucion', $this->evolucion($ingreso, ['dieta' => 'Libre'], '2026-10-11 11:00:00'))->assertSessionHasNoErrors();
+        $this->put(route('evolucion.actualizar', $registro), $datos)->assertSessionHasErrors('reactivar_ordenes');
+        $this->assertNotNull(OrdenesMedicas::cancelacion($registro->fresh()->ordenes_medicas));
+        $this->travel(13)->hours();
+        $this->put(route('evolucion.actualizar', $registro), $datos)->assertSessionHas('error', EdicionClinica::MENSAJE);
+        $this->assertNotNull(OrdenesMedicas::cancelacion($registro->fresh()->ordenes_medicas));
     }
 }

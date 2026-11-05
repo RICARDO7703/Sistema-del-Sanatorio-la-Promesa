@@ -176,7 +176,7 @@ class PerfilController extends Controller
     {
         $datos = $request->validate([
             'contrasena_actual' => ['required', 'string', 'max:100'],
-            'nueva_contrasena' => ['required', 'string', 'confirmed', 'different:contrasena_actual', 'max:72', Password::min(12)->mixedCase()->numbers()->symbols(), function (string $attribute, mixed $value, \Closure $fail): void {
+            'nueva_contrasena' => ['required', 'string', 'confirmed', 'different:contrasena_actual', 'max:72', Password::min(5)->numbers(), function (string $attribute, mixed $value, \Closure $fail): void {
                 if (strlen($value) > 72) {
                     $fail('La nueva contraseña supera el máximo permitido de 72 bytes.');
                 }

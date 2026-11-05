@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SignoVital extends Model
 {
@@ -51,5 +53,21 @@ class SignoVital extends Model
             'id_personal',
             'id_personal'
         );
+    }
+
+    /**
+     * Cirugía de la que este registro es un control de recuperación (si lo es).
+     */
+    public function cirugia(): BelongsTo
+    {
+        return $this->belongsTo(Cirugia::class, 'id_cirugia', 'id_cirugia');
+    }
+
+    /**
+     * Nota de enfermería en la que se tomaron estos signos (los controles antiguos no tienen nota).
+     */
+    public function nota(): HasOne
+    {
+        return $this->hasOne(NotaEnfermeria::class, 'id_signos_vitales', 'id_signos_vitales');
     }
 }

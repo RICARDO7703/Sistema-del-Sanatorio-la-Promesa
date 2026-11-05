@@ -2,8 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\AvisarSinCambios;
+use App\Models\EvolucionClinica;
 use App\Models\Ingreso;
 use App\Models\NotaEnfermeria;
+use App\Services\DatosReportes;
+use App\Services\OrdenesMedicas;
 use Database\Factories\IngresoFactory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -24,6 +28,7 @@ class EnfermeriaTest extends TestCase
         (require database_path('migrations/2026_10_14_011905_add_ordenes_to_tbl_evolucion_clinica.php'))->up();
         (require database_path('migrations/2026_10_26_010043_add_notas_to_tbl_atencion_enfermeria.php'))->up();
         (require database_path('migrations/2026_11_02_053000_add_medico_avisado_to_tbl_atencion_enfermeria.php'))->up();
+        (require database_path('migrations/2026_11_03_155847_create_tbl_atencion_enfermeria_orden_table.php'))->up();
         $this->travelTo(now()->setDate(2026, 10, 11)->setTime(18, 0));
         DB::table('tbl_cargo')->insert([['id_cargo' => 1, 'nombre_cargo' => 'Médico general'], ['id_cargo' => 6, 'nombre_cargo' => 'Enfermera']]);
         DB::table('tbl_personal')->insert([
@@ -247,6 +252,105 @@ class EnfermeriaTest extends TestCase
             ->assertSee('Último control de signos: 11/10/2026 11:45');
     }
 
+    public function test_nota_registra_ordenes_medicas_aplicadas_y_no_aplicadas(): void
+    {
+        $ingreso = $this->internado();
+        $this->evolucion($ingreso, '2026-10-10 13:00:00', 'Neumonía', $this->ordenes('Blanda', 'Ceftriaxona'));
+        $idOrdenes = (int) DB::table('tbl_evolucion_clinica')->max('id_evolucion');
+        $ruta = route('notas-enfermeria.guardar', $ingreso);
+
+        // La nota ofrece cada orden vigente para marcarla.
+        $this->sesion()->get(route('atencion.enfermeria', $ingreso))->assertOk()
+            ->assertSeeInOrder(['Dieta blanda', 'Suero Salina · 500 ml · 40 gotas/min', 'Ceftriaxona · 1000 mg · Intravenosa · cada 12 horas', 'Control de temperatura cada 4 horas'])
+            ->assertSee('name="ordenes[2][estado]"', false)->assertSee('Todavía no se ha registrado en una nota.');
+
+        // Solo con órdenes marcadas la nota no está vacía; si no se aplicó, hay que decir por qué.
+        $base = $this->nota(['ordenes_de' => $idOrdenes]);
+        $this->post($ruta, $base + ['ordenes' => [2 => ['estado' => 'No aplicada']]])->assertSessionHasErrors(['ordenes.2.motivo' => 'Escriba por qué no se aplicó.']);
+        $this->post($ruta, $base + ['ordenes' => [9 => ['estado' => 'Aplicada']]])->assertSessionHasErrors('ordenes');
+        $this->post($ruta, ['ordenes_de' => $idOrdenes - 1] + $base + ['ordenes' => [0 => ['estado' => 'Aplicada']]])->assertSessionHasErrors('ordenes');
+        $this->assertDatabaseCount('tbl_atencion_enfermeria', 0);
+
+        // Todas las órdenes vigentes son obligatorias.
+        $marcadas = [
+            0 => ['estado' => 'Aplicada'],
+            1 => ['estado' => ''],
+            2 => ['estado' => 'Aplicada', 'motivo' => 'no se guarda'],
+            3 => ['estado' => 'No aplicada', 'motivo' => 'Paciente dormido, se tomará a las 12:00'],
+        ];
+        $this->post($ruta, $base + ['ordenes' => $marcadas])->assertSessionHasErrors(['ordenes.1.estado' => 'Indique si «Suero Salina · 500 ml · 40 gotas/min» se aplicó o no.']);
+        $this->assertDatabaseCount('tbl_atencion_enfermeria', 0);
+        $marcadas[1] = ['estado' => 'No aplicada', 'motivo' => 'Se terminó el suero; se pidió a farmacia'];
+        $this->post($ruta, $base + ['ordenes' => $marcadas])->assertSessionHasNoErrors();
+        $nota = NotaEnfermeria::with('ordenes')->sole();
+        $this->assertSame([
+            ['Dieta', 'Dieta blanda', true, null],
+            ['Solución', 'Suero Salina · 500 ml · 40 gotas/min', false, 'Se terminó el suero; se pidió a farmacia'],
+            ['Medicamento', 'Ceftriaxona · 1000 mg · Intravenosa · cada 12 horas', true, null],
+            ['Indicaciones', 'Control de temperatura cada 4 horas', false, 'Paciente dormido, se tomará a las 12:00'],
+        ], $nota->ordenes->map(fn ($o) => [$o->tipo, $o->descripcion, $o->aplicada, $o->motivo])->all());
+        $this->assertSame([$idOrdenes], $nota->ordenes->pluck('id_evolucion')->unique()->values()->all());
+
+        // La hoja dice cuándo se aplicó y cuándo toca la siguiente dosis; la nota y su PDF muestran el resultado.
+        $this->get(route('atencion.enfermeria', $ingreso))->assertOk()
+            ->assertSee('Última vez: 11/10 11:45')->assertSee('toca a las 23:45')->assertSee('Toca a las 23:45')
+            ->assertSee('Se cumplieron')->assertSee('Motivo: Paciente dormido, se tomará a las 12:00');
+        $this->get(route('pacientes.expediente', $ingreso->paciente))->assertOk()->assertSee('No se cumplieron:');
+        $doc = app(DatosReportes::class)->documento('enfermeria', NotaEnfermeria::sole());
+        $this->assertSame('Se aplicó', $doc['secciones']['Órdenes médicas']['Medicamento: Ceftriaxona · 1000 mg · Intravenosa · cada 12 horas']);
+    }
+
+    public function test_nota_con_hora_anterior_a_las_ordenes_no_las_exige_y_el_medico_puede_cancelarlas(): void
+    {
+        $ingreso = $this->internado();
+        $this->evolucion($ingreso, '2026-10-11 08:00:00', 'Neumonía', $this->ordenes('Blanda', 'Ceftriaxona'));
+        $evolucion = (int) DB::table('tbl_evolucion_clinica')->max('id_evolucion');
+        $ruta = route('notas-enfermeria.guardar', $ingreso);
+
+        // Una nota registrada después pero con hora anterior a las órdenes no las incluye.
+        $this->sesion()->post($ruta, $this->nota(['fecha_hora' => '2026-10-11 07:30:00', 'observaciones' => 'Nota atrasada']))->assertSessionHasNoErrors();
+        $this->get(route('atencion.enfermeria', $ingreso))->assertSee('data-ordenes-desde="2026-10-11T08:00"', false)->assertSee('después de la hora de esta nota');
+
+        // Solo el médico que las indicó (personal 1) puede cancelarlas; la enfermera (usuario 1, personal 2) no.
+        $cancelar = route('evolucion.cancelar-ordenes', $evolucion);
+        $this->post($cancelar, ['motivo_cancelacion' => 'Prueba'])->assertSessionHas('error', 'Solo el médico que indicó estas órdenes puede cancelarlas.');
+        DB::table('tbl_usuario')->insert(['id_usuario' => 2, 'id_personal' => 1, 'id_rol' => 1, 'nombre_usuario' => 'medica', 'contrasena' => 'solo-pruebas']);
+        $this->withSession(['id_usuario' => 2]);
+        $this->get(route('pacientes.expediente', $ingreso->paciente))->assertOk()->assertSee('Cancelar estas órdenes');
+        $this->post($cancelar, ['motivo_cancelacion' => ''])->assertSessionHasErrors(['motivo_cancelacion' => 'Escriba por qué se cancelan las órdenes.']);
+        $this->post($cancelar, ['motivo_cancelacion' => 'Reacción alérgica al antibiótico'])->assertSessionHas('exito');
+        $ordenes = json_decode(DB::table('tbl_evolucion_clinica')->where('id_evolucion', $evolucion)->value('ordenes_medicas'), true);
+        $this->assertSame(['Reacción alérgica al antibiótico', 1, 'Rosa Médica'], [$ordenes['cancelacion']['motivo'], $ordenes['cancelacion']['id_personal'], $ordenes['cancelacion']['medico']]);
+        $this->assertSame('Ceftriaxona', $ordenes['medicamentos'][0]['nombre'], 'Lo que se ordenó se conserva.');
+        $this->post($cancelar, ['motivo_cancelacion' => 'Otra vez'])->assertSessionHas('error', 'Estas órdenes ya estaban canceladas.');
+
+        // Enfermería ve el aviso y la nota ya no exige ni ofrece esas órdenes.
+        $this->withSession(['id_usuario' => 1])->get(route('atencion.enfermeria', $ingreso))->assertOk()
+            ->assertSee('Estas órdenes fueron canceladas')->assertSee('Reacción alérgica al antibiótico')->assertDontSee('name="ordenes_de"', false);
+        $this->post($ruta, $this->nota(['fecha_hora' => '2026-10-11 11:50:00', 'observaciones' => 'Sin órdenes vigentes']))->assertSessionHasNoErrors();
+        $this->get(route('pacientes.expediente', $ingreso->paciente))->assertSee('Órdenes canceladas')->assertDontSee('Cancelar estas órdenes')->assertDontSee('Reactivar estas órdenes');
+
+        // El médico que las indicó puede reactivarlas desde la misma ventana (con «Confirmar cambios» en el pie).
+        $reactivar = route('evolucion.reactivar-ordenes', $evolucion);
+        $this->post($reactivar)->assertSessionHas('error', 'Solo el médico que indicó estas órdenes puede reactivarlas.');
+        $this->withSession(['id_usuario' => 2]);
+        $this->get(route('pacientes.expediente', $ingreso->paciente))->assertOk()->assertDontSee('Reactivar estas órdenes')->assertDontSee('data-lapiz-ordenes');
+        $this->post($reactivar)->assertSessionHas('exito', 'Órdenes médicas reactivadas. Enfermería vuelve a verlas como vigentes.');
+        $this->assertNull(OrdenesMedicas::cancelacion(EvolucionClinica::find($evolucion)->ordenes_medicas));
+        $this->post($reactivar)->assertSessionHas('error', 'Estas órdenes ya están vigentes.');
+
+        // Reactivar y corregir de una vez: el lápiz habilita los campos y se guarda todo junto.
+        DB::table('tbl_evolucion_clinica')->where('id_evolucion', $evolucion)->update(['id_usuario_creacion' => 2]);
+        $this->post($cancelar, ['motivo_cancelacion' => 'Cancelada por error'])->assertSessionHas('exito');
+        $this->get(route('pacientes.expediente', $ingreso->paciente))->assertOk()->assertDontSee('data-lapiz-ordenes')->assertDontSee('Reactivar estas órdenes');
+        $this->post($reactivar, ['editar_ordenes' => 1, 'ordenes' => ['dieta' => '']])->assertSessionHasErrors('ordenes.dieta');
+        $this->assertNotNull(OrdenesMedicas::cancelacion(EvolucionClinica::find($evolucion)->ordenes_medicas), 'Si la corrección no es válida, no se reactiva.');
+        $this->post($reactivar, ['editar_ordenes' => 1, 'ordenes' => ['dieta' => 'Líquida', 'indicaciones' => 'Reposo']])->assertSessionHas('exito', 'Órdenes médicas reactivadas y corregidas. Enfermería ya ve las nuevas.');
+        $corregidas = EvolucionClinica::find($evolucion)->ordenes_medicas;
+        $this->assertSame(['Líquida', 'Reposo', null], [$corregidas['dieta'], $corregidas['indicaciones'], OrdenesMedicas::cancelacion($corregidas)]);
+        $this->withSession(['id_usuario' => 1])->get(route('atencion.enfermeria', $ingreso))->assertOk()->assertSee('name="ordenes_de"', false);
+    }
+
     public function test_nota_sin_signos_no_crea_control(): void
     {
         $ingreso = $this->internado();
@@ -264,7 +368,7 @@ class EnfermeriaTest extends TestCase
         $ingreso = $this->internado();
         $ruta = route('notas-enfermeria.guardar', $ingreso);
 
-        $this->sesion()->post($ruta, $this->nota())->assertSessionHasErrors(['nota' => 'Registre signos vitales, marque una actividad o escriba la nota.']);
+        $this->sesion()->post($ruta, $this->nota())->assertSessionHasErrors(['nota' => 'Registre signos vitales, marque una orden o actividad, o escriba la nota.']);
         $this->post($ruta, $this->nota(['estado_paciente' => null, 'observaciones' => 'Sin novedad']))->assertSessionHasErrors(['estado_paciente' => 'Indique cómo está el paciente.']);
         $this->post($ruta, $this->nota(['fecha_hora' => '2026-10-11 12:30:00', 'observaciones' => 'Sin novedad']))->assertSessionHasErrors(['fecha_hora' => 'La fecha y hora no pueden ser futuras.']);
         $this->post($ruta, $this->nota(['fecha_hora' => '2026-10-10 08:00:00', 'observaciones' => 'Sin novedad']))->assertSessionHasErrors('fecha_hora');
@@ -304,13 +408,14 @@ class EnfermeriaTest extends TestCase
         $this->evolucion($ingreso, '2026-10-10 19:00:00', 'Neumonía', null);
         $this->evolucion($ingreso, '2026-10-11 08:00:00', 'Neumonía en tratamiento', $this->ordenes('Blanda', 'Ampicilina'));
         $this->sesion()->post(route('notas-enfermeria.guardar', $ingreso), $this->nota(['fecha_hora' => '2026-10-10 22:15:00', 'estado_paciente' => 'Empeoró', 'temperatura' => 39.1, 'observaciones' => 'Fiebre persistente.', 'aviso_medico' => '1', 'id_personal_avisado' => 1]))->assertSessionHasNoErrors();
-        $this->post(route('notas-enfermeria.guardar', $ingreso), $this->nota(['fecha_hora' => '2026-10-11 09:30:00', 'actividades' => ['Curación']]))->assertSessionHasNoErrors();
+        $todas = ['ordenes_de' => $evolucionOrdenes = (int) DB::table('tbl_evolucion_clinica')->where('fecha_hora', '2026-10-11 08:00:00')->value('id_evolucion'), 'ordenes' => array_fill(0, 4, ['estado' => 'Aplicada'])];
+        $this->post(route('notas-enfermeria.guardar', $ingreso), $this->nota(['fecha_hora' => '2026-10-11 09:30:00', 'actividades' => ['Curación']] + $todas))->assertSessionHasNoErrors();
         $evolucion = DB::table('tbl_evolucion_clinica')->where('fecha_hora', '2026-10-11 08:00:00')->value('id_evolucion');
         [$primera, $segunda] = NotaEnfermeria::orderBy('fecha_hora')->pluck('id_atencion_enfermeria')->all();
 
         $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()
-            ->assertSeeInOrder(['Hoja de ingreso', 'Valoración inicial', 'Nota de enfermería #1', 'Empeoró', 'Aviso al médico', 'Evolución clínica #'.$evolucion, 'Nota de enfermería #2', 'Mejoró'])
-            ->assertSee('Todos (5)')->assertSee('Valoración inicial (1)')->assertSee('Evoluciones (1)')->assertSee('Notas de enfermería (2)')
+            ->assertSeeInOrder(['Documentos (5)', 'Nota de enfermería #2', 'Mejoró', 'Evolución clínica #'.$evolucion, 'Nota de enfermería #1', 'Empeoró', 'Aviso al médico', 'Valoración inicial', 'Hoja de ingreso'])
+            ->assertSee('Todos (2)')->assertSee('Valoración inicial (1)')->assertSee('Evoluciones (1)')->assertSee('Notas de enfermería (1)')
             ->assertSee('data-tipo-documento="nota"', false)->assertSee('data-tipo-documento="evolucion"', false)->assertSee('data-tipo-documento="valoracion"', false)
             ->assertSee('data-bs-target="#documento-nota-'.$primera.'"', false)
             ->assertSee('id="documento-nota-'.$segunda.'"', false)
@@ -388,5 +493,68 @@ class EnfermeriaTest extends TestCase
             ->assertSee('Pendientes por cerrar')->assertSee('Todo al día')
             ->assertSee('Turno actual')->assertSee('Mañana · 07:00 – 13:00')->assertSee('1 paciente internado')
             ->assertSee('Resumen del turno de mañana');
+    }
+
+    public function test_autor_edita_nota_sin_duplicarla_y_respeta_plazo(): void
+    {
+        $i = $this->internado();
+        $this->sesion();
+        $this->post(route('notas-enfermeria.guardar', $i), $this->nota(['temperatura' => 36.5]))->assertSessionHasNoErrors();
+        $n = NotaEnfermeria::sole();
+        $signo = $n->id_signos_vitales;
+        $this->get(route('atencion.enfermeria', $i))->assertOk()->assertSee('data-editar-nota', false);
+        // La corrección usa los mismos controles que «Nueva nota»: estado con botones, signos a elección y actividades como botones.
+        $edicion = 'editar-nota-'.$n->getKey();
+        $this->get(route('atencion.enfermeria', $i))->assertOk()
+            ->assertSee('id="'.$edicion.'-estado-0" value="Mejoró" checked', false)
+            ->assertSee('id="'.$edicion.'-elegir-temperatura" data-elegir-signo="temperatura" autocomplete="off" checked', false)
+            ->assertSee('id="'.$edicion.'-actividad-otra" data-mostrar-otra-actividad', false)
+            ->assertDontSee('PA sistólica (mmHg)');
+        // Como las demás hojas, se indica hasta cuándo puede corregirla su autor.
+        $this->get(route('pacientes.expediente', $i->id_paciente))->assertOk()->assertSee('Puede editarla hasta las')->assertSee('Puede editarla hasta el');
+        $this->put(route('notas-enfermeria.actualizar', $n), $this->nota(['temperatura' => 37.1, 'observaciones' => 'Nota corregida']))->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('tbl_atencion_enfermeria', 1);
+        $this->assertDatabaseCount('tbl_signos_vitales', 1);
+        $this->assertSame($signo, $n->fresh()->id_signos_vitales);
+        $this->assertSame('Nota corregida', $n->fresh()->observaciones);
+        // La corrección queda marcada como «Se editó»; volver a guardar sin cambiar nada no cuenta como edición.
+        $this->get(route('pacientes.expediente', $i->id_paciente))->assertOk()->assertSee('Se editó el');
+        $this->put(route('notas-enfermeria.actualizar', $n), $this->nota(['temperatura' => '37.10', 'observaciones' => 'Nota corregida']))->assertSessionHasNoErrors()->assertSessionHas('exito', AvisarSinCambios::MENSAJE);
+        $this->assertSame(1, DB::table('tbl_bitacora')->where('accion', 'Edición de nota de enfermería')->where('id_registro', $n->getKey())->count());
+        $this->put(route('notas-enfermeria.actualizar', $n), $this->nota(['temperatura' => 99]))->assertSessionHasErrors('temperatura');
+        DB::table('tbl_usuario')->insert(['id_usuario' => 2, 'id_personal' => 1, 'id_rol' => 1, 'nombre_usuario' => 'otro', 'contrasena' => 'prueba']);
+        $this->withSession(['id_usuario' => 2])->put(route('notas-enfermeria.actualizar', $n), $this->nota())->assertForbidden();
+        $this->get(route('pacientes.expediente', $i->id_paciente))->assertOk()->assertDontSee('Puede editarla hasta')->assertDontSee('data-editar-nota=', false)
+            ->assertSee('Solo quien la registró puede corregirla, durante las primeras 12 horas.');
+        $this->withSession(['id_usuario' => 1]);
+        $i->update(['estado' => 'Dado de alta']);
+        $this->put(route('notas-enfermeria.actualizar', $n), $this->nota())->assertForbidden();
+        $i->update(['estado' => 'Activo']);
+        $this->travel(13)->hours();
+        $this->put(route('notas-enfermeria.actualizar', $n), $this->nota())->assertForbidden();
+    }
+
+    public function test_cambia_habitacion_desde_enfermeria_y_regresa_a_la_hoja(): void
+    {
+        $i = $this->internado();
+        $this->sesion();
+        $this->get(route('atencion.enfermeria', $i))->assertOk()->assertSee('Cambiar habitación');
+        $h = $i->hospitalizacion;
+        $this->patch(route('hospitalizacion.cambiar-habitacion', $h), ['_desde' => 'enfermeria', 'id_habitacion' => 2])->assertRedirect(route('atencion.enfermeria', $i));
+        $this->assertSame(2, $h->fresh()->habitacionActual->id_habitacion);
+        $this->assertSame(2, $h->historialHabitaciones()->count());
+        $this->patch(route('hospitalizacion.cambiar-habitacion', $h), ['_desde' => 'enfermeria', 'id_habitacion' => 2])->assertSessionHasErrors('id_habitacion');
+    }
+
+    public function test_traslado_se_guarda_con_la_nota_o_se_revierte_si_falla(): void
+    {
+        $i = $this->internado();
+        $this->sesion();
+        $this->get(route('atencion.enfermeria', $i))->assertOk()->assertDontSee('data-bs-target="#modalHabitacionEnfermeria"', false)->assertSee('data-traslado-nota', false);
+        $this->post(route('notas-enfermeria.guardar', $i), $this->nota(['cambiar_habitacion' => 1, 'id_habitacion' => 1]))->assertSessionHasErrors('id_habitacion');
+        $this->assertDatabaseCount('tbl_atencion_enfermeria', 0);
+        $this->post(route('notas-enfermeria.guardar', $i), $this->nota(['cambiar_habitacion' => 1, 'id_habitacion' => 2]))->assertSessionHasNoErrors();
+        $this->assertSame(2, $i->fresh()->hospitalizacion->habitacionActual->id_habitacion);
+        $this->assertStringContainsString('110 → 102', NotaEnfermeria::sole()->observaciones);
     }
 }
