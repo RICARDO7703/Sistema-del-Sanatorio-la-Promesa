@@ -185,7 +185,7 @@ class EnfermeriaTest extends TestCase
 
         $this->sesion()->get(route('expedientes.index'))->assertOk()
             ->assertSee('Expedientes')
-            ->assertSee('Carlos Ramírez')->assertSee('Internado')->assertSee('En consulta')->assertSee('Sin atención activa')
+            ->assertSee('Carlos Ramírez')->assertSee('Hospitalizado')->assertSee('En consulta')->assertSee('Sin ingresos')
             ->assertSee(route('pacientes.expediente', $internado->id_paciente))
             ->assertSee(route('pacientes.expediente', $sinAtencion))
             ->assertDontSee(route('pacientes.expediente', $inactivo));

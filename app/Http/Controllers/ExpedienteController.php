@@ -6,6 +6,7 @@ use App\Models\Habitacion;
 use App\Models\Ingreso;
 use App\Models\Paciente;
 use App\Support\DocumentosExpediente;
+use App\Support\SituacionPaciente;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -28,7 +29,7 @@ class ExpedienteController extends Controller
         $estado = $filtros['estado'] ?? 'Activo';
 
         $pacientes = Paciente::query()
-            ->with(['ingresos' => fn ($consulta) => $consulta->with('hospitalizacion')->orderByDesc('fecha_ingreso')->orderByDesc('id_ingreso')])
+            ->with(['ingresos' => fn ($consulta) => $consulta->with(['hospitalizacion.habitacionActual.habitacion', 'altaMedica'])->orderByDesc('fecha_ingreso')->orderByDesc('id_ingreso')])
             ->withCount('ingresos')
             ->when($estado !== 'Todos', fn ($consulta) => $consulta->where('estado', $estado))
             ->when($buscar !== '', function ($consulta) use ($buscar): void {
@@ -44,6 +45,8 @@ class ExpedienteController extends Controller
             ->orderByDesc('id_paciente')
             ->paginate(20)
             ->withQueryString();
+
+        SituacionPaciente::asignar($pacientes->getCollection());
 
         return view('expedientes.index', compact('pacientes', 'buscar', 'estado'));
     }

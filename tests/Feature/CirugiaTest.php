@@ -126,6 +126,7 @@ class CirugiaTest extends TestCase
         $this->travel(25)->hours();
         $this->withSession(['id_usuario' => 1]);
         $this->get(route('pacientes.index'))->assertOk()->assertSee('Cirugía programada')->assertSee('cirugia-detalle-'.$cirugia->getKey());
+        $this->get(route('expedientes.index'))->assertOk()->assertSee('Cirugía programada')->assertSee('id="cirugia-detalle-'.$cirugia->getKey().'"', false);
         $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()->assertSee('data-editar-cirugia', false);
         $this->put(route('cirugias.actualizar', $cirugia), ['tipo_operacion' => 'Cirugía corregida', 'observaciones' => 'Nueva observación', 'personal' => [1]])->assertSessionHasNoErrors();
         $this->assertSame('Cirugía corregida', $cirugia->fresh()->tipo_operacion);

@@ -5,6 +5,13 @@
 @section('menu-expedientes', 'activo')
 
 @section('content')
+@if(app(\App\Support\Permisos::class)->puede('Cirugías', 'Ver'))
+@foreach($pacientes as $pacienteCirugia)
+    @if($pacienteCirugia->cirugiaActual)
+    @include('cirugias.panel', ['ingreso' => $pacienteCirugia->ingresos->firstWhere('id_ingreso', $pacienteCirugia->cirugiaActual->id_ingreso), 'soloVentanasCirugia' => true, 'soloLecturaCirugia' => true, 'ocultarAvisoCirugia' => true])
+    @endif
+@endforeach
+@endif
 
 <div class="inicio-encabezado">
     <div class="inicio-icono"><i class="bi bi-folder2-open" aria-hidden="true"></i></div>
@@ -60,7 +67,6 @@
                 @forelse($pacientes as $paciente)
                 @php
                     $ultima = $paciente->ingresos->first();
-                    $activa = $paciente->ingresos->firstWhere('estado', 'Activo');
                 @endphp
                 <tr>
                     <td>{{ $paciente->numero_expediente }}</td>
@@ -76,13 +82,7 @@
                     <td>{{ $paciente->dpi ?: '—' }}</td>
                     <td>{{ $paciente->fecha_nacimiento ? $paciente->fecha_nacimiento->age.' años' : '—' }}</td>
                     <td>
-                        @if($activa && $activa->hospitalizacion?->estado === 'Activa')
-                            <span class="badge bg-danger">Internado</span>
-                        @elseif($activa)
-                            <span class="badge bg-consulta"><i class="bi bi-person-walking" aria-hidden="true"></i> En consulta</span>
-                        @else
-                            <span class="badge bg-secondary">Sin atención activa</span>
-                        @endif
+                        @include('pacientes.partials.situacion')
                     </td>
                     <td>
                         @if($ultima)
