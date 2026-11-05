@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Cirugia;
 use App\Models\Habitacion;
 use App\Models\Ingreso;
 use App\Models\Medicamento;
+use App\Models\NotaEnfermeriaOrden;
 use App\Models\Personal;
+use App\Services\OrdenesMedicas;
+use App\Support\DocumentosExpediente;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -80,7 +85,7 @@ class AtencionController extends Controller
             'hospitalizacion.habitacionActual.habitacion',
             'evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')->with('personal')->orderBy('fecha_hora')->orderBy('id_evolucion'),
             'signosVitales' => fn ($consulta) => $consulta->with('personal')->orderByDesc('fecha_hora')->orderByDesc('id_signos_vitales'),
-            'notasEnfermeria' => fn ($consulta) => $consulta->with(['personal', 'actividades', 'signosVitales', 'medicoAvisado'])->orderByDesc('fecha_hora')->orderByDesc('id_atencion_enfermeria'),
+            'notasEnfermeria' => fn ($consulta) => $consulta->with(['personal', 'actividades', 'ordenes', 'signosVitales.cirugia', 'medicoAvisado'])->orderByDesc('fecha_hora')->orderByDesc('id_atencion_enfermeria'),
         ]);
 
         if ($ingreso->estado !== 'Activo' || $ingreso->hospitalizacion?->estado !== 'Activa') {
@@ -91,12 +96,33 @@ class AtencionController extends Controller
         $conOrdenes = $registrosRecientes->filter(fn ($evolucion) => $evolucion->ordenes_medicas)->values();
         $ordenesVigentes = $conOrdenes->first();
         $ordenesAnteriores = $conOrdenes->slice(1)->values();
+        $cirugiasPorOrden = Cirugia::where('id_ingreso', $ingreso->getKey())->where('estado', 'Realizada')
+            ->whereNotNull('id_evolucion')->orderBy('id_cirugia')->get()->keyBy('id_evolucion');
+        // Órdenes vigentes que enfermería marca en la nota, con la última vez que se aplicó cada una.
+        $ultimas = NotaEnfermeriaOrden::query()
+            ->join('tbl_atencion_enfermeria as n', 'n.id_atencion_enfermeria', '=', 'tbl_atencion_enfermeria_orden.id_atencion_enfermeria')
+            ->where('n.id_ingreso', $ingreso->getKey())->where('tbl_atencion_enfermeria_orden.aplicada', true)
+            ->groupBy('tbl_atencion_enfermeria_orden.tipo', 'tbl_atencion_enfermeria_orden.descripcion')
+            ->selectRaw('tbl_atencion_enfermeria_orden.tipo, tbl_atencion_enfermeria_orden.descripcion, MAX(n.fecha_hora) as ultima')
+            ->get()->mapWithKeys(fn ($fila) => [$fila->tipo.'|'.$fila->descripcion => Carbon::parse($fila->ultima)]);
+        $ordenesNota = collect($ordenesVigentes ? OrdenesMedicas::paraEnfermeria($ordenesVigentes->ordenes_medicas) : [])
+            ->map(function (array $item) use ($ultimas): array {
+                $ultima = $ultimas[$item['tipo'].'|'.$item['descripcion']] ?? null;
+
+                return $item + ['ultima' => $ultima, 'proxima' => $ultima && $item['frecuencia'] ? $ultima->copy()->addHours($item['frecuencia']) : null];
+            })->all();
         $diagnosticoActual = $registrosRecientes->first();
         $ultimoControl = $ingreso->signosVitales->first();
 
         $medicos = Personal::where('estado', 'Activo')->whereHas('cargo', fn ($q) => $q->whereIn('nombre_cargo', Personal::CARGOS_MEDICOS))->orderBy('nombres')->orderBy('apellidos')->get();
 
-        return view('atencion.enfermeria', compact('ingreso', 'ordenesVigentes', 'ordenesAnteriores', 'diagnosticoActual', 'ultimoControl', 'medicos'));
+        // La nota puede marcarse como control de recuperación de la cirugía terminada más reciente.
+        $cirugiaRecuperacion = Cirugia::recienteParaControl($ingreso->getKey());
+        $controlCirugia = $cirugiaRecuperacion && (int) request()->query('control_cirugia') === $cirugiaRecuperacion->getKey() ? $cirugiaRecuperacion : null;
+
+        $habitacionesDisponibles = Habitacion::where('estado_operativo', 'Activa')->whereDoesntHave('asignacionesHospitalizacion', fn ($q) => $q->whereNull('fecha_hora_fin'))->orderBy('numero_habitacion')->get();
+
+        return view('atencion.enfermeria', compact('habitacionesDisponibles', 'ingreso', 'ordenesVigentes', 'ordenesAnteriores', 'cirugiasPorOrden', 'diagnosticoActual', 'ultimoControl', 'medicos', 'cirugiaRecuperacion', 'controlCirugia', 'ordenesNota'));
     }
 
     public function show(Request $request, Ingreso $ingreso)
@@ -174,6 +200,10 @@ class AtencionController extends Controller
             'documentosClinicos.personalResponsable',
 
             'altaMedica.medicamentos',
+            'altaMedica.medico',
+            // Para la lista de documentos de la atención (los mismos del expediente).
+            'controlesSinNota' => fn ($consulta) => $consulta->with(['personal', 'cirugia'])->orderBy('fecha_hora')->orderBy('id_signos_vitales'),
+            'notasEnfermeria' => fn ($consulta) => $consulta->with(['personal', 'actividades', 'ordenes', 'signosVitales.cirugia', 'medicoAvisado'])->orderBy('fecha_hora')->orderBy('id_atencion_enfermeria'),
         ]);
 
         $habitacionesDisponibles =
@@ -198,7 +228,10 @@ class AtencionController extends Controller
         $medicos = Personal::where('estado', 'Activo')->whereHas('cargo', fn ($q) => $q->whereIn('nombre_cargo', ['Médico general', 'Médico especialista', 'Cirujano', 'Cirujano externo', 'Anestesiólogo']))->orderBy('nombres')->get();
 
         $request->validate(['registro' => ['nullable', 'integer', 'min:1'], 'consulta' => ['nullable', 'in:valoracion,alta']]);
-        $historial = $ingreso->evoluciones()->where('estado', 'Activo')->with('personal')->orderByDesc('fecha_hora')->orderByDesc('id_evolucion')->paginate(10)->withQueryString();
+        // Documentos de la atención por día, del más nuevo al más viejo, con los mismos filtros del expediente.
+        $documentosAtencion = DocumentosExpediente::porDia(collect([$ingreso]), DocumentosExpediente::ediciones(collect([$ingreso]), collect()));
+        $documentosFirmados = $ingreso->paciente->documentosClinicos()->whereNull('id_ingreso')->where('estado', 'Activo')->get()
+            ->filter->esDocumentoIngresoFirmado()->keyBy('id_registro_origen');
         $registroSeleccionado = $request->filled('registro')
             ? $ingreso->evoluciones()->where('estado', 'Activo')->with('personal')->findOrFail($request->integer('registro'))
             : null;
@@ -209,7 +242,7 @@ class AtencionController extends Controller
             'atencion.show',
             compact(
                 'ingreso',
-                'habitacionesDisponibles', 'medicamentos', 'medicos', 'historial', 'registroSeleccionado', 'personalSesion', 'consultasAnteriores'
+                'habitacionesDisponibles', 'medicamentos', 'medicos', 'documentosAtencion', 'documentosFirmados', 'registroSeleccionado', 'personalSesion', 'consultasAnteriores'
             )
         );
     }

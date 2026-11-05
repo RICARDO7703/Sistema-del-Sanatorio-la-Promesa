@@ -8,6 +8,30 @@
     $dietaEsOtra = $dietaGuardada === \App\Services\OrdenesMedicas::DIETA_OTRA || ($dietaGuardada !== '' && ! in_array($dietaGuardada, \App\Services\OrdenesMedicas::DIETAS, true));
     $textoDietaOtra = array_key_exists('dieta_otra', $ordenes) ? ($ordenes['dieta_otra'] ?? '') : ($dietaEsOtra ? $dietaGuardada : '');
 @endphp
+@php
+    $registroCancelado = $registroOrdenesCanceladas ?? null;
+    $cancelacionEditor = $registroCancelado ? \App\Services\OrdenesMedicas::cancelacion($registroCancelado->ordenes_medicas) : null;
+    $puedeReactivarEditor = $cancelacionEditor && \App\Support\EdicionClinica::puedeEditar($registroCancelado)
+        && app(\App\Support\Permisos::class)->puede('Evolución clínica', 'Editar')
+        && \App\Services\OrdenesMedicas::vigentes($registroCancelado->ingreso)?->getKey() === $registroCancelado->getKey();
+    $reactivarEditor = $puedeReactivarEditor && old('_formulario') === ($formulario ?? null) && old('reactivar_ordenes');
+@endphp
+@if($cancelacionEditor)
+<div data-editor-ordenes-canceladas>
+    @if($puedeReactivarEditor)
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="reactivar_ordenes" value="1" id="{{ $prefijo }}-reactivar" data-habilitar-ordenes-canceladas @checked($reactivarEditor)>
+        <label class="form-check-label fw-semibold" for="{{ $prefijo }}-reactivar"><i class="bi bi-pencil-square" aria-hidden="true"></i> Reactivar y editar estas órdenes</label>
+        <small class="d-block text-muted">Se reactivarán únicamente al confirmar los cambios.</small>
+    </div>
+    @else
+    <p class="text-muted">Estas órdenes no se pueden reactivar desde este registro.</p>
+    @endif
+    <div data-resumen-canceladas @if($reactivarEditor) hidden @endif>
+        @include('atencion.partials.ordenes-resumen', ['resumenOrdenes' => $registroCancelado->ordenes_medicas])
+    </div>
+    <fieldset class="border-0 p-0 m-0" data-edicion-canceladas @disabled(! $reactivarEditor) @if(! $reactivarEditor) hidden @endif>
+@endif
 <fieldset data-ordenes @isset($idCampos) id="{{ $idCampos }}" @endisset @disabled($deshabilitado ?? false)>
     <label class="form-label" for="{{ $prefijo }}-dieta">Dieta <span class="text-danger">*</span></label>
     <select id="{{ $prefijo }}-dieta" data-orden-dieta class="form-select mb-2" name="ordenes[dieta]" data-mensaje-requerido="Seleccione la dieta." required>
@@ -29,3 +53,8 @@
     <template data-plantilla="soluciones">@include('atencion.partials.fila-solucion', ['indice'=>'__INDEX__', 'fila'=>[]])</template>
     <template data-plantilla="medicamentos">@include('atencion.partials.fila-medicamento', ['indice'=>'__INDEX__', 'fila'=>[]])</template>
 </fieldset>
+
+@if($cancelacionEditor)
+    </fieldset>
+</div>
+@endif

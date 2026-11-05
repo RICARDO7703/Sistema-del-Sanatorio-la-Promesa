@@ -177,7 +177,7 @@ class AtencionTest extends TestCase
 
         $expediente = route('pacientes.expediente', $ingreso->id_paciente);
         $this->get($expediente)->assertOk()->assertDontSee('Se editó el')
-            ->assertDontSee('Subir hoja en papel')->assertDontSee('Subir imagen o PDF');
+            ->assertDontSee('Subir hoja en papel')->assertDontSee('Subir una foto o PDF');
 
         $this->travel(5)->minutes();
         $this->put('/evolucion/'.$id, array_replace($this->evolucion($ingreso), ['diagnostico' => 'Revisado']))->assertSessionHasNoErrors();
@@ -317,7 +317,7 @@ class AtencionTest extends TestCase
         $this->assertDatabaseHas('tbl_hospitalizacion_habitacion', ['id_habitacion' => 1, 'fecha_hora_fin' => '2026-10-11 11:59:00']);
         $this->assertDatabaseHas('tbl_tratamiento', ['id_ingreso' => $ingreso->getKey(), 'estado' => 'Finalizado']);
         $respuesta = $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()->assertDontSee('Ver evoluciones')
-            ->assertSee('Fecha de ingreso')->assertSee('Fecha de egreso')->assertSee('11/10/2026 11:59')->assertSee('Documentos del ingreso')->assertSee('Última habitación ocupada')->assertDontSee('Cambios de habitación')
+            ->assertSee('Fecha de ingreso')->assertSee('Fecha de egreso')->assertSee('11/10/2026 11:59')->assertSee('Ver documentos')->assertSee('id="documentos-atencion-'.$ingreso->getKey().'"', false)->assertSee('Última habitación ocupada')->assertDontSee('Cambios de habitación')
             ->assertSee('Hoja de ingreso')->assertSee('Valoración inicial')->assertSee('Evolución clínica #')->assertSee('Diagnóstico final de prueba')
             ->assertSee('data-bs-target="#documento-alta-'.$ingreso->getKey().'"', false)
             ->assertDontSee('Ver expediente')->assertDontSee('consulta=valoracion', false)->assertDontSee('consulta=alta', false)
@@ -470,12 +470,12 @@ class AtencionTest extends TestCase
         $this->assertDatabaseHas('tbl_hospitalizacion_habitacion', ['id_habitacion' => 1, 'fecha_hora_fin' => null]);
     }
 
-    public function test_valoracion_precarga_motivo_y_muestra_examen_fisico(): void
+    public function test_valoracion_precarga_motivo_y_muestra_examen_fisico_sin_talla_ni_peso(): void
     {
         $ingreso = $this->ingreso(['motivo_ingreso' => 'Dolor de prueba']);
         $this->sesion()->get('/atencion/'.$ingreso->getKey())->assertOk()
             ->assertSee('value="Dolor de prueba"', false)->assertSee('Síntomas')
-            ->assertSee('Talla <span class="text-muted fw-normal">(cm)</span>', false)->assertSee('Peso <span class="text-muted fw-normal">(lb)</span>', false)->assertSee('Cabeza')->assertSee('Tronco')->assertSee('Extremidades')
+            ->assertDontSee('Talla <span class="text-muted fw-normal">(cm)</span>', false)->assertDontSee('Peso <span class="text-muted fw-normal">(lb)</span>', false)->assertSee('Cabeza')->assertSee('Tronco')->assertSee('Extremidades')
             ->assertDontSee('Presión sistólica')->assertDontSee('Presión diastólica')->assertDontSee('data-bs-target="#signos"', false);
     }
 

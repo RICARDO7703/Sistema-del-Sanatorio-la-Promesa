@@ -19,6 +19,8 @@ class Personal extends Model
      */
     public const CARGOS_MEDICOS = ['Médico general', 'Médico especialista', 'Cirujano', 'Cirujano externo', 'Anestesiólogo'];
 
+    public const CARGOS_CON_COLEGIADO = [...self::CARGOS_MEDICOS, 'Médico', 'Enfermera', 'Enfermero', 'Licenciada en Enfermería', 'Licenciado en Enfermería', 'Químico Biólogo', 'Química Bióloga', 'Nutricionista'];
+
     protected $fillable = [
         'nombres',
         'apellidos',

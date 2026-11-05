@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\AltaMedica;
+use App\Models\Cirugia;
 use App\Models\Ingreso;
 use App\Models\Paciente;
+use App\Support\DocumentosExpediente;
 use Database\Factories\IngresoFactory;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -72,6 +75,103 @@ class EmergenciaTest extends TestCase
         $this->sesion()->post('/ingresos', $this->emergencia($this->pacienteSinIngreso()))->assertSessionHasNoErrors();
 
         return Ingreso::where('tipo_atencion', 'Consulta externa')->where('estado', 'Activo')->firstOrFail();
+    }
+
+    public function test_alta_permite_elegir_mantener_o_cancelar_cirugias(): void
+    {
+        foreach (['mantener', 'cancelar'] as $decision) {
+            $ingreso = $this->emergenciaActiva();
+            $cirugia = Cirugia::create(['id_ingreso' => $ingreso->getKey(), 'tipo_operacion' => 'Cirugía futura', 'fecha_programada' => '2026-10-12 10:00:00', 'estado' => 'Programada', 'id_usuario_creacion' => 1]);
+            $cirugia->equipo()->attach(1, ['rol_quirurgico' => 'Otro', 'estado' => 'Asignado']);
+            $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Mantener programadas')->assertDontSee('Confirmo dar de alta y cancelar las cirugías pendientes.');
+            $this->post(route('emergencia.guardar', $ingreso), $this->consulta())->assertSessionHasErrors('decision_cirugias');
+            $this->assertSame('Activo', $ingreso->fresh()->estado);
+            $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['decision_cirugias' => $decision]))->assertSessionHasNoErrors();
+            $this->assertSame('Dado de alta', $ingreso->fresh()->estado);
+            $this->assertSame($decision === 'mantener' ? 'Programada' : 'Cancelada', $cirugia->fresh()->estado);
+            $this->assertSame($decision === 'mantener' ? 'Asignado' : 'Cancelado', $cirugia->fresh()->equipo->first()->pivot->estado);
+            $this->assertSame('2026-10-12 10:00:00', $cirugia->fresh()->fecha_programada->format('Y-m-d H:i:s'));
+        }
+    }
+
+    public function test_programacion_flotante_se_guarda_con_la_valoracion_al_alta_o_internamiento(): void
+    {
+        foreach (['alta', 'internar'] as $accion) {
+            $ingreso = $this->emergenciaActiva();
+            $vista = $this->get(route('atencion.show', $ingreso))->assertOk()
+                ->assertSee('id="modalProgramarConsulta"', false)->assertSee('data-borrador-incluir', false);
+            $dom = new \DOMDocument;
+            @$dom->loadHTML('<?xml encoding="UTF-8">'.$vista->getContent());
+            $xpath = new \DOMXPath($dom);
+            $this->assertSame(0, $xpath->query('//form[@id="form-consulta-emergencia"]//form')->length);
+            $this->assertSame(1, $xpath->query('//div[@id="modalProgramarConsulta"]//form[@id="form-programacion-pendiente"]')->length);
+            $this->assertDatabaseCount('tbl_cirugia', $accion === 'alta' ? 0 : 1);
+            $pendiente = json_encode(['tipo_operacion' => 'Cirugía '.$accion, 'fecha_programada' => $accion === 'alta' ? '2026-10-12 10:00:00' : '2026-10-12 11:00:00', 'personal' => [1], 'observaciones' => 'Prueba']);
+            $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['accion' => $accion, 'cirugia_pendiente' => $pendiente]))->assertSessionHasNoErrors();
+            $cirugia = $ingreso->cirugias()->sole();
+            $this->assertSame('Programada', $cirugia->estado);
+            $this->assertSame(1, $ingreso->evoluciones()->count());
+            $this->assertSame('Asignado', $cirugia->equipo->first()->pivot->estado);
+        }
+    }
+
+    public function test_nueva_cirugia_pide_resolver_la_anterior_de_otra_consulta(): void
+    {
+        foreach (['mantener', 'cancelar'] as $decision) {
+            $ingreso = $this->emergenciaActiva();
+            $previo = IngresoFactory::new()->create(['id_paciente' => $ingreso->id_paciente, 'tipo_atencion' => Ingreso::TIPO_CONSULTA_EXTERNA, 'estado' => 'Dado de alta']);
+            $anterior = Cirugia::create(['id_ingreso' => $previo->getKey(), 'tipo_operacion' => 'Cirugía anterior', 'fecha_programada' => '2026-10-13 09:00:00', 'estado' => 'Programada', 'id_usuario_creacion' => 1]);
+            $anterior->equipo()->attach(1, ['rol_quirurgico' => 'Otro', 'estado' => 'Asignado']);
+            $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('El paciente ya tiene una cirugía programada')->assertSee('Cirugía anterior');
+            $programacion = ['tipo_operacion' => 'Cirugía nueva', 'fecha_programada' => '2026-10-14 11:00:00', 'personal' => []];
+            $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['cirugia_pendiente' => json_encode($programacion)]))->assertSessionHasErrors('cirugia_pendiente');
+            $this->assertSame(0, $ingreso->evoluciones()->count());
+            $this->assertSame('Programada', $anterior->fresh()->estado);
+            $invalida = array_replace($programacion, ['decision_existentes' => 'cancelar', 'tipo_operacion' => '']);
+            $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['cirugia_pendiente' => json_encode($invalida)]))->assertSessionHasErrors('cirugia_pendiente');
+            $this->assertSame('Programada', $anterior->fresh()->estado);
+            $this->assertSame('Asignado', $anterior->fresh()->equipo->first()->pivot->estado);
+            $programacion['decision_existentes'] = $decision;
+            $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['cirugia_pendiente' => json_encode($programacion)]))->assertSessionHasNoErrors();
+            $this->assertSame('Dado de alta', $ingreso->fresh()->estado);
+            $this->assertSame('Programada', $ingreso->cirugias()->sole()->estado);
+            $this->assertSame($decision === 'cancelar' ? 'Cancelada' : 'Programada', $anterior->fresh()->estado);
+            $this->assertSame($decision === 'cancelar' ? 'Cancelado' : 'Asignado', $anterior->fresh()->equipo->first()->pivot->estado);
+        }
+    }
+
+    public function test_programacion_invalida_no_guarda_ni_valoracion_ni_alta(): void
+    {
+        $ingreso = $this->emergenciaActiva();
+        $pendiente = json_encode(['tipo_operacion' => '', 'fecha_programada' => '2026-10-10 10:00:00', 'personal' => [99999]]);
+        $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['cirugia_pendiente' => $pendiente, 'decision_cirugias' => 'mantener']))->assertSessionHasErrors('cirugia_pendiente');
+        $this->assertSame('Activo', $ingreso->fresh()->estado);
+        $this->assertSame(0, $ingreso->evoluciones()->count());
+        $this->assertSame(0, $ingreso->cirugias()->count());
+        $this->assertDatabaseCount('tbl_alta_medica', 0);
+    }
+
+    public function test_primera_hoja_se_muestra_como_valoracion_inicial_en_el_expediente(): void
+    {
+        $ingreso = $this->emergenciaActiva();
+        $this->post(route('emergencia.guardar', $ingreso), $this->consulta())->assertSessionHasNoErrors();
+        $ingreso->refresh();
+        $hojas = DocumentosExpediente::deIngreso($ingreso, collect());
+        $valoracion = $hojas->firstWhere('origen', 'tbl_evolucion_clinica:'.$ingreso->evoluciones->first()->getKey());
+        $this->assertSame('Valoración inicial', $valoracion['titulo']);
+        $this->assertSame('valoracion', $valoracion['tipo']);
+        $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()
+            ->assertSee('>Valoración inicial</h5>', false);
+        $this->assertSame(Ingreso::TIPO_CONSULTA_EXTERNA, $ingreso->tipo_atencion);
+    }
+
+    public function test_alta_no_puede_mantener_una_cirugia_en_curso(): void
+    {
+        $ingreso = $this->emergenciaActiva();
+        Cirugia::create(['id_ingreso' => $ingreso->getKey(), 'tipo_operacion' => 'En curso', 'estado' => 'En cirugía', 'id_usuario_creacion' => 1]);
+        $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['decision_cirugias' => 'mantener']))->assertSessionHasErrors('cancelar_cirugias');
+        $this->assertSame('Activo', $ingreso->fresh()->estado);
+        $this->assertDatabaseCount('tbl_alta_medica', 0);
     }
 
     public function test_migracion_es_idempotente_si_la_base_ya_tiene_los_cambios(): void
@@ -269,7 +369,7 @@ class EmergenciaTest extends TestCase
         $this->get(route('atencion.show', $ingreso))->assertOk()
             ->assertSee('Valoración inicial registrada')
             ->assertSee('Evolución clínica y órdenes médicas')
-            ->assertSee('<strong>Habitación</strong>', false)
+            ->assertSee('Documentos de la atención')->assertSee('Cambiar habitación')->assertDontSee('<strong>Habitación</strong>', false)
             ->assertSee('data-elegir-signo', false)
             ->assertDontSee('Consulta externa');
     }
@@ -386,7 +486,7 @@ class EmergenciaTest extends TestCase
             ->assertSessionHas('error', 'El paciente ya tiene un ingreso activo.');
         $this->assertSame(1, Ingreso::where('estado', 'Activo')->count());
 
-        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Aún no registrado')->assertDontSee('Se anota en la consulta, abajo');
+        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Internar paciente')->assertDontSee('Aún no registrado')->assertDontSee('Se anota en la consulta, abajo');
         $this->post(route('emergencia.guardar', $ingreso), $this->consulta(['motivo_atencion' => 'Dolor de cabeza', 'fecha_hora' => '2026-10-11 12:00:00']))->assertSessionHasNoErrors();
         $this->assertSame('Dolor de cabeza', $ingreso->fresh()->motivo_ingreso);
     }
@@ -467,6 +567,36 @@ class EmergenciaTest extends TestCase
 
         $this->assertDatabaseCount('tbl_paciente', 1);
         $this->assertDatabaseCount('tbl_ingreso', 0);
+    }
+
+    public function test_receta_de_la_consulta_con_medico_arriba_medicamentos_e_indicaciones(): void
+    {
+        $ingreso = $this->emergenciaActiva();
+        DB::table('tbl_especialidad')->insert(['id_especialidad' => 1, 'nombre_especialidad' => 'Cirugía General']);
+        DB::table('tbl_personal')->where('id_personal', 1)->update(['id_especialidad' => 1, 'numero_colegiado' => '12345']);
+        $this->post(route('emergencia.guardar', $ingreso), $this->consulta([
+            'medicamentos_casa' => [['medicamento' => 'Amoxicilina 500 mg', 'dosis' => '1 cápsula', 'frecuencia' => 'cada 8 horas', 'duracion' => '7']],
+            'indicaciones_casa' => 'Tomar abundantes líquidos',
+        ]))->assertSessionHasNoErrors();
+        $alta = AltaMedica::where('id_ingreso', $ingreso->getKey())->sole();
+        $enlace = 'href="'.e(route('alta.receta', [$alta, 'imprimir' => 1])).'"';
+
+        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee($enlace, false)->assertSee('Imprimir o descargar receta');
+        $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()->assertSee($enlace, false);
+        $this->get(route('alta.receta', [$alta, 'imprimir' => 1]))->assertOk()
+            ->assertSeeInOrder(['LA PROMESA', 'Médico Prueba', 'Especialidad en Cirugía General', 'Colegiado No. 12345', 'Paciente:', 'Rp.', 'Amoxicilina 500 mg', '1 cápsula · cada 8 horas · Por 7 días', 'Indicaciones médicas', 'Tomar abundantes líquidos', 'Firma y sello', 'FAVOR NO CAMBIAR ESTA RECETA'])
+            ->assertSee('window.print()', false)->assertSee('Guardar como PDF');
+        $this->assertSame(1, substr_count($this->get(route('alta.receta', $alta))->getContent(), 'Médico Prueba'), 'El nombre del médico va solo arriba.');
+    }
+
+    public function test_listado_ofrece_atender_consulta_y_marca_al_no_identificado(): void
+    {
+        $ingreso = $this->emergenciaActiva();
+        $this->get('/pacientes')->assertOk()
+            ->assertSee('href="'.route('atencion.show', $ingreso).'"', false)->assertSee('Atender consulta')->assertSee('Esperando al médico')
+            ->assertDontSee('Atención al paciente</a>', false);
+        $this->sesion()->post('/pacientes', ['estado_identificacion' => 'No identificado'])->assertSessionHasNoErrors();
+        $this->get('/pacientes')->assertOk()->assertSee('<span class="paciente-avatar-desconocido" aria-hidden="true">?</span>', false);
     }
 
     public function test_paciente_que_regresa_otro_dia_tiene_atencion_nueva(): void
@@ -559,7 +689,7 @@ class EmergenciaTest extends TestCase
         ]))->assertSessionHasNoErrors();
 
         $expediente = $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()
-            ->assertSee('Documentos de la atención')
+            ->assertSee('Ver documentos')->assertSee('Consulta externa (1)')
             ->assertSee('Hoja de llegada')->assertSee('Consulta externa')->assertSee('Alta e indicaciones para casa')
             ->assertDontSee('Notas de enfermería (')->assertDontSee('Evoluciones (')
             ->assertSee('Consulta externa del 11/10/2026')->assertSee(' Salida</dt>', false)->assertSee('Medicamentos para casa')
@@ -600,5 +730,38 @@ class EmergenciaTest extends TestCase
         (require database_path('migrations/2026_10_26_015856_rename_emergencia_to_consulta_externa_in_tbl_ingreso.php'))->up();
 
         $this->assertSame('Consulta externa', DB::table('tbl_ingreso')->where('id_ingreso', $ingreso->getKey())->value('tipo_atencion'));
+    }
+
+    public function test_consulta_vacia_admite_fecha_anterior_y_ajusta_llegada(): void
+    {
+        $i = $this->emergenciaActiva();
+        $i->update(['motivo_ingreso' => null]);
+        $this->post(route('emergencia.guardar', $i), $this->consulta(['fecha_hora' => '2026-10-10 09:00:00']))->assertSessionHasNoErrors();
+        $this->assertSame('2026-10-10 09:00:00', $i->fresh()->fecha_ingreso->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-10-10 09:00:00', $i->evoluciones()->firstOrFail()->fecha_hora->format('Y-m-d H:i:s'));
+    }
+
+    public function test_autor_corrige_consulta_cerrada_sin_reabrirla_y_con_plazo(): void
+    {
+        $i = $this->emergenciaActiva();
+        $this->post(route('emergencia.guardar', $i), $this->consulta())->assertSessionHasNoErrors();
+        $alta = $i->fresh()->altaMedica;
+        $this->get(route('atencion.show', [$i, 'editar_consulta' => 1]))->assertOk()->assertSee('Guardar corrección');
+        $this->post(route('emergencia.guardar', $i), $this->consulta(['accion' => 'corregir', 'diagnostico' => 'Diagnóstico corregido', 'medicamentos_casa' => [['medicamento' => 'Producto de prueba', 'dosis' => '10.5', 'frecuencia' => '8', 'duracion' => '3']]]))->assertSessionHasNoErrors();
+        $this->assertSame('Dado de alta', $i->fresh()->estado);
+        $this->assertSame('Diagnóstico corregido', $alta->fresh()->diagnostico_final);
+        $this->assertSame('10.5', $alta->medicamentos()->sole()->dosis);
+        $this->assertDatabaseCount('tbl_alta_medica', 1);
+        $this->travel(13)->hours();
+        $this->post(route('emergencia.guardar', $i), $this->consulta(['accion' => 'corregir']))->assertForbidden();
+    }
+
+    public function test_medicamentos_ambulatorios_solo_aceptan_numeros(): void
+    {
+        $i = $this->emergenciaActiva();
+        $this->post(route('emergencia.guardar', $i), $this->consulta(['medicamentos_casa' => [['medicamento' => 'Producto de prueba', 'dosis' => 'Morfina', 'frecuencia' => '8 horas', 'duracion' => '3 días']]]))->assertSessionHasErrors(['medicamentos_casa.0.dosis', 'medicamentos_casa.0.frecuencia', 'medicamentos_casa.0.duracion']);
+        $this->assertSame('Activo', $i->fresh()->estado);
+        $this->post(route('emergencia.guardar', $i), $this->consulta(['medicamentos_casa' => [['medicamento' => 'Producto de prueba', 'dosis' => '10.5', 'frecuencia' => '8', 'duracion' => '3']]]))->assertSessionHasNoErrors();
+        $this->assertSame('10.5', $i->fresh()->altaMedica->medicamentos()->sole()->dosis);
     }
 }

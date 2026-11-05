@@ -69,13 +69,13 @@
             @if($esNuevo)
             <div class="col-12 col-md-6">
                 <label class="form-label" for="usuario-contrasena">Contraseña inicial *</label>
-                <input id="usuario-contrasena" type="password" name="contrasena" class="form-control" required minlength="12" maxlength="72" autocomplete="new-password" data-mensaje-requerido="Escriba la contraseña.">
+                <input id="usuario-contrasena" type="password" name="contrasena" class="form-control" required minlength="5" maxlength="72" autocomplete="new-password" data-mensaje-requerido="Escriba la contraseña.">
             </div>
             <div class="col-12 col-md-6">
                 <label class="form-label" for="usuario-contrasena-2">Repita la contraseña *</label>
-                <input id="usuario-contrasena-2" type="password" name="contrasena_confirmation" class="form-control" required minlength="12" maxlength="72" autocomplete="new-password" data-mensaje-requerido="Repita la contraseña.">
+                <input id="usuario-contrasena-2" type="password" name="contrasena_confirmation" class="form-control" required minlength="5" maxlength="72" autocomplete="new-password" data-mensaje-requerido="Repita la contraseña.">
             </div>
-            <div class="col-12"><small class="text-muted">Al menos 12 caracteres, con mayúsculas, minúsculas, números y un símbolo. La persona podrá cambiarla en «Mi perfil».</small></div>
+            <div class="col-12"><small class="text-muted">Al menos 5 caracteres y al menos un número. La persona podrá cambiarla en «Mi perfil».</small></div>
             @endif
             <div class="col-12">
                 <span class="form-label d-block">Foto de perfil <span class="text-muted fw-normal">(opcional)</span></span>
@@ -138,7 +138,7 @@
         </div>
     </section>
 
-    <button type="submit" class="btn btn-primary btn-lg mb-4"><i class="bi bi-check-lg" aria-hidden="true"></i> {{ $esNuevo ? 'Crear usuario' : 'Guardar cambios' }}</button>
+    <button type="submit" class="btn btn-primary btn-lg mb-4"><i class="bi bi-check-lg" aria-hidden="true"></i> {{ $esNuevo ? 'Crear usuario' : 'Confirmar cambios' }}</button>
 </form>
 
 @unless($esNuevo)
@@ -148,10 +148,10 @@
     <form action="{{ route('usuarios.contrasena', $usuario->id_usuario) }}" method="POST" novalidate data-validar-en-linea data-validar-al-enviar>
         @csrf @method('PATCH')
         <div class="row g-3">
-            <div class="col-12 col-md-6"><label class="form-label" for="restablecer-contrasena">Contraseña nueva *</label><input id="restablecer-contrasena" type="password" name="contrasena" class="form-control" required minlength="12" maxlength="72" autocomplete="new-password" data-mensaje-requerido="Escriba la contraseña nueva."></div>
-            <div class="col-12 col-md-6"><label class="form-label" for="restablecer-contrasena-2">Repita la contraseña *</label><input id="restablecer-contrasena-2" type="password" name="contrasena_confirmation" class="form-control" required minlength="12" maxlength="72" autocomplete="new-password" data-mensaje-requerido="Repita la contraseña nueva."></div>
+            <div class="col-12 col-md-6"><label class="form-label" for="restablecer-contrasena">Contraseña nueva *</label><input id="restablecer-contrasena" type="password" name="contrasena" class="form-control" required minlength="5" maxlength="72" autocomplete="new-password" data-mensaje-requerido="Escriba la contraseña nueva."></div>
+            <div class="col-12 col-md-6"><label class="form-label" for="restablecer-contrasena-2">Repita la contraseña *</label><input id="restablecer-contrasena-2" type="password" name="contrasena_confirmation" class="form-control" required minlength="5" maxlength="72" autocomplete="new-password" data-mensaje-requerido="Repita la contraseña nueva."></div>
         </div>
-        <p class="text-muted small mt-2">Al menos 12 caracteres, con mayúsculas, minúsculas, números y un símbolo.</p>
+        <p class="text-muted small mt-2">Al menos 5 caracteres y al menos un número.</p>
         <button type="submit" class="btn btn-outline-primary"><i class="bi bi-key" aria-hidden="true"></i> Restablecer contraseña</button>
     </form>
 </section>

@@ -1,4 +1,9 @@
 {{-- Órdenes médicas de una valoración o evolución, ordenadas para leerlas de un vistazo. Variable: $ordenes --}}
+@php($cancelacionOrdenes = \App\Services\OrdenesMedicas::cancelacion($ordenes))
+@if($cancelacionOrdenes)
+<div class="doc-aviso doc-aviso-cancelado" role="note"><i class="bi bi-x-octagon-fill" aria-hidden="true"></i><div><strong>Órdenes canceladas</strong><span class="d-block">El {{ \Illuminate\Support\Carbon::parse($cancelacionOrdenes['fecha'])->format('d/m/Y') }} a las {{ \Illuminate\Support\Carbon::parse($cancelacionOrdenes['fecha'])->format('H:i') }} por {{ $cancelacionOrdenes['medico'] }}.</span><span class="d-block">Motivo: {{ $cancelacionOrdenes['motivo'] }}</span></div></div>
+@endif
+<div class="{{ $cancelacionOrdenes ? 'doc-ordenes-canceladas' : '' }}">
 <div class="doc-orden">
     <span class="doc-orden-etiqueta"><i class="bi bi-cup-straw" aria-hidden="true"></i> Dieta</span>
     <span class="doc-pastilla doc-pastilla-primaria">{{ $ordenes['dieta'] ?? 'Sin registro' }}</span>
@@ -46,3 +51,4 @@
     <p class="doc-texto mb-0">{{ $ordenes['plan_educacional'] }}</p>
 </div>
 @endif
+</div>

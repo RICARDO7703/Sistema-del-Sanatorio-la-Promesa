@@ -9,6 +9,7 @@
 @endphp
 @extends('layouts.app')
 @section('title', $tituloPerfil.' - Sanatorio La Promesa')
+@section('menu-perfil', 'activo')
 @section('content')
 <div class="inicio-encabezado"><div class="inicio-icono"><i class="bi {{ $iconoPerfil }}" aria-hidden="true"></i></div><div><h1>{{ $tituloPerfil }}</h1><p>{{ $descripcionPerfil }}</p></div></div>
 
@@ -68,6 +69,6 @@
 
 @if($seccion === 'contrasena')
 <section class="evolucion-card perfil-pantalla" id="contrasena"><form action="{{ route('perfil.contrasena') }}" method="POST" data-validar-en-linea data-validar-al-enviar>@csrf
-<div class="row g-3"><div class="col-12"><label for="perfil-actual" class="form-label">Contraseña actual *</label><input id="perfil-actual" type="password" name="contrasena_actual" class="form-control" required autocomplete="current-password" maxlength="100"></div><div class="col-12"><label for="perfil-nueva" class="form-label">Nueva contraseña *</label><input id="perfil-nueva" type="password" name="nueva_contrasena" class="form-control" required minlength="12" maxlength="72" autocomplete="new-password"></div><div class="col-12"><label for="perfil-confirmar" class="form-label">Repita la nueva contraseña *</label><input id="perfil-confirmar" type="password" name="nueva_contrasena_confirmation" class="form-control" required minlength="12" maxlength="72" autocomplete="new-password"></div></div><p class="text-muted mt-3">Use al menos 12 caracteres, con mayúsculas, minúsculas, números y símbolos.</p><button class="btn btn-primary"><i class="bi bi-shield-lock" aria-hidden="true"></i> Cambiar contraseña</button></form></section>
+<div class="row g-3"><div class="col-12"><label for="perfil-actual" class="form-label">Contraseña actual *</label><input id="perfil-actual" type="password" name="contrasena_actual" class="form-control" required autocomplete="current-password" maxlength="100"></div><div class="col-12"><label for="perfil-nueva" class="form-label">Nueva contraseña *</label><input id="perfil-nueva" type="password" name="nueva_contrasena" class="form-control" required minlength="5" maxlength="72" autocomplete="new-password"></div><div class="col-12"><label for="perfil-confirmar" class="form-label">Repita la nueva contraseña *</label><input id="perfil-confirmar" type="password" name="nueva_contrasena_confirmation" class="form-control" required minlength="5" maxlength="72" autocomplete="new-password"></div></div><p class="text-muted mt-3">Use al menos 5 caracteres y al menos un número.</p><button class="btn btn-primary"><i class="bi bi-shield-lock" aria-hidden="true"></i> Cambiar contraseña</button></form></section>
 @endif
 @endsection

@@ -6,6 +6,7 @@ use App\Models\DocumentoClinico;
 use App\Models\Ingreso;
 use App\Models\Paciente;
 use App\Services\ReglasAtencion;
+use App\Support\EdicionClinica;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,29 +29,41 @@ class ArchivoClinicoController extends Controller
         'Cirugía' => 'tbl_cirugia', 'Otro documento' => '',
     ];
 
-    public function formulario(Request $request, Ingreso $atencionArchivo): View
-    {
-        $tipo = $request->query('tipo', 'Evolución clínica');
-        abort_unless(is_string($tipo) && array_key_exists($tipo, self::HOJAS), 422);
-        $referencia = $request->query('referencia');
-        if ($referencia !== null) {
-            $this->referencia($atencionArchivo, $tipo, $referencia);
-        }
-        $ingreso = $atencionArchivo;
-
-        return view('archivos.formulario', compact('ingreso', 'tipo', 'referencia'));
-    }
-
     public function guardar(Request $request, Ingreso $atencionArchivo): RedirectResponse
     {
+        // Desde el recuadro de una hoja (por ejemplo, la ventana de una cirugía) el archivo se sube sin cambiar de pantalla.
+        $enLinea = $request->boolean('en_linea');
+        $cirugia = $request->input('tipo') === 'Cirugía' ? (int) $request->input('referencia') : null;
+        try {
+            $documento = $this->guardarHoja($request, $atencionArchivo);
+        } catch (ValidationException $error) {
+            if ($enLinea && $cirugia) {
+                session()->flash('abrir_cirugia', $cirugia);
+            }
+            throw $error;
+        }
+        if ($enLinea) {
+            return back()->with('exito', 'Archivo agregado a «'.$documento->titulo.'».')
+                ->with('adjunto_subido', $request->input('_formulario'))
+                ->with($cirugia ? ['abrir_cirugia' => $cirugia] : []);
+        }
+
+        return redirect()->route('archivos.show', $documento)->with('exito', 'Hoja guardada en el expediente.');
+    }
+
+    private function guardarHoja(Request $request, Ingreso $atencionArchivo): DocumentoClinico
+    {
         $datos = $request->validate([
-            'tipo' => ['required', Rule::in(array_keys(self::HOJAS))],
-            'referencia' => ['nullable', 'integer', 'min:1'],
+            // Los archivos complementan una hoja ya registrada (una foto, un PDF): no reemplazan la hoja.
+            'tipo' => ['required', Rule::in(array_keys(array_filter(self::HOJAS)))],
+            'referencia' => ['required', 'integer', 'min:1'],
             'fecha_documento' => ['required', 'date', 'before_or_equal:'.now('America/Guatemala')->format('Y-m-d H:i:s')],
             'descripcion' => ['nullable', 'string', 'max:2000'],
             'archivo' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'extensions:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ], [
             'archivo.required' => 'Seleccione una imagen o un PDF de la hoja.',
+            'tipo.in' => 'Los archivos se agregan a una hoja ya registrada.',
+            'referencia.required' => 'Los archivos se agregan a una hoja ya registrada: abra la hoja y use «Subir una foto o PDF».',
             'archivo.mimes' => 'Solo se aceptan imágenes JPG, PNG, WEBP o archivos PDF.',
             'archivo.extensions' => 'La extensión del archivo debe ser JPG, PNG, WEBP o PDF.',
             'archivo.max' => 'El archivo no puede superar los 10 MB.',
@@ -60,11 +73,9 @@ class ArchivoClinicoController extends Controller
         if ($fecha->lt($atencionArchivo->fecha_ingreso)) {
             throw ValidationException::withMessages(['fecha_documento' => 'La hoja no puede tener una fecha anterior a la llegada del paciente.']);
         }
-        $tabla = null;
-        $referencia = $datos['referencia'] ?? null;
-        if ($referencia) {
-            $tabla = $this->referencia($atencionArchivo, $datos['tipo'], $referencia);
-        }
+        $referencia = $datos['referencia'];
+        $tabla = $this->referencia($atencionArchivo, $datos['tipo'], $referencia);
+        abort_unless(DocumentoClinico::puedeModificarHoja($atencionArchivo, $tabla, $referencia, (int) session('id_usuario')), 403, EdicionClinica::MENSAJE);
         $archivo = $request->file('archivo');
         $mimeReal = (new \finfo(FILEINFO_MIME_TYPE))->file($archivo->getRealPath());
         if (! in_array($mimeReal, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], true)) {
@@ -80,6 +91,7 @@ class ArchivoClinicoController extends Controller
                 if ($fecha->lt($actual->fecha_ingreso)) {
                     throw ValidationException::withMessages(['fecha_documento' => 'La fecha de llegada cambió. Revise la fecha de la hoja.']);
                 }
+                abort_unless(DocumentoClinico::puedeModificarHoja($actual, $tabla, $referencia, (int) session('id_usuario')), 403, EdicionClinica::MENSAJE);
                 $personal = DB::table('tbl_usuario')->where('id_usuario', session('id_usuario'))->value('id_personal');
 
                 return DocumentoClinico::create([
@@ -97,15 +109,21 @@ class ArchivoClinicoController extends Controller
             throw $error;
         }
 
-        return redirect()->route('archivos.show', $documento)->with('exito', 'Hoja guardada en el expediente.');
+        return $documento;
     }
 
-    public function show(DocumentoClinico $archivoClinico): View
+    public function show(DocumentoClinico $archivoClinico): RedirectResponse
     {
         abort_unless($archivoClinico->estado === 'Activo' && ($archivoClinico->ingreso || $archivoClinico->esDelPaciente()), 404);
         $archivoClinico->load(['paciente', 'personalResponsable']);
 
-        return view('archivos.show', ['documento' => $archivoClinico]);
+        return redirect()->route('pacientes.expediente', $archivoClinico->id_paciente ?? $archivoClinico->ingreso->id_paciente)
+            ->with('abrir_archivo_subido', [
+                'url' => route('archivos.contenido', $archivoClinico),
+                'tipo' => $archivoClinico->tipo_archivo,
+                'titulo' => $archivoClinico->titulo,
+                'nombre' => $archivoClinico->nombre_archivo,
+            ]);
     }
 
     public function contenido(DocumentoClinico $archivoClinico): BinaryFileResponse
@@ -140,7 +158,7 @@ class ArchivoClinicoController extends Controller
             DocumentoClinico::create([
                 'id_paciente' => $paciente->getKey(), 'id_ingreso' => null,
                 'id_personal_responsable' => DB::table('tbl_usuario')->where('id_usuario', session('id_usuario'))->value('id_personal'),
-                'categoria' => $datos['categoria'], 'titulo' => trim($datos['titulo']), 'tipo_documento' => null,
+                'categoria' => in_array($datos['categoria'], DocumentoClinico::EXAMENES_LABORATORIO, true) ? 'Laboratorio' : $datos['categoria'], 'titulo' => trim($datos['titulo']), 'tipo_documento' => in_array($datos['categoria'], DocumentoClinico::EXAMENES_LABORATORIO, true) ? $datos['categoria'] : null,
                 'descripcion' => $this->texto($datos['descripcion'] ?? null), 'ruta_archivo' => $ruta,
                 'nombre_archivo' => mb_substr(basename($archivo->getClientOriginalName()), 0, 255),
                 'tipo_archivo' => $archivo->extension(), 'fecha_documento' => ReglasAtencion::ahora(),
@@ -181,7 +199,11 @@ class ArchivoClinicoController extends Controller
         $datos = $request->validate($reglas, $this->mensajesArchivo());
         $cambios = ['descripcion' => $this->texto($datos['descripcion'] ?? null), 'id_usuario_modificacion' => session('id_usuario')];
         if ($delPaciente) {
-            $cambios += ['categoria' => $datos['categoria'] ?? $archivoClinico->categoria, 'titulo' => trim($datos['titulo'])];
+            $cambios += ['titulo' => trim($datos['titulo'])];
+            if (isset($datos['categoria'])) {
+                $esExamen = in_array($datos['categoria'], DocumentoClinico::EXAMENES_LABORATORIO, true);
+                $cambios += ['categoria' => $esExamen ? 'Laboratorio' : $datos['categoria'], 'tipo_documento' => $esExamen ? $datos['categoria'] : null];
+            }
         } else {
             $fecha = Carbon::parse($datos['fecha_documento']);
             if ($fecha->lt($archivoClinico->ingreso->fecha_ingreso)) {
@@ -213,6 +235,20 @@ class ArchivoClinicoController extends Controller
         }
 
         return redirect()->route('archivos.show', $archivoClinico)->with('exito', 'Archivo corregido.');
+    }
+
+    public function quitar(Request $request, DocumentoClinico $archivoClinico): RedirectResponse
+    {
+        DB::transaction(function () use ($archivoClinico) {
+            if ($archivoClinico->id_ingreso) {
+                Ingreso::whereKey($archivoClinico->id_ingreso)->lockForUpdate()->firstOrFail();
+            }
+            $actual = DocumentoClinico::whereKey($archivoClinico->getKey())->lockForUpdate()->firstOrFail();
+            $this->exigirEdicion($actual);
+            $actual->update(['estado' => 'Inactivo', 'id_usuario_modificacion' => session('id_usuario')]);
+        });
+
+        return redirect()->to(route('pacientes.expediente', $archivoClinico->id_paciente))->with('exito', 'Archivo quitado del expediente.');
     }
 
     private function exigirEdicion(DocumentoClinico $documento): void

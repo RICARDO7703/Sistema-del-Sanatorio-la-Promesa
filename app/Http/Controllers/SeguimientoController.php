@@ -16,6 +16,7 @@ class SeguimientoController extends Controller
 {
     public function crear(Ingreso $origen): View|RedirectResponse
     {
+        $origen->paciente->exigirFueraDeCirugia();
         $this->exigirFinalizada($origen);
         $origen->load(['paciente', 'altaMedica.medicamentos']);
         $activo = $origen->paciente->ingresos()->where('estado', 'Activo')->first();

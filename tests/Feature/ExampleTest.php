@@ -24,7 +24,7 @@ class ExampleTest extends TestCase
             ->get('http://sanatorio.example/');
 
         $response->assertOk()
-            ->assertSee('href="https://sanatorio.example/css/estilos.css"', false)
+            ->assertSee('href="https://sanatorio.example/css/estilos.css?v=', false)
             ->assertSee('src="https://sanatorio.example/imagenes/emblema-sanatorio.png"', false)
             ->assertSee('action="https://sanatorio.example/login"', false);
     }
@@ -34,7 +34,7 @@ class ExampleTest extends TestCase
         $response = $this->get('http://localhost/');
 
         $response->assertOk()
-            ->assertSee('href="http://localhost/css/estilos.css"', false)
+            ->assertSee('href="http://localhost/css/estilos.css?v=', false)
             ->assertSee('action="http://localhost/login"', false);
     }
 }

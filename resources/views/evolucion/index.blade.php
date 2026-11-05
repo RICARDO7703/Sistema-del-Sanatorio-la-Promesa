@@ -623,7 +623,7 @@
                                                 type="submit"
                                                 class="btn btn-primary"
                                             >
-                                                Guardar cambios
+                                                Confirmar cambios
                                             </button>
 
                                         </div>

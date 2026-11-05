@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\EvolucionClinica;
 use App\Models\Ingreso;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class OrdenesMedicas
@@ -19,6 +20,55 @@ class OrdenesMedicas
 
     /** @var list<string> */
     public const UNIDADES_GOTEO = ['gotas/min', 'microgotas/min'];
+
+    /**
+     * Hoja médica con las órdenes vigentes: la más reciente que tiene órdenes.
+     */
+    public static function vigentes(Ingreso $ingreso): ?EvolucionClinica
+    {
+        return $ingreso->evoluciones()->where('estado', 'Activo')->whereNotNull('ordenes_medicas')
+            ->orderByDesc('fecha_hora')->orderByDesc('id_evolucion')->get()
+            ->first(fn (EvolucionClinica $evolucion) => (bool) $evolucion->ordenes_medicas);
+    }
+
+    /**
+     * Órdenes que enfermería puede marcar como aplicadas en una nota: dieta, suero, cada medicamento e indicaciones.
+     *
+     * @return list<array{tipo: string, descripcion: string, frecuencia: ?int}>
+     */
+    public static function paraEnfermeria(array $ordenes): array
+    {
+        // Órdenes canceladas por el médico: enfermería ya no las aplica.
+        if (self::cancelacion($ordenes)) {
+            return [];
+        }
+        $items = [];
+        if (filled($ordenes['dieta'] ?? null)) {
+            $items[] = ['tipo' => 'Dieta', 'descripcion' => 'Dieta '.mb_strtolower($ordenes['dieta']), 'frecuencia' => null];
+        }
+        foreach ($ordenes['soluciones'] ?? [] as $solucion) {
+            $items[] = ['tipo' => 'Solución', 'descripcion' => 'Suero '.$solucion['tipo'].' · '.$solucion['volumen'].' ml · '.$solucion['velocidad'].(isset($solucion['unidad']) ? ' '.$solucion['unidad'] : ''), 'frecuencia' => null];
+        }
+        foreach ($ordenes['medicamentos'] ?? [] as $medicamento) {
+            $frecuencia = is_numeric($medicamento['frecuencia'] ?? null) ? (int) $medicamento['frecuencia'] : null;
+            $items[] = ['tipo' => 'Medicamento', 'descripcion' => Str::limit($medicamento['nombre'].' · '.(is_numeric($medicamento['dosis']) ? $medicamento['dosis'].' mg' : $medicamento['dosis']).' · '.$medicamento['via'].' · '.($frecuencia ? 'cada '.$frecuencia.' horas' : $medicamento['frecuencia']), 255, ''), 'frecuencia' => $frecuencia];
+        }
+        if (filled($ordenes['indicaciones'] ?? null)) {
+            $items[] = ['tipo' => 'Indicaciones', 'descripcion' => Str::limit(preg_replace('/\s+/', ' ', trim($ordenes['indicaciones'])), 255, '…'), 'frecuencia' => null];
+        }
+
+        return $items;
+    }
+
+    /**
+     * Datos de la cancelación de unas órdenes (fecha, quién y por qué), o null si siguen vigentes.
+     *
+     * @return array{fecha: string, id_personal: int, medico: string, motivo: string}|null
+     */
+    public static function cancelacion(?array $ordenes): ?array
+    {
+        return isset($ordenes['cancelacion']['fecha']) ? $ordenes['cancelacion'] : null;
+    }
 
     public static function validar(Request $request, Ingreso $ingreso, ?EvolucionClinica $registro = null): array
     {
@@ -53,7 +103,7 @@ class OrdenesMedicas
      *
      * @return array<string, mixed>
      */
-    private static function validarOrdenes(Request $request): array
+    public static function validarOrdenes(Request $request): array
     {
         $validado = $request->validate([
             'ordenes' => ['required', 'array:dieta,dieta_otra,soluciones,medicamentos,indicaciones,plan_educacional'],

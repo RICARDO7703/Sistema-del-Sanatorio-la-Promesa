@@ -1,10 +1,11 @@
+@once
 <script>
 (() => {
     const prefijoSesion = 'sanatorio:borrador:' + @json(hash('sha256', session()->getId())) + ':';
     const prefijoIngreso = prefijoSesion + @json((string) $ingreso->getKey()) + ':';
     const guardado = @json(session('borrador_clinico_guardado'));
     const formularioConErrores = @json(old('_formulario'));
-    const ingresoActivo = @json($ingreso->estado === 'Activo');
+    const ingresoActivo = @json($ingreso->estado === 'Activo' || (\App\Http\Controllers\EmergenciaController::puedeCorregir($ingreso) && (request()->boolean('editar_consulta') || old('accion')==='corregir')));
     const formularios = [...document.querySelectorAll('#form-evolucion, #modalValoracion form, form[data-borrador]')];
     const leer = clave => {
         try { return JSON.parse(sessionStorage.getItem(clave)); } catch { return null; }
@@ -23,7 +24,7 @@
         const identificador = form.querySelector('[name="_formulario"]')?.value;
         if (!identificador) return;
         const clave = prefijoIngreso + identificador;
-        const campos = () => [...form.querySelectorAll('input[name], textarea[name], select[name]')].filter(campo => campo.type !== 'hidden' && campo.type !== 'password' && campo.type !== 'file');
+        const campos = () => [...form.querySelectorAll('input[name], textarea[name], select[name]')].filter(campo => (campo.type !== 'hidden' || campo.hasAttribute('data-borrador-incluir')) && campo.type !== 'password' && campo.type !== 'file');
         const borrador = leer(clave);
         if (borrador && borrador.version === 1 && Array.isArray(borrador.campos) && formularioConErrores !== identificador) {
             ['soluciones', 'medicamentos'].forEach(tipo => {
@@ -40,6 +41,17 @@
                     contenedor.append(fila);
                 });
             });
+            const medicamentosCasa = form.querySelector('#filas-medicamentos-casa');
+            const plantillaCasa = form.querySelector('#plantilla-medicamento-casa');
+            if (medicamentosCasa && plantillaCasa && Array.isArray(borrador.filas?.casa)) {
+                medicamentosCasa.replaceChildren();
+                borrador.filas.casa.slice(0,20).forEach(indice => {
+                    if (!Number.isSafeInteger(indice) || indice<0) return;
+                    const fila=plantillaCasa.content.cloneNode(true);
+                    fila.querySelectorAll('[name]').forEach(campo => campo.name=campo.name.replace('__INDEX__',indice));
+                    medicamentosCasa.append(fila);
+                });
+            }
             campos().forEach(campo => {
                 const anterior = borrador.campos.find(dato => dato.nombre === campo.name && dato.tipo === campo.type && ((campo.type !== 'radio' && campo.type !== 'checkbox') || dato.valor === campo.value));
                 if (!anterior || typeof anterior.valor !== 'string') return;
@@ -59,6 +71,8 @@
                 if (!contenedor) return;
                 filas[tipo] = [...contenedor.querySelectorAll('.fila-orden')].map(fila => Number(fila.querySelector('[name]')?.name.split('[')[2]?.split(']')[0])).filter(Number.isSafeInteger);
             });
+            const casa=form.querySelector('#filas-medicamentos-casa');
+            if(casa) filas.casa=[...casa.querySelectorAll('.fila-medicamento-casa')].map(fila=>Number(fila.querySelector('[name]')?.name.split('[')[1]?.split(']')[0])).filter(Number.isSafeInteger);
             const datos = {version: 1, unidadPeso: 'lb', campos: campos().map(campo => ({nombre: campo.name, tipo: campo.type, valor: campo.value, marcado: campo.checked === true})), filas};
             try { sessionStorage.setItem(clave, JSON.stringify(datos)); } catch {}
         };
@@ -66,7 +80,7 @@
         form.addEventListener('input', cambiar);
         form.addEventListener('change', cambiar);
         form.addEventListener('click', evento => {
-            if (evento.target.closest('[data-agregar], [data-quitar]')) {
+            if (evento.target.closest('[data-agregar], [data-quitar], [data-agregar-medicamento-casa], [data-quitar-medicamento-casa]')) {
                 modificado = true;
                 queueMicrotask(conservar);
             }
@@ -86,7 +100,12 @@
         }
         form.closest('.modal')?.addEventListener('hide.bs.modal', conservar);
         window.addEventListener('pagehide', conservar);
+        form.addEventListener('submit', conservar);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') conservar();
+        });
         if (formularioConErrores === identificador) conservar();
     });
 })();
 </script>
+@endonce

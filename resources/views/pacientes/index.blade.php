@@ -5,6 +5,16 @@
 @section('menu-pacientes', 'activo')
 
 @section('content')
+@php
+    $datoClinicoEditable = fn ($valor) => preg_match('/^(?:se desconocen?|desconocid[oa]s?|sin registro)[.\s]*$/iu', trim((string) $valor)) ? '' : $valor;
+@endphp
+@if(app(\App\Support\Permisos::class)->puede('Cirugías', 'Ver'))
+@foreach($pacientes as $pacienteCirugia)
+    @if($pacienteCirugia->cirugiaActual)
+    @include('cirugias.panel', ['ingreso' => $pacienteCirugia->ingresos->firstWhere('id_ingreso', $pacienteCirugia->cirugiaActual->id_ingreso), 'soloVentanasCirugia' => true, 'soloLecturaCirugia' => true, 'ocultarAvisoCirugia' => true])
+    @endif
+@endforeach
+@endif
 
 <!-- Encabezado -->
 <div class="inicio-encabezado">
@@ -234,7 +244,7 @@
 
                                     @else
 
-                                        <i class="bi bi-person-question"></i>
+                                        <span class="paciente-avatar-desconocido" aria-hidden="true">?</span><span class="visually-hidden">Paciente no identificado</span>
 
                                     @endif
 
@@ -317,8 +327,13 @@
 
                         <td>
 
+                            @if($paciente->cirugiaActual && $paciente->cirugiaActual->estado !== 'En cirugía')
+                            <div class="mb-2">
+                            <button class="badge text-bg-primary border-0" type="button" data-bs-toggle="modal" data-bs-target="#cirugia-detalle-{{ $paciente->cirugiaActual->getKey() }}" @disabled(! app(\App\Support\Permisos::class)->puede('Cirugías', 'Ver'))><i class="bi bi-calendar-event" aria-hidden="true"></i> Cirugía programada</button>
+                            </div>
+                            @endif
                             @if($paciente->situacion_actual === 'En cirugía')
-                                <span class="badge bg-danger"><i class="bi bi-hospital" aria-hidden="true"></i> En cirugía</span>
+                                <button class="badge bg-danger border-0" type="button" data-bs-toggle="modal" data-bs-target="#cirugia-detalle-{{ $paciente->cirugiaActual?->getKey() }}" @disabled(! $paciente->cirugiaActual || ! app(\App\Support\Permisos::class)->puede('Cirugías', 'Ver'))><i class="bi bi-hospital" aria-hidden="true"></i> En cirugía</button>
                             @elseif(
                                 $paciente->situacion_actual
                                 === 'Hospitalizado'
@@ -390,6 +405,11 @@
                             )
 
                                 Sin internamiento
+                                @if($ingresoConsulta = $paciente->ingresos->where('estado', 'Activo')->sortByDesc('fecha_ingreso')->first())
+                                @if($ingresoConsulta->evoluciones_count === 0)
+                                <small class="d-block text-muted"><i class="bi bi-hourglass-split" aria-hidden="true"></i> Esperando al médico</small>
+                                @endif
+                                @endif
 
                             @elseif(
                                 $paciente->situacion_actual
@@ -414,10 +434,21 @@
 
                             <div class="d-grid gap-1 acciones-paciente">
     <?php $ingresoParaAtencion = $paciente->estado === 'Activo' ? $paciente->ingresos->sortByDesc('fecha_ingreso')->firstWhere('estado', 'Activo') : null; ?>
-    @if($ingresoParaAtencion)
+    @if($paciente->cirugiaActual?->estado === 'En cirugía')
+    <span class="text-danger small accion-principal"><i class="bi bi-hospital" aria-hidden="true"></i> Paciente en cirugía. Espere a que finalice.</span>
+    @elseif($ingresoParaAtencion)
+    {{-- Un paciente internado va directo a su hoja de enfermería; una consulta externa es para el médico. --}}
+    @if($ingresoParaAtencion->esConsultaExterna())
+    @puede('Ingresos', 'Ver')
+    <a href="{{ route('atencion.show', $ingresoParaAtencion) }}" class="btn btn-consulta btn-sm accion-principal"><i class="bi bi-person-walking" aria-hidden="true"></i> {{ $ingresoParaAtencion->evoluciones_count > 0 ? 'Continuar consulta' : 'Atender consulta' }}</a>
+    @endpuede
+    @elseif($ingresoParaAtencion->hospitalizacion?->estado === 'Activa' && app(\App\Support\Permisos::class)->puede('Enfermería', 'Ver'))
+    <a href="{{ route('atencion.enfermeria', $ingresoParaAtencion) }}" class="btn btn-outline-success btn-sm accion-principal"><i class="bi bi-clipboard2-pulse" aria-hidden="true"></i> Atención al paciente</a>
+    @else
     @puede('Ingresos', 'Ver')
     <a href="{{ route('atencion.show', $ingresoParaAtencion) }}" class="btn btn-outline-success btn-sm accion-principal"><i class="bi bi-clipboard2-pulse" aria-hidden="true"></i> Atención al paciente</a>
     @endpuede
+    @endif
     @else
     @if($paciente->estado === 'Activo' && app(\App\Support\Permisos::class)->puede('Ingresos', 'Ingresar'))
     <form action="{{ route('consultas.iniciar', $paciente->id_paciente) }}" method="POST" class="m-0 accion-principal">
@@ -892,7 +923,7 @@
                                                     </div>
 
 
-                                                    <div class="col-md-6">
+                                                    <div class="col-md-4">
 
                                                         <label class="form-label">
                                                             Tipo de sangre
@@ -956,8 +987,19 @@
 
                                                     </div>
 
+                                                    @foreach(['talla' => ['Talla', 'cm', '165', '30', '250'], 'peso' => ['Peso', 'lb', '150', '1', '700']] as $medida => [$etiquetaMedida, $unidadMedida, $ejemploMedida, $minimoMedida, $maximoMedida])
+                                                    <div class="col-md-4">
+                                                        <label class="form-label" for="editar-{{ $paciente->id_paciente }}-{{ $medida }}">{{ $etiquetaMedida }}</label>
+                                                        <div class="input-group has-validation">
+                                                            <input type="number" id="editar-{{ $paciente->id_paciente }}-{{ $medida }}" name="{{ $medida }}" class="form-control @if($editarConError) @error($medida) is-invalid @enderror @endif" min="{{ $minimoMedida }}" max="{{ $maximoMedida }}" step="0.01" inputmode="decimal" data-solo-decimal placeholder="{{ $ejemploMedida }}" value="{{ $editarConError ? old($medida) : $paciente->{$medida} }}">
+                                                            <span class="input-group-text">{{ $unidadMedida }}</span>
+                                                            @if($editarConError) @error($medida)<div class="invalid-feedback">{{ $message }}</div>@enderror @endif
+                                                        </div>
+                                                    </div>
+                                                    @endforeach
 
-                                                    <div class="col-md-6">
+
+                                                    <div class="col-12">
 
                                                         <label class="form-label">
                                                             Alergias
@@ -976,7 +1018,7 @@
                                                             value="{{
                                                                 $editarConError
                                                                 ? old('alergias')
-                                                                : $paciente->alergias
+                                                                : $datoClinicoEditable($paciente->alergias)
                                                             }}"
                                                             maxlength="1000"
                                                         >
@@ -1011,7 +1053,7 @@
                                                             maxlength="2000"
                                                         >{{ $editarConError
                                                             ? old('antecedentes_medicos')
-                                                            : $paciente->antecedentes_medicos }}</textarea>
+                                                            : $datoClinicoEditable($paciente->antecedentes_medicos) }}</textarea>
 
                                                         @if($editarConError)
                                                             @error('antecedentes_medicos')
@@ -1043,7 +1085,7 @@
                                                             maxlength="2000"
                                                         >{{ $editarConError
                                                             ? old('antecedentes_familiares')
-                                                            : $paciente->antecedentes_familiares }}</textarea>
+                                                            : $datoClinicoEditable($paciente->antecedentes_familiares) }}</textarea>
 
                                                         @if($editarConError)
                                                             @error('antecedentes_familiares')
@@ -1075,7 +1117,7 @@
                                                             maxlength="2000"
                                                         >{{ $editarConError
                                                             ? old('observaciones_generales')
-                                                            : $paciente->observaciones_generales }}</textarea>
+                                                            : $datoClinicoEditable($paciente->observaciones_generales) }}</textarea>
 
                                                         @if($editarConError)
                                                             @error('observaciones_generales')
@@ -1111,7 +1153,7 @@
                                                 type="submit"
                                                 class="btn btn-primary"
                                             >
-                                                Guardar cambios
+                                                Confirmar cambios
                                             </button>
 
                                         </div>
@@ -1334,7 +1376,7 @@
                                                     class="btn btn-outline-primary btn-sm"
                                                 >
                                                     <i class="bi bi-check-lg"></i>
-                                                    Guardar cambios
+                                                    Confirmar cambios
                                                 </button>
                                                 @endpuede
 
@@ -1641,6 +1683,7 @@
                 <div class="modal-body">
 
                     <div class="row g-3">
+                        <div class="col-12"><label class="form-label" for="fecha-registro-paciente"><i class="bi bi-calendar3"></i> Fecha y hora de registro</label><input id="fecha-registro-paciente" class="form-control @error('fecha_registro') is-invalid @enderror" type="datetime-local" name="fecha_registro" value="{{ old('fecha_registro',now('America/Guatemala')->format('Y-m-d\TH:i')) }}" max="{{ now('America/Guatemala')->format('Y-m-d\TH:i') }}"><small class="text-muted">Hora de Guatemala. Puede indicar una fecha anterior.</small>@error('fecha_registro')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
 
 
                         <div class="col-md-6">
@@ -1932,7 +1975,7 @@
                         </div>
 
 
-                        <div class="col-md-6">
+                        <div class="col-md-4">
 
                             <label class="form-label">
                                 Tipo de sangre
@@ -1985,8 +2028,19 @@
 
                         </div>
 
+                        @foreach(['talla' => ['Talla', 'cm', '165', '30', '250'], 'peso' => ['Peso', 'lb', '150', '1', '700']] as $medida => [$etiquetaMedida, $unidadMedida, $ejemploMedida, $minimoMedida, $maximoMedida])
+                        <div class="col-md-4">
+                            <label class="form-label" for="nuevo-{{ $medida }}">{{ $etiquetaMedida }}</label>
+                            <div class="input-group has-validation">
+                                <input type="number" id="nuevo-{{ $medida }}" name="{{ $medida }}" class="form-control @error($medida) is-invalid @enderror" min="{{ $minimoMedida }}" max="{{ $maximoMedida }}" step="0.01" inputmode="decimal" data-solo-decimal placeholder="{{ $ejemploMedida }}" value="{{ old($medida) }}">
+                                <span class="input-group-text">{{ $unidadMedida }}</span>
+                                @error($medida)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+                        @endforeach
 
-                        <div class="col-md-6">
+
+                        <div class="col-12">
 
                             <label class="form-label">
                                 Alergias

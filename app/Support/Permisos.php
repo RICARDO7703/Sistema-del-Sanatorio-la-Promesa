@@ -32,6 +32,7 @@ class Permisos
      * @var array<string, array{0: string, 1: string, 2: list<string>}>
      */
     public const MODULOS = [
+        'Reportes' => ['Reportes', 'Consultar y generar reportes PDF con filtros.', [self::VER]],
         'Pacientes' => ['Pacientes', 'Registrar pacientes, editar sus datos y contactos, desactivarlos.', [self::VER, self::GUARDAR, self::EDITAR, self::ELIMINAR]],
         'Expedientes' => ['Expedientes', 'Consultar el expediente completo del paciente.', [self::VER]],
         'Documentos clínicos' => ['Archivos médicos', 'Ver, subir y corregir archivos médicos y hojas en papel.', [self::VER, self::GUARDAR, self::EDITAR]],
@@ -96,6 +97,11 @@ class Permisos
      * @var array<string, array{0: string, 1: string}>
      */
     public const RUTAS = [
+        'reportes.expediente' => ['Expedientes', self::VER],
+        'reportes.expediente.zip' => ['Expedientes', self::VER],
+        'reportes.index' => ['Reportes', self::VER],
+        'reportes.pdf' => ['Reportes', self::VER],
+        'reportes.archivo' => ['Documentos clínicos', self::VER],
         'pacientes.index' => ['Pacientes', self::VER],
         'pacientes.guardar' => ['Pacientes', self::GUARDAR],
         'pacientes.actualizar' => ['Pacientes', self::EDITAR],
@@ -108,10 +114,10 @@ class Permisos
         'pacientes.expediente' => ['Expedientes', self::VER],
         'archivos.show' => ['Documentos clínicos', self::VER],
         'archivos.contenido' => ['Documentos clínicos', self::VER],
-        'archivos.formulario' => ['Documentos clínicos', self::GUARDAR],
         'archivos.guardar' => ['Documentos clínicos', self::GUARDAR],
         'archivos.paciente.guardar' => ['Documentos clínicos', self::GUARDAR],
         'archivos.editar' => ['Documentos clínicos', self::EDITAR],
+        'archivos.quitar' => ['Documentos clínicos', self::EDITAR],
         'archivos.actualizar' => ['Documentos clínicos', self::EDITAR],
         'atencion.index' => ['Ingresos', self::VER],
         'atencion.show' => ['Ingresos', self::VER],
@@ -121,9 +127,12 @@ class Permisos
         'seguimientos.guardar' => ['Ingresos', self::GUARDAR],
         'ingresos.actualizar' => ['Ingresos', self::EDITAR],
         'ingresos.cancelar' => ['Ingresos', self::ELIMINAR],
+        'ingresos.documento-firmado' => ['Documentos clínicos', self::GUARDAR],
         'emergencia.guardar' => ['Evolución clínica', self::GUARDAR],
         'evolucion.guardar' => ['Evolución clínica', self::GUARDAR],
         'evolucion.actualizar' => ['Evolución clínica', self::EDITAR],
+        'evolucion.cancelar-ordenes' => ['Evolución clínica', self::EDITAR],
+        'evolucion.reactivar-ordenes' => ['Evolución clínica', self::EDITAR],
         'evolucion.eliminar' => ['Evolución clínica', self::ELIMINAR],
         'signos.guardar' => ['Signos vitales', self::GUARDAR],
         'signos.actualizar' => ['Signos vitales', self::EDITAR],
@@ -131,15 +140,18 @@ class Permisos
         'tratamientos.actualizar' => ['Tratamientos', self::EDITAR],
         'tratamientos.eliminar' => ['Tratamientos', self::ELIMINAR],
         'atencion.enfermeria' => ['Enfermería', self::VER],
+        'notas-enfermeria.actualizar' => ['Enfermería', self::EDITAR],
         'notas-enfermeria.guardar' => ['Enfermería', self::GUARDAR],
         'hospitalizacion.guardar' => ['Hospitalización', self::GUARDAR],
         'hospitalizacion.cambiar-habitacion' => ['Hospitalización', self::EDITAR],
         'alta.guardar' => ['Alta médica', self::GUARDAR],
+        'alta.receta' => ['Ingresos', self::VER],
         'cirugias.show' => ['Cirugías', self::VER],
         'cirugias.formulario' => ['Cirugías', self::GUARDAR],
         'cirugias.guardar' => ['Cirugías', self::GUARDAR],
-        'cirugias.estado' => ['Cirugías', self::EDITAR],
-        'cirugias.control' => ['Cirugías', self::EDITAR],
+        'cirugias.recuperacion' => ['Cirugías', self::VER],
+        'cirugias.estado' => ['Cirugías', self::VER],
+        'cirugias.actualizar' => ['Cirugías', self::EDITAR],
         'habitaciones.index' => ['Habitaciones', self::VER],
         'habitaciones.guardar' => ['Habitaciones', self::GUARDAR],
         'habitaciones.actualizar' => ['Habitaciones', self::EDITAR],
@@ -148,6 +160,7 @@ class Permisos
         'personal.actualizar' => ['Personal', self::EDITAR],
         'personal.desactivar' => ['Personal', self::ELIMINAR],
         'personal.activar' => ['Personal', self::ELIMINAR],
+        'bitacora.pdf' => ['Bitácora', self::VER],
         'bitacora.index' => ['Bitácora', self::VER],
         'usuarios.index' => ['Usuarios', self::VER],
         'usuarios.crear' => ['Usuarios', self::GUARDAR],
@@ -165,6 +178,7 @@ class Permisos
      * @var list<string>
      */
     public const RUTAS_LIBRES = [
+        'reportes.documento', // El controlador verifica el permiso del tipo de documento solicitado.
         'inicio', 'sesion.salida-pagina', 'personal.foto',
         'perfil.show', 'perfil.foto.editar', 'perfil.contrasena.editar', 'perfil.apariencia.editar', 'perfil.contacto', 'perfil.foto', 'perfil.quitar-foto', 'perfil.contrasena',
         'evolucion.index', 'signos.index', 'tratamientos.index', 'ingresos.index',

@@ -351,17 +351,13 @@ class PersonalController extends Controller
                 ],
 
                 'numero_colegiado' => [
-                    'nullable',
-                    'string',
-                    'max:30',
-                ],
-
-                'es_externo' => [
-                    'nullable',
-                    'boolean',
+                    Rule::requiredIf(fn () => in_array(Cargo::find($request->input('id_cargo'))?->nombre_cargo, Personal::CARGOS_CON_COLEGIADO, true)),
+                    'nullable', 'string', 'regex:/^[1-9][0-9]{0,4}$/',
                 ],
             ],
             [
+                'numero_colegiado.required' => 'El número de colegiado es obligatorio para este cargo.',
+                'numero_colegiado.regex' => 'Ingrese de 1 a 5 dígitos, sin letras, guiones ni cero inicial.',
                 'nombres.required' => 'Los nombres son obligatorios.',
 
                 'nombres.max' => 'Los nombres no pueden superar los 100 caracteres.',
@@ -481,11 +477,6 @@ class PersonalController extends Controller
                 'UTF-8'
             )
             : null;
-
-        $datos['es_externo'] =
-            $request->boolean(
-                'es_externo'
-            );
 
         return $datos;
     }

@@ -21,7 +21,7 @@
     <tr><td>{{ $habitacion->numero_habitacion }}</td><td>{{ $habitacion->tipo }}</td><td>{{ $habitacion->ocupada ? 'Ocupada' : ($habitacion->estado_operativo === 'Activa' ? 'Disponible' : $habitacion->estado_operativo) }}</td><td>{{ $habitacion->observaciones ?: 'Sin observaciones' }}</td><td>
         @puede('Habitaciones', 'Editar')<details @if(old('_habitacion') == $habitacion->getKey()) open @endif><summary>Editar</summary><form method="POST" action="{{ route('habitaciones.actualizar',$habitacion) }}" class="mt-2">@csrf @method('PUT')
             @include('habitaciones.formulario', ['contexto'=>(string)$habitacion->getKey()])
-            <button class="btn btn-primary mt-2">Guardar cambios</button>
+            <button class="btn btn-primary mt-2">Confirmar cambios</button>
         </form></details>@endpuede
     </td></tr>
     @empty<tr><td colspan="5">No se encontraron habitaciones.</td></tr>@endforelse

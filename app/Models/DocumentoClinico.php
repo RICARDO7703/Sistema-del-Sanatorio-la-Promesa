@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\EdicionClinica;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
@@ -21,7 +22,9 @@ class DocumentoClinico extends Model
      *
      * @var list<string>
      */
-    public const CATEGORIAS = ['Laboratorio', 'Radiografía', 'Ultrasonido', 'Electrocardiograma', 'Informe', 'Otro'];
+    public const EXAMENES_LABORATORIO = ['Examen de sangre', 'Examen de orina', 'Examen de heces', 'Glucosa', 'Perfil de lípidos'];
+
+    public const CATEGORIAS = [...self::EXAMENES_LABORATORIO, 'Laboratorio', 'Radiografía', 'Ultrasonido', 'Electrocardiograma', 'Informe', 'Otro'];
 
     /**
      * Tipo del documento de ingreso firmado, que se sube al hospitalizar y no se elige a mano.
@@ -76,7 +79,7 @@ class DocumentoClinico extends Model
      */
     public function etiquetaCategoria(): string
     {
-        return $this->esDocumentoIngresoFirmado() ? 'Documento de ingreso' : (string) $this->categoria;
+        return $this->esDocumentoIngresoFirmado() ? 'Documento de ingreso' : (in_array($this->tipo_documento, self::EXAMENES_LABORATORIO, true) ? $this->tipo_documento : (string) $this->categoria);
     }
 
     /**
@@ -92,10 +95,31 @@ class DocumentoClinico extends Model
      */
     public function puedeEditar(?int $idUsuario): bool
     {
+        if ($this->id_ingreso !== null) {
+            return $this->estado === 'Activo' && self::puedeModificarHoja($this->ingreso, $this->tabla_origen, $this->id_registro_origen, $idUsuario);
+        }
         $limite = $this->editableHasta();
 
         return $this->estado === 'Activo' && $idUsuario !== null && (int) $this->id_usuario_creacion === $idUsuario
             && $limite !== null && $limite->isFuture();
+    }
+
+    public static function puedeModificarHoja(?Ingreso $ingreso, ?string $tabla, mixed $id, ?int $usuario): bool
+    {
+        $modelos = ['tbl_ingreso' => Ingreso::class, 'tbl_evolucion_clinica' => EvolucionClinica::class, 'tbl_atencion_enfermeria' => NotaEnfermeria::class, 'tbl_signos_vitales' => SignoVital::class, 'tbl_alta_medica' => AltaMedica::class, 'tbl_cirugia' => Cirugia::class];
+        if (! $ingreso || $ingreso->estado !== 'Activo' || ! $usuario || ! isset($modelos[$tabla]) || ! $id) {
+            return false;
+        }
+        $hoja = $modelos[$tabla]::whereKey($id)->where('id_ingreso', $ingreso->getKey())->first();
+        if (! $hoja) {
+            return false;
+        }
+        if ($hoja instanceof Ingreso || $hoja instanceof EvolucionClinica || $hoja instanceof Cirugia) {
+            return EdicionClinica::puedeEditar($hoja, $usuario);
+        }
+        $fecha = $hoja->getRawOriginal('fecha_registro');
+
+        return (int) $hoja->id_usuario_creacion === $usuario && $fecha && Carbon::parse($fecha, 'UTC')->addHours(self::HORAS_PARA_EDITAR)->isFuture();
     }
 
     public function paciente()

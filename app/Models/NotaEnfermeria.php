@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * Nota de la hoja de enfermería: cómo está el paciente, qué se le hizo y, si se tomaron,
@@ -53,6 +54,21 @@ class NotaEnfermeria extends Model
         'fecha_registro' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $nota): void {
+            $nota->fecha_registro ??= now('UTC');
+        });
+    }
+
+    public function puedeEditar(?int $usuario): bool
+    {
+        $fecha = $this->getRawOriginal('fecha_registro');
+
+        return $usuario > 0 && (int) $this->id_usuario_creacion === $usuario && $this->ingreso?->estado === 'Activo'
+            && $fecha && Carbon::parse($fecha, 'UTC')->addHours(12)->isFuture();
+    }
+
     public function ingreso(): BelongsTo
     {
         return $this->belongsTo(Ingreso::class, 'id_ingreso', 'id_ingreso');
@@ -74,6 +90,14 @@ class NotaEnfermeria extends Model
     public function signosVitales(): BelongsTo
     {
         return $this->belongsTo(SignoVital::class, 'id_signos_vitales', 'id_signos_vitales');
+    }
+
+    /**
+     * Órdenes médicas que se marcaron como aplicadas o no aplicadas en esta nota.
+     */
+    public function ordenes(): HasMany
+    {
+        return $this->hasMany(NotaEnfermeriaOrden::class, 'id_atencion_enfermeria', 'id_atencion_enfermeria')->orderBy('id_orden_aplicada');
     }
 
     public function actividades(): HasMany

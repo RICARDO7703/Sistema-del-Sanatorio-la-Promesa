@@ -1,7 +1,11 @@
+{{-- Se carga una sola vez por página aunque varias ventanas la incluyan. --}}
+@once
 <script>
-(() => {
+document.addEventListener('DOMContentLoaded', () => {
     // Cada bloque de órdenes maneja sus propias filas y su dieta.
     const prepararOrdenes = bloque => {
+        if (bloque.dataset.ordenesPreparadas) return null;
+        bloque.dataset.ordenesPreparadas = '1';
         const contenedorDe = tipo => bloque.querySelector(`[data-filas="${tipo}"]`);
         const siguienteIndice = tipo => [...contenedorDe(tipo).querySelectorAll('[name]')].reduce((maximo, campo) => {
             const indice = Number(campo.name.split('[')[2]?.split(']')[0]);
@@ -55,19 +59,37 @@
 
     // Primera valoración del internamiento: las órdenes son opcionales y solo se envían si se marca la casilla.
     document.querySelectorAll('[data-activar-ordenes]').forEach(casilla => {
+        if (casilla.dataset.ordenesPreparadas) return;
+        casilla.dataset.ordenesPreparadas = '1';
         const cuerpo = document.getElementById(casilla.dataset.activarOrdenes);
         const campos = cuerpo?.querySelector('[data-ordenes]');
         if (!cuerpo || !campos) return;
         const aplicar = () => {
             cuerpo.hidden = !casilla.checked;
+            const clinica = cuerpo.closest('[data-valoracion-columnas]')?.querySelector('[data-valoracion-clinica]');
+            clinica?.classList.toggle('col-xl-6', casilla.checked);
+            casilla.setAttribute('aria-expanded', String(casilla.checked));
             campos.disabled = !casilla.checked;
         };
         casilla.addEventListener('change', aplicar);
         aplicar();
     });
 
+    document.querySelectorAll('[data-habilitar-ordenes-canceladas]').forEach(casilla => {
+        const editor = casilla.closest('[data-editor-ordenes-canceladas]');
+        const aplicar = () => {
+            const campos = editor.querySelector('[data-edicion-canceladas]');
+            campos.hidden = !casilla.checked;
+            campos.disabled = !casilla.checked;
+            editor.querySelector('[data-resumen-canceladas]').hidden = casilla.checked;
+        };
+        casilla.addEventListener('change', aplicar);
+        aplicar();
+    });
+
     const form = document.getElementById('form-evolucion');
-    if (!form) return;
+    if (!form || form.dataset.ordenesFormPreparado) return;
+    form.dataset.ordenesFormPreparado = '1';
     const ordenes = bloques.get(form.querySelector('[data-ordenes]'));
 
     const grupoDiagnostico = form.querySelector('[data-diagnostico-evolucion]');
@@ -107,11 +129,11 @@
         ordenes.bloque.querySelectorAll('[name]').forEach(campo => campo.dispatchEvent(new Event('input', { bubbles: true })));
         repetir.innerHTML = '<i class="bi bi-check2" aria-hidden="true"></i> Órdenes anteriores copiadas; puede modificarlas';
     });
-})();
+});
 </script>
 
 <script>
-(() => {
+document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-presion-arterial]').forEach(campo => {
         campo.addEventListener('input', evento => {
             const original = campo.value;
@@ -127,21 +149,37 @@
             campo.setSelectionRange(nuevaPosicion, nuevaPosicion);
         });
     });
-})();
+});
 </script>
 <script>
-(() => {
+document.addEventListener('DOMContentLoaded', () => {
     const resumen = document.getElementById('resumen-valoracion');
     const editor = document.getElementById('editor-valoracion');
-    if (!resumen || !editor) return;
+    if (!resumen || !editor || editor.dataset.ordenesEditorPreparado) return;
+    editor.dataset.ordenesEditorPreparado = '1';
+    // Igual que las demás ventanas: el plazo a la izquierda del pie y «Editar / Confirmar cambios» junto a «Cerrar».
+    const botonEditar=document.querySelector('[data-editar-valoracion]');
+    const limite=document.querySelector('[data-limite-valoracion]');
+    const pie=editor.closest('.modal-content')?.querySelector('.modal-footer');
+    if(botonEditar){
+        if(pie){
+            botonEditar.className='btn btn-primary';
+            pie.prepend(botonEditar);
+            if(limite){limite.className='small text-muted me-auto';pie.prepend(limite);}
+        }else editor.parentElement.append(botonEditar);
+    }
     const cambiarVista = editando => {
+        if(botonEditar)botonEditar.innerHTML=editando ? '<i class="bi bi-check-lg"></i> Confirmar cambios' : '<i class="bi bi-pencil"></i> Editar';
         resumen.hidden = editando;
         editor.hidden = !editando;
         const cuerpo = editor.closest('.modal-body');
         if (cuerpo) cuerpo.scrollTop = 0;
         if (editando) editor.querySelector('input:not([type="hidden"])')?.focus({preventScroll: true});
     };
-    document.querySelector('[data-editar-valoracion]')?.addEventListener('click', () => cambiarVista(true));
-    document.querySelector('[data-cancelar-valoracion]')?.addEventListener('click', () => cambiarVista(false));
-})();
+    botonEditar?.addEventListener('click', () => { if(editor.hidden)cambiarVista(true);else editor.querySelector('form')?.requestSubmit(); });
+    cambiarVista(!editor.hidden);
+    // Al cerrar la ventana sin confirmar, vuelve a mostrarse la valoración guardada.
+    editor.closest('.modal')?.addEventListener('hidden.bs.modal', () => cambiarVista(false));
+});
 </script>
+@endonce

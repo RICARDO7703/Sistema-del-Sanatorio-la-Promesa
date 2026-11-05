@@ -2,15 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DocumentoClinico;
 use App\Models\Habitacion;
 use App\Models\Ingreso;
 use App\Models\Paciente;
-use App\Services\ReglasAtencion;
+use App\Support\DocumentosExpediente;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -56,15 +52,17 @@ class ExpedienteController extends Controller
     {
         $paciente->load('contactos');
 
-        $ingresos = $paciente->ingresos()->with(['documentosClinicos.personalResponsable', 'atencionAnterior', 'altaMedica.medico', 'altaMedica.medicamentos', 'personalRegistra', 'hospitalizacion.habitacionActual.habitacion', 'hospitalizacion.historialHabitaciones' => fn ($consulta) => $consulta->with('habitacion')->orderBy('fecha_hora_inicio')->orderBy('id_hospitalizacion_habitacion'), 'evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')->with('personal')->orderBy('fecha_hora')->orderBy('id_evolucion'), 'notasEnfermeria' => fn ($consulta) => $consulta->with(['personal', 'actividades', 'signosVitales', 'medicoAvisado'])->orderBy('fecha_hora')->orderBy('id_atencion_enfermeria')])->withCount(['evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')])
+        $ingresos = $paciente->ingresos()->with(['cirugias', 'documentosClinicos.personalResponsable', 'atencionAnterior', 'altaMedica.medico', 'altaMedica.medicamentos', 'personalRegistra', 'hospitalizacion.habitacionActual.habitacion', 'hospitalizacion.historialHabitaciones' => fn ($consulta) => $consulta->with('habitacion')->orderBy('fecha_hora_inicio')->orderBy('id_hospitalizacion_habitacion'), 'evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')->with('personal')->orderBy('fecha_hora')->orderBy('id_evolucion'), 'controlesSinNota' => fn ($consulta) => $consulta->with(['personal', 'cirugia'])->orderBy('fecha_hora')->orderBy('id_signos_vitales'), 'notasEnfermeria' => fn ($consulta) => $consulta->with(['personal', 'actividades', 'ordenes', 'signosVitales.cirugia', 'medicoAvisado'])->orderBy('fecha_hora')->orderBy('id_atencion_enfermeria')])->withCount(['evoluciones' => fn ($consulta) => $consulta->where('estado', 'Activo')])
             ->orderBy('fecha_ingreso', 'desc')
             ->orderByDesc('id_ingreso')
             ->get();
 
         $archivosPaciente = $paciente->documentosClinicos()->whereNull('id_ingreso')->where('estado', 'Activo')
             ->with('personalResponsable')->orderByDesc('fecha_documento')->orderByDesc('id_documento')->get();
-        $ediciones = $this->ultimasEdiciones($ingresos, $archivosPaciente);
+        $ediciones = DocumentosExpediente::ediciones($ingresos, $archivosPaciente);
         $documentosFirmados = $archivosPaciente->filter->esDocumentoIngresoFirmado()->keyBy('id_registro_origen');
+        // Documentos de cada atención, agrupados por día; se despliegan con la flecha de la atención.
+        $documentosPorAtencion = $ingresos->mapWithKeys(fn (Ingreso $ingreso) => [$ingreso->getKey() => DocumentosExpediente::porDia(collect([$ingreso]), $ediciones)]);
 
         $ingresoActivo = $paciente->ingresos()->with('hospitalizacion.habitacionActual.habitacion')
             ->where('estado', 'Activo')
@@ -92,40 +90,10 @@ class ExpedienteController extends Controller
                 'ediciones',
                 'archivosPaciente',
                 'documentosFirmados',
+                'documentosPorAtencion',
                 'ingresoActivo',
                 'habitacionesDisponibles'
             )
         );
-    }
-
-    /**
-     * Fecha de la última edición hecha por una persona a la hoja de llegada o de ingreso
-     * y a cada consulta, valoración o evolución, según la bitácora. Se devuelve en hora de Guatemala.
-     *
-     * @param  Collection<int, Ingreso>  $ingresos
-     * @param  Collection<int, DocumentoClinico>  $archivosPaciente
-     * @return Collection<string, Carbon>
-     */
-    private function ultimasEdiciones(Collection $ingresos, Collection $archivosPaciente): Collection
-    {
-        $idsIngresos = $ingresos->modelKeys();
-        $idsEvoluciones = $ingresos->flatMap(fn (Ingreso $ingreso) => $ingreso->evoluciones->modelKeys())->all();
-        $idsArchivos = $ingresos->flatMap(fn (Ingreso $ingreso) => $ingreso->documentosClinicos->modelKeys())->merge($archivosPaciente->modelKeys())->all();
-        if ($idsIngresos === [] && $idsEvoluciones === [] && $idsArchivos === []) {
-            return collect();
-        }
-
-        return DB::table('tbl_bitacora')
-            ->where(function ($consulta) use ($idsIngresos, $idsEvoluciones, $idsArchivos): void {
-                $consulta->where(fn ($ingreso) => $ingreso->where('tabla', 'tbl_ingreso')->whereIn('id_registro', $idsIngresos)->where('accion', 'Edición de ingreso'))
-                    ->orWhere(fn ($evolucion) => $evolucion->where('tabla', 'tbl_evolucion_clinica')->whereIn('id_registro', $idsEvoluciones)
-                        ->whereIn('accion', ['Edición de evolución clínica', 'Actualización de evolución clínica']))
-                    ->orWhere(fn ($archivo) => $archivo->where('tabla', 'tbl_documento_clinico')->whereIn('id_registro', $idsArchivos)->where('accion', 'Edición de archivo clínico'));
-            })
-            ->where('resultado', 'Exitoso')
-            ->groupBy('tabla', 'id_registro')
-            ->selectRaw('tabla, id_registro, MAX(fecha_hora) AS ultima')
-            ->get()
-            ->mapWithKeys(fn ($fila) => [$fila->tabla.':'.$fila->id_registro => Carbon::parse($fila->ultima, 'UTC')->setTimezone(ReglasAtencion::ZONA_HORARIA)]);
     }
 }

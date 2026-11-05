@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\AvisarSinCambios;
 use App\Http\Middleware\PermisoModulo;
 use App\Support\Permisos;
 use Database\Factories\IngresoFactory;
@@ -99,6 +100,29 @@ class UsuarioTest extends TestCase
         $this->get(route('perfil.show'))->assertOk();
     }
 
+    public function test_menu_en_orden_de_trabajo_y_segun_permisos(): void
+    {
+        // Sin títulos de grupo: solo los módulos, en orden de trabajo.
+        $html = $this->admin()->get('/personal')->assertOk()
+            ->assertSeeInOrder(['Inicio', 'Personal', 'Habitaciones', 'Pacientes', 'Atención del paciente', 'Expedientes', 'Reportes', 'Usuarios', 'Asignación de permisos', 'Bitácora', 'Mi perfil'])
+            ->assertDontSee('Datos del sanatorio')->assertDontSee('Se registran primero')->assertDontSee('menu-grupo-numero', false)
+            ->getContent();
+        $this->assertMatchesRegularExpression('~class="nav-link activo"[^>]*>\s*<i class="bi bi-person-badge"~', $html);
+        $permisos = $this->get(route('usuarios.index', ['seccion' => 'permisos']))->assertOk()->assertSee('Busque al usuario y toque')->getContent();
+        $this->assertMatchesRegularExpression('~class="nav-link activo"[^>]*>\s*<i class="bi bi-shield-check"~', $permisos);
+
+        // Quien solo ve pacientes solo tiene esa opción (además de Inicio y Mi perfil).
+        DB::table('tbl_usuario')->insert(['id_usuario' => 2, 'id_personal' => 3, 'id_rol' => 3, 'nombre_usuario' => 'enfermera', 'contrasena' => Hash::make(self::CLAVE)]);
+        $this->asignarPermisos(2, ['Pacientes' => [Permisos::VER]]);
+        $menu = $this->withSession(['id_usuario' => 2])->get('/pacientes')->assertOk()->getContent();
+        $menu = substr($menu, strpos($menu, 'sidebar-menu'), strpos($menu, 'sidebar-footer') - strpos($menu, 'sidebar-menu'));
+        $this->assertStringContainsString('Pacientes', $menu);
+        foreach (['Personal', 'Expedientes', 'Usuarios', 'Bitácora'] as $oculto) {
+            $this->assertStringNotContainsString('<span>'.$oculto.'</span>', $menu);
+        }
+        $this->assertSame(1, substr_count($menu, 'menu-separador'), 'Un solo separador: no quedan grupos vacíos.');
+    }
+
     public function test_alta_desde_consulta_externa_exige_permiso_de_alta(): void
     {
         DB::table('tbl_usuario')->insert(['id_usuario' => 2, 'id_personal' => 3, 'id_rol' => 3, 'nombre_usuario' => 'enfermera', 'contrasena' => Hash::make(self::CLAVE)]);
@@ -130,6 +154,10 @@ class UsuarioTest extends TestCase
         $this->put(route('usuarios.actualizar', $id), ['nombre_usuario' => 'dra.rosa', 'id_rol' => 3, 'permisos' => ['Personal|Editar']])->assertSessionHasNoErrors();
         $this->assertEqualsCanonicalizing(['Personal|Editar', 'Personal|Ver'], $this->permisosDe($id));
         $this->assertSame(['dra.rosa', 3], [DB::table('tbl_usuario')->where('id_usuario', $id)->value('nombre_usuario'), (int) DB::table('tbl_usuario')->where('id_usuario', $id)->value('id_rol')]);
+
+        $ediciones = DB::table('tbl_bitacora')->where('accion', 'Edición de usuario')->count();
+        $this->put(route('usuarios.actualizar', $id), ['nombre_usuario' => 'Dra.Rosa ', 'id_rol' => 3, 'permisos' => ['Personal|Editar']])->assertSessionHas('exito', AvisarSinCambios::MENSAJE);
+        $this->assertSame($ediciones, DB::table('tbl_bitacora')->where('accion', 'Edición de usuario')->count());
 
         $this->put(route('usuarios.actualizar', $id), ['nombre_usuario' => 'dra.rosa', 'id_rol' => 1, 'permisos' => ['Personal|Editar']])->assertSessionHasNoErrors();
         $this->assertSame([], $this->permisosDe($id), 'Un administrador no necesita permisos guardados.');
@@ -222,5 +250,14 @@ class UsuarioTest extends TestCase
             ->assertSee('Modo de color')->assertSee('id="tema-claro"', false)->assertSee('id="tema-oscuro"', false);
         $this->post('/logout');
         $this->get('/')->assertOk()->assertSee("localStorage.getItem('sanatorio:tema') === 'oscuro'", false);
+    }
+
+    public function test_contrasena_de_cinco_caracteres_solo_exige_un_numero(): void
+    {
+        $this->admin();
+        foreach (['abcd', 'abcde', '1234'] as $clave) {
+            $this->post(route('usuarios.guardar'), $this->nuevoUsuario(['contrasena' => $clave, 'contrasena_confirmation' => $clave]))->assertSessionHasErrors('contrasena');
+        }
+        $this->post(route('usuarios.guardar'), $this->nuevoUsuario(['contrasena' => 'abcd1', 'contrasena_confirmation' => 'abcd1']))->assertSessionHasNoErrors();
     }
 }

@@ -8,6 +8,7 @@ use App\Models\Ingreso;
 use App\Services\CirugiasAlAlta;
 use App\Services\ExamenFisico;
 use App\Services\ReglasAtencion;
+use App\Support\EdicionClinica;
 use App\Support\Permisos;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -22,10 +23,27 @@ use Illuminate\Validation\ValidationException;
  */
 class EmergenciaController extends Controller
 {
+    public static function puedeCorregir(Ingreso $ingreso): bool
+    {
+        $hoja = $ingreso->evoluciones()->where('estado', 'Activo')->orderBy('fecha_hora')->orderBy('id_evolucion')->first();
+        $alta = $ingreso->altaMedica;
+
+        return $ingreso->esConsultaExterna() && $ingreso->estado === 'Dado de alta' && $hoja && $alta
+            && (int) $hoja->id_usuario_creacion === (int) session('id_usuario')
+            && (int) $alta->id_usuario_creacion === (int) session('id_usuario')
+            && EdicionClinica::editableHasta($hoja)?->isFuture()
+            && app(Permisos::class)->puede('Evolución clínica', 'Editar') && app(Permisos::class)->puede('Alta médica', 'Editar');
+    }
+
     public function guardar(Request $request, Ingreso $ingreso): RedirectResponse
     {
         if (! $ingreso->esConsultaExterna()) {
             return redirect()->route('atencion.show', $ingreso)->with('error', 'Esta atención no es una consulta externa.');
+        }
+
+        $corregir = $request->input('accion') === 'corregir';
+        if ($corregir) {
+            abort_unless(self::puedeCorregir($ingreso), 403, 'Solo el autor puede corregir esta consulta durante las primeras 12 horas.');
         }
 
         if ($request->input('accion') === 'alta' && ! app(Permisos::class)->puede('Alta médica', Permisos::GUARDAR)) {
@@ -43,7 +61,7 @@ class EmergenciaController extends Controller
             : ['medicamentos_casa' => $this->filasConDatos($request->input('medicamentos_casa'))]);
 
         $datos = $request->validate([
-            'accion' => ['required', Rule::in(['alta', 'internar'])],
+            'accion' => ['required', Rule::in(['alta', 'internar', 'corregir'])],
             'fecha_hora' => ['required', 'date', ReglasAtencion::reglaNoFutura()],
             'motivo_atencion' => ['required', 'string', 'max:255'],
             'sintomas' => ['nullable', 'string', 'max:1000'],
@@ -53,11 +71,14 @@ class EmergenciaController extends Controller
             'medicamentos_casa' => ['nullable', 'array', 'max:20'],
             'medicamentos_casa.*' => ['array:medicamento,dosis,frecuencia,duracion'],
             'medicamentos_casa.*.medicamento' => ['required', 'string', 'max:255'],
-            'medicamentos_casa.*.dosis' => ['required', 'string', 'max:100'],
-            'medicamentos_casa.*.frecuencia' => ['required', 'string', 'max:100'],
-            'medicamentos_casa.*.duracion' => ['nullable', 'string', 'max:100'],
+            'medicamentos_casa.*.dosis' => ['required', 'numeric', 'gt:0', 'regex:/^\d+(?:\.\d{1,2})?$/'],
+            'medicamentos_casa.*.frecuencia' => ['required', 'numeric', 'gt:0', 'regex:/^\d+(?:\.\d{1,2})?$/'],
+            'medicamentos_casa.*.duracion' => ['nullable', 'integer', 'min:1'],
             'indicaciones_casa' => ['nullable', 'string', 'max:2000'],
         ], [
+            'medicamentos_casa.*.dosis.numeric' => 'La dosis debe contener solo números.',
+            'medicamentos_casa.*.frecuencia.numeric' => 'La frecuencia debe contener solo números (horas).',
+            'medicamentos_casa.*.duracion.integer' => 'Los días deben ser un número entero.',
             'fecha_hora.required' => 'La fecha y hora son obligatorias.',
             'fecha_hora.before_or_equal' => 'La fecha y hora no pueden ser futuras.',
             'motivo_atencion.required' => 'El motivo de consulta es obligatorio.',
@@ -68,18 +89,32 @@ class EmergenciaController extends Controller
             'medicamentos_casa.*.frecuencia.required' => 'Indique la frecuencia de cada medicamento ambulatorio.',
         ]);
 
+        $request->validate(['cirugia_pendiente' => ['nullable', 'json', 'max:20000']]);
+        $programacion = $request->filled('cirugia_pendiente') ? json_decode($request->input('cirugia_pendiente'), true) : null;
+        if ($programacion !== null && (! is_array($programacion) || $corregir)) {
+            throw ValidationException::withMessages(['cirugia_pendiente' => 'La programación debe agregarse antes de cerrar la primera evaluación.']);
+        }
         $examenFisico = ExamenFisico::validar($request);
         $fecha = Carbon::parse($datos['fecha_hora']);
         $darDeAlta = $datos['accion'] === 'alta';
-        $cancelarCirugias = $request->input('cancelar_cirugias') === '1';
-
-        DB::transaction(function () use ($ingreso, $datos, $examenFisico, $fecha, $idPersonal, $darDeAlta, $cancelarCirugias): void {
+        $decisionCirugias = $request->input('decision_cirugias');
+        DB::transaction(function () use ($ingreso, $datos, $examenFisico, $fecha, $idPersonal, $darDeAlta, $decisionCirugias, $corregir, $programacion, $request): void {
             $actual = Ingreso::whereKey($ingreso->getKey())->lockForUpdate()->firstOrFail();
-            ReglasAtencion::exigirActivo($actual->estado);
+            if ($corregir) {
+                abort_unless(self::puedeCorregir($actual), 403);
+            } else {
+                ReglasAtencion::exigirActivo($actual->estado);
+            }
 
             // La consulta se registra al minuto; la llegada puede tener segundos en registros anteriores.
             if ($fecha->lt($actual->fecha_ingreso->copy()->startOfMinute())) {
-                throw ValidationException::withMessages(['fecha_hora' => 'La consulta no puede ser anterior a la llegada del paciente.']);
+                $sinRegistros = blank($actual->motivo_ingreso) && (int) $actual->id_usuario_creacion === (int) session('id_usuario')
+                    && ! $actual->evoluciones()->exists() && ! $actual->documentosClinicos()->exists()
+                    && ! $actual->hospitalizacion()->exists();
+                if (! $sinRegistros) {
+                    throw ValidationException::withMessages(['fecha_hora' => 'La consulta no puede ser anterior a la llegada del paciente.']);
+                }
+                $actual->update(['fecha_ingreso' => $fecha, 'id_usuario_modificacion' => session('id_usuario')]);
             }
 
             $consulta = [
@@ -97,6 +132,13 @@ class EmergenciaController extends Controller
                 $actual->update(['motivo_ingreso' => $consulta['motivo_atencion'], 'id_usuario_modificacion' => session('id_usuario')]);
             }
 
+            if (! $corregir && ($darDeAlta || $programacion !== null)) {
+                app(CirugiasAlAlta::class)->resolverProgramadasPaciente($actual, $programacion !== null ? ($programacion['decision_existentes'] ?? null) : $decisionCirugias, $programacion !== null ? 'cirugia_pendiente' : 'decision_cirugias', $programacion !== null);
+            }
+            if ($programacion !== null) {
+                app(CirugiaController::class)->registrarPendiente($request, $actual, $programacion);
+            }
+
             $registro = $actual->evoluciones()->where('estado', 'Activo')->orderBy('fecha_hora')->orderBy('id_evolucion')->first();
 
             if ($registro) {
@@ -112,11 +154,27 @@ class EmergenciaController extends Controller
                 ]);
             }
 
+            if ($corregir) {
+                $alta = $actual->altaMedica;
+                if ($fecha->gt($alta->fecha_hora)) {
+                    throw ValidationException::withMessages(['fecha_hora' => 'La consulta no puede ser posterior al alta.']);
+                }
+                request()->attributes->set('edicion_documento', true);
+                $alta->update(['diagnostico_final' => trim($datos['diagnostico']), 'indicaciones_alta' => $this->texto($datos['indicaciones_casa'] ?? null), 'id_usuario_modificacion' => session('id_usuario')]);
+                $alta->medicamentos()->delete();
+                foreach ($datos['medicamentos_casa'] ?? [] as $fila) {
+                    $alta->medicamentos()->create(array_map(fn ($v) => $this->texto($v), $fila));
+                }
+                request()->attributes->remove('edicion_documento');
+
+                return;
+            }
+
             if (! $darDeAlta) {
                 return;
             }
 
-            app(CirugiasAlAlta::class)->cancelar($actual, $cancelarCirugias);
+            app(CirugiasAlAlta::class)->cancelar($actual, false, true);
             $ahoraLocal = ReglasAtencion::ahora()->startOfMinute();
             $fechaAlta = $ahoraLocal->max($fecha);
             $alta = AltaMedica::create([
@@ -137,13 +195,16 @@ class EmergenciaController extends Controller
             $actual->update(['estado' => 'Dado de alta', 'id_usuario_modificacion' => session('id_usuario')]);
         });
 
+        if ($corregir) {
+            return redirect()->route('atencion.show', $ingreso)->with('exito', 'Consulta corregida. El alta se conserva.')->with('borrador_clinico_guardado', 'consulta-emergencia');
+        }
         if ($darDeAlta) {
-            return redirect()->route('atencion.show', $ingreso)->with('exito', 'Paciente dado de alta. La consulta externa quedó cerrada.');
+            return redirect()->route('atencion.show', $ingreso)->with('exito', 'Paciente dado de alta. La consulta externa quedó cerrada.')->with('borrador_clinico_guardado', 'consulta-emergencia');
         }
 
         return redirect()->route('atencion.show', $ingreso)
             ->with('exito', 'Consulta guardada. Seleccione la habitación para internar al paciente.')
-            ->with('abrir_internamiento', true);
+            ->with('abrir_internamiento', true)->with('borrador_clinico_guardado', 'consulta-emergencia');
     }
 
     private function texto(mixed $valor): ?string

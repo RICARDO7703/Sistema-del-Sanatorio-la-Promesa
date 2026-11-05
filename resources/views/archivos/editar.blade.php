@@ -23,7 +23,7 @@
             <label class="form-label" for="editar-categoria">Tipo *</label>
             <select id="editar-categoria" name="categoria" class="form-select" required data-mensaje-requerido="Seleccione el tipo de archivo.">
                 @foreach(\App\Models\DocumentoClinico::CATEGORIAS as $categoria)
-                <option value="{{ $categoria }}" @selected(old('categoria', $documento->categoria) === $categoria)>{{ $categoria }}</option>
+                <option value="{{ $categoria }}" @selected(old('categoria', $documento->etiquetaCategoria()) === $categoria)>{{ $categoria }}</option>
                 @endforeach
             </select>
             @endif
@@ -59,6 +59,6 @@
             <textarea id="editar-descripcion" name="descripcion" class="form-control" rows="3" maxlength="2000">{{ old('descripcion', $documento->descripcion) }}</textarea>
         </div>
     </div>
-    <button class="btn btn-primary mt-4"><i class="bi bi-check-lg" aria-hidden="true"></i> Guardar cambios</button>
+    <button class="btn btn-primary mt-4"><i class="bi bi-check-lg" aria-hidden="true"></i> Confirmar cambios</button>
 </form>
 @endsection

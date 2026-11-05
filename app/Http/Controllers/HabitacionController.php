@@ -20,7 +20,9 @@ class HabitacionController extends Controller
             ->when($buscar !== '', fn ($q) => $q->where('numero_habitacion', 'like', '%'.$buscar.'%'))
             ->orderBy('numero_habitacion')->get();
 
-        return view('habitaciones.index', compact('habitaciones', 'buscar'));
+        $tiposHabitacion = collect(['General', 'Privada', 'Semiprivada'])->merge(Habitacion::whereNotNull('tipo')->distinct()->pluck('tipo'))->filter()->unique()->sort()->values();
+
+        return view('habitaciones.index', compact('habitaciones', 'buscar', 'tiposHabitacion'));
     }
 
     public function guardar(Request $request): RedirectResponse

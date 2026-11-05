@@ -39,7 +39,7 @@
             <div class="col-md-4"><label class="form-label" for="tratamiento-{{ $campo }}-{{ $tratamiento->getKey() }}">{{ $label }}</label><input id="tratamiento-{{ $campo }}-{{ $tratamiento->getKey() }}" type="datetime-local" class="form-control" name="{{ $campo }}" value="{{ $tratamiento->{$campo}?->format('Y-m-d\TH:i') }}" @required($campo === 'fecha_indicacion')></div>
             @endforeach
         </div>
-        <button class="btn btn-primary mt-3">Guardar cambios</button>
+        <button class="btn btn-primary mt-3">Confirmar cambios</button>
     </form>
 </details>
 

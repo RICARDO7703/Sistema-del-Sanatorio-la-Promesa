@@ -126,4 +126,26 @@ class BitacoraAccesoTest extends TestCase
         $migration->up();
         $this->assertDatabaseHas('tbl_bitacora', ['accion' => 'Anterior', 'ip' => null]);
     }
+
+    public function test_bitacora_pagina_cinco_filtra_fechas_y_exporta_pdf(): void
+    {
+        for ($n = 0; $n < 7; $n++) {
+            DB::table('tbl_bitacora')->insert(['id_usuario' => 1, 'accion' => 'Acción de prueba', 'resultado' => 'Exitoso', 'descripcion' => 'Detalle '.$n, 'tabla' => 'tbl_usuario', 'id_registro' => 1, 'fecha_hora' => '2026-10-15 18:00:00']);
+        }
+        DB::table('tbl_bitacora')->insert(['accion' => 'Otra acción', 'resultado' => 'Fallido', 'fecha_hora' => '2026-10-16 18:00:00']);
+        $this->get('/bitacora/pdf')->assertRedirect('/');
+        $this->withSession(['id_usuario' => 1]);
+        $res = $this->get('/bitacora?desde=2026-10-15&accion=Acci%C3%B3n%20de%20prueba')->assertOk()->assertSee('Usuario · prueba')->assertSee('Ver e imprimir');
+        $this->assertCount(5, $res->viewData('registros'));
+        $this->assertSame(7, $res->viewData('registros')->total());
+        $this->get('/bitacora?desde=2026-10-15&page=2')->assertOk()->assertViewHas('registros', fn ($p) => $p->count() === 2);
+        $this->get('/bitacora?hasta=2026-10-16')->assertOk()->assertViewHas('registros', fn ($p) => $p->total() === 1);
+        $this->get('/bitacora?desde=2026-10-15&hasta=2026-10-16')->assertOk()->assertViewHas('registros', fn ($p) => $p->total() === 8);
+        $this->getJson('/bitacora?desde=2026-10-16&hasta=2026-10-15')->assertUnprocessable();
+        $pdf = $this->get('/bitacora/pdf?desde=2026-10-15&descargar=1')->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $pdf->getContent());
+        if (getenv('REPORT_PDF_QA')) {
+            file_put_contents(getenv('REPORT_PDF_QA').'/bitacora.pdf', $pdf->getContent());
+        }
+    }
 }

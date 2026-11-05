@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Personal;
+use App\Support\CambiosEdicion;
 use App\Support\FotoPersonal;
 use App\Support\Permisos;
 use App\Support\RegistroBitacora;
@@ -115,11 +116,18 @@ class UsuarioController extends Controller
         }
 
         DB::transaction(function () use ($request, $cuenta, $datos): void {
+            $permisosDe = fn (): array => DB::table('tbl_usuario_permiso')->where('id_usuario', $cuenta->id_usuario)->orderBy('id_permiso')->pluck('id_permiso')->map(fn ($id) => (int) $id)->all();
+            $permisosAntes = $permisosDe();
+            $nombreUsuario = mb_strtolower(trim($datos['nombre_usuario']));
             DB::table('tbl_usuario')->where('id_usuario', $cuenta->id_usuario)->update([
-                'nombre_usuario' => mb_strtolower(trim($datos['nombre_usuario'])), 'id_rol' => $datos['id_rol'],
+                'nombre_usuario' => $nombreUsuario, 'id_rol' => $datos['id_rol'],
             ]);
             $this->guardarPermisos($cuenta->id_usuario, (int) $datos['id_rol'], $datos['permisos'] ?? []);
-            app(RegistroBitacora::class)->registrar($request, 'Edición de usuario', 'Exitoso', 'Se actualizaron el rol y los permisos de «'.$cuenta->nombre_usuario.'».', (int) session('id_usuario'), $cuenta->id_usuario);
+            // Solo se registra la edición si de verdad cambió el nombre, el rol o algún permiso.
+            if ($nombreUsuario !== $cuenta->nombre_usuario || (int) $datos['id_rol'] !== (int) $cuenta->id_rol || $permisosDe() !== $permisosAntes) {
+                app(RegistroBitacora::class)->registrar($request, 'Edición de usuario', 'Exitoso', 'Se actualizaron el rol y los permisos de «'.$cuenta->nombre_usuario.'».', (int) session('id_usuario'), $cuenta->id_usuario);
+                app(CambiosEdicion::class)->registrar();
+            }
         });
         Permisos::olvidar($cuenta->id_usuario);
         if ($request->hasFile('foto')) {
@@ -269,7 +277,7 @@ class UsuarioController extends Controller
      */
     private function reglaContrasena(): array
     {
-        return ['required', 'string', 'confirmed', 'max:72', Password::min(12)->letters()->mixedCase()->numbers()->symbols()];
+        return ['required', 'string', 'confirmed', 'max:72', Password::min(5)->numbers()];
     }
 
     /**
@@ -290,11 +298,8 @@ class UsuarioController extends Controller
             'id_rol.exists' => 'El rol elegido no existe o está inactivo.',
             'contrasena.required' => 'Escriba la contraseña.',
             'contrasena.confirmed' => 'Las dos contraseñas no coinciden.',
-            'contrasena.min' => 'La contraseña debe tener al menos 12 caracteres.',
-            'contrasena.mixed' => 'La contraseña debe tener mayúsculas y minúsculas.',
+            'contrasena.min' => 'La contraseña debe tener al menos 5 caracteres.',
             'contrasena.numbers' => 'La contraseña debe tener al menos un número.',
-            'contrasena.symbols' => 'La contraseña debe tener al menos un símbolo, por ejemplo # o !.',
-            'contrasena.letters' => 'La contraseña debe tener letras.',
             'permisos.*.in' => 'Uno de los permisos marcados no es válido.',
         ];
     }

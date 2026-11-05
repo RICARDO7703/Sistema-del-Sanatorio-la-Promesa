@@ -178,14 +178,24 @@ class SeguimientoTest extends TestCase
         $botones = $xpath->query('//*[@id="acciones-expediente"]//a[contains(., "Nuevo seguimiento")]');
         self::assertSame(1, $botones->length);
         self::assertSame(route('seguimientos.crear', $ultima), $botones->item(0)->getAttribute('href'));
-        $detalles = $xpath->query('//*[@id="historial-evoluciones"]//details');
-        self::assertSame(2, $detalles->length);
-        foreach ($detalles as $detalle) {
-            self::assertFalse($detalle->hasAttribute('open'));
-            $resumen = $xpath->query('./summary', $detalle)->item(0);
-            self::assertStringContainsString('Atendido el', $resumen->textContent);
-            self::assertStringContainsString('Diagnóstico anterior de prueba', $resumen->textContent);
-            self::assertStringNotContainsString('Documento de ingreso', $resumen->textContent);
+        // Cada atención muestra sus datos arriba.
+        $atenciones = $xpath->query('//*[@id="historial-evoluciones"]//article[contains(@class, "historial-atencion")]');
+        self::assertSame(2, $atenciones->length);
+        foreach ($atenciones as $atencion) {
+            $cabecera = $xpath->query('./header', $atencion)->item(0)->textContent;
+            self::assertStringContainsString('Fecha de llegada', $cabecera);
+            self::assertStringContainsString('Motivo de consulta', $cabecera);
+            self::assertStringContainsString('Diagnóstico anterior de prueba', $cabecera);
+            self::assertSame(0, $xpath->query('.//details[contains(@class, "historial-documentos")]', $atencion)->length);
+        }
+        // Cada consulta tiene su flecha; sus documentos, por día y con filtros, están cerrados hasta tocarla.
+        foreach ($atenciones as $atencion) {
+            $flecha = $xpath->query('./button[contains(@class, "historial-flecha")]', $atencion)->item(0);
+            self::assertSame('false', $flecha->getAttribute('aria-expanded'));
+            $documentos = $xpath->query('./div[contains(@class, "collapse")]', $atencion)->item(0);
+            self::assertStringNotContainsString('show', $documentos->getAttribute('class'));
+            self::assertStringContainsString('Hoja de llegada', $documentos->textContent);
+            self::assertStringContainsString('Todos (', $documentos->textContent);
         }
     }
 

@@ -1,7 +1,10 @@
 @php($esConsultaExterna = $ingreso->esConsultaExterna())
 @if($ingreso->altaMedica)
 <div class="evolucion-card">
-    <h4>{{ $esConsultaExterna ? 'Atención finalizada' : 'Alta médica registrada' }}</h4>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <h4 class="mb-0">{{ $esConsultaExterna ? 'Atención finalizada' : 'Alta médica registrada' }}</h4>
+        @puede('Ingresos', 'Ver')<a class="btn btn-outline-primary" href="{{ route('alta.receta', [$ingreso->altaMedica, 'imprimir' => 1]) }}" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i> Imprimir o descargar receta</a>@endpuede
+    </div>
     <p>{{ $ingreso->altaMedica->fecha_hora->format('d/m/Y H:i') }}</p>
     <p><strong>Diagnóstico final:</strong> {{ $ingreso->altaMedica->diagnostico_final }}</p>
     @if(filled($ingreso->altaMedica->observaciones))<p><strong>Observaciones:</strong> {{ $ingreso->altaMedica->observaciones }}</p>@endif

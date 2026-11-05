@@ -13,6 +13,9 @@
     </div>
 </div>
 
+@if(request('seccion') === 'permisos')
+<div class="alert alert-info d-flex gap-2" role="status"><i class="bi bi-shield-check" aria-hidden="true"></i><div><strong>Asignación de permisos.</strong> Busque al usuario y toque <strong>Editar y permisos</strong>: ahí se marcan los permisos de cada módulo (ver, ingresar, editar, eliminar).</div></div>
+@endif
 @if(session('exito'))<div class="alert alert-success" role="status">{{ session('exito') }}</div>@endif
 @if(session('error'))<div class="alert alert-danger" role="alert">{{ session('error') }}</div>@endif
 @if($errors->any())<div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
