@@ -156,7 +156,7 @@ window.validacionEnLinea = (() => {
                 : '';
         }
         const valor = campo.value.trim();
-        if (campo.required && valor === '') return campo.dataset.mensajeRequerido || 'Este campo es obligatorio.';
+        if (campo.required && valor === '') return campo.dataset.mensajeRequerido || (campo.tagName === 'SELECT' ? 'Seleccione una opción.' : 'Este campo es obligatorio.');
         // Campos que van en pareja, como la presión sistólica y la diastólica.
         if (valor === '' && campo.dataset.requeridoCon) {
             const pareja = campo.form?.querySelector(`[name="${CSS.escape(campo.dataset.requeridoCon)}"]`);
@@ -288,6 +288,72 @@ window.validacionEnLinea = (() => {
             });
         }
     });
+    // Mensajes propios para lo que revisa el navegador (correo, longitud, archivo, casillas...).
+    const mensajeNativo = campo => {
+        const estado = campo.validity;
+        if (!estado || estado.valid) return '';
+        if (estado.customError) return campo.validationMessage;
+        if (estado.valueMissing) {
+            if (campo.dataset.mensajeRequerido) return campo.dataset.mensajeRequerido;
+            if (campo.type === 'file') return 'Seleccione un archivo.';
+            if (campo.type === 'checkbox') return 'Marque esta casilla para continuar.';
+            if (campo.type === 'radio' || campo.tagName === 'SELECT') return 'Seleccione una opción.';
+            return 'Este campo es obligatorio.';
+        }
+        if (estado.typeMismatch) return campo.type === 'email' ? 'Escriba un correo válido, por ejemplo nombre@correo.com.' : 'El formato no es válido.';
+        if (estado.patternMismatch) return campo.dataset.mensajeFormato || campo.title || 'El formato no es válido.';
+        if (estado.tooShort) return `Escriba al menos ${campo.minLength} caracteres.`;
+        if (estado.tooLong) return `Escriba como máximo ${campo.maxLength} caracteres.`;
+        if (estado.rangeUnderflow || estado.rangeOverflow) {
+            if (campo.type === 'datetime-local' || campo.type === 'date') return estado.rangeOverflow ? (campo.dataset.mensajeMaximo || 'La fecha no puede ser futura.') : (campo.dataset.mensajeMinimo || 'La fecha es anterior a la permitida.');
+            return campo.dataset.mensajeRango || `Debe estar entre ${campo.min} y ${campo.max}.`;
+        }
+        if (estado.stepMismatch) return campo.step === '1' ? 'Escriba un número entero, sin decimales.' : 'El valor no es válido.';
+        if (estado.badInput) return 'Escriba un valor válido.';
+        return 'Revise este campo.';
+    };
+    // Aviso de una casilla: va al final de su bloque, después de la etiqueta.
+    const mostrarCasilla = (campo, mensaje) => {
+        const bloque = campo.closest('.form-check') || campo.parentElement;
+        let aviso = bloque.querySelector(':scope > .invalid-feedback[data-aviso-casilla]');
+        if (!aviso) {
+            aviso = document.createElement('div');
+            aviso.className = 'invalid-feedback';
+            aviso.dataset.avisoCasilla = '';
+            bloque.append(aviso);
+        }
+        aviso.textContent = mensaje;
+        aviso.classList.toggle('d-block', mensaje !== '');
+        campo.classList.toggle('is-invalid', mensaje !== '');
+    };
+    // En cualquier formulario, el globo del navegador se reemplaza por el aviso del sistema debajo del campo.
+    let enfocado = false;
+    document.addEventListener('invalid', evento => {
+        const campo = evento.target;
+        if (!campo.matches?.('input, select, textarea')) return;
+        evento.preventDefault();
+        const mensaje = mensajeDe(campo) || mensajeNativo(campo);
+        if (campo.type === 'checkbox') mostrarCasilla(campo, mensaje);
+        else mostrar(campo, mensaje);
+        campo.dataset.avisoSistema = '';
+        if (!enfocado) {
+            enfocado = true;
+            setTimeout(() => { enfocado = false; });
+            campo.focus({ preventScroll: true });
+            campo.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+    }, true);
+    // Al corregir el campo, el aviso se actualiza o desaparece.
+    const revisarCorregido = evento => {
+        const campo = evento.target;
+        if (!campo.matches?.('[data-aviso-sistema]') || campo.closest('form[data-validar-en-linea]')) return;
+        const mensaje = mensajeDe(campo) || mensajeNativo(campo);
+        if (campo.type === 'checkbox') mostrarCasilla(campo, mensaje);
+        else mostrar(campo, mensaje);
+        if (!mensaje) delete campo.dataset.avisoSistema;
+    };
+    document.addEventListener('input', revisarCorregido);
+    document.addEventListener('change', revisarCorregido);
     return { validar };
 })();
 
@@ -896,3 +962,57 @@ document.querySelectorAll('[data-dias-documentos]').forEach(contenedor => {
     contenedor.classList.add('con-selector-dias');
     elegir(botones[botones.length - 1].dataset.elegirDia);
 });
+
+
+// Confirmación con la ventana del sistema, en lugar del aviso del navegador.
+// Uso: <form data-confirmar="¿Desea…?"> (opcionales: data-confirmar-titulo, data-confirmar-boton, data-confirmar-volver).
+(() => {
+    const ventana = document.getElementById('ventanaConfirmar');
+    if (!ventana) return;
+    const aceptar = ventana.querySelector('[data-confirmar-aceptar]');
+    let pendiente = null;
+    let hojaAnterior = null;
+    document.addEventListener('submit', evento => {
+        const form = evento.target;
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirmar')) return;
+        if (form.dataset.confirmado === '1') { delete form.dataset.confirmado; return; }
+        evento.preventDefault();
+        evento.stopImmediatePropagation();
+        const boton = evento.submitter || form.querySelector('[type="submit"], button:not([type])');
+        pendiente = { form, boton };
+        ventana.querySelector('[data-confirmar-titulo]').textContent = form.dataset.confirmarTitulo || 'Confirmar acción';
+        ventana.querySelector('[data-confirmar-mensaje]').textContent = form.dataset.confirmar;
+        // El botón de aceptar repite la acción del formulario (Quitar, Desactivar, Activar...).
+        const texto = form.dataset.confirmarBoton || boton?.textContent.trim();
+        aceptar.textContent = texto || 'Aceptar';
+        const icono = boton?.querySelector('i.bi');
+        if (icono) aceptar.prepend(icono.cloneNode(), ' ');
+        ventana.querySelector('[data-confirmar-volver]').textContent = form.dataset.confirmarVolver || 'Cancelar';
+        const peligro = !boton || /btn-(outline-)?danger/.test(boton.className);
+        aceptar.className = `btn ${peligro ? 'btn-danger' : 'btn-primary'}`;
+        // Si la acción está dentro de otra ventana, esa se oculta mientras se confirma y vuelve al cancelar.
+        hojaAnterior = form.closest('.modal.show');
+        const abrir = () => bootstrap.Modal.getOrCreateInstance(ventana).show();
+        if (hojaAnterior) {
+            hojaAnterior.addEventListener('hidden.bs.modal', abrir, { once: true });
+            bootstrap.Modal.getOrCreateInstance(hojaAnterior).hide();
+        } else abrir();
+    }, true);
+    aceptar.addEventListener('click', () => {
+        if (!pendiente) return;
+        const { form, boton } = pendiente;
+        pendiente = null;
+        hojaAnterior = null;
+        aceptar.disabled = true;
+        form.dataset.confirmado = '1';
+        bootstrap.Modal.getOrCreateInstance(ventana).hide();
+        if (boton && boton.form === form) form.requestSubmit(boton);
+        else form.requestSubmit();
+    });
+    ventana.addEventListener('shown.bs.modal', () => { aceptar.disabled = false; aceptar.focus(); });
+    ventana.addEventListener('hidden.bs.modal', () => {
+        pendiente = null;
+        if (hojaAnterior?.isConnected) bootstrap.Modal.getOrCreateInstance(hojaAnterior).show();
+        hojaAnterior = null;
+    });
+})();

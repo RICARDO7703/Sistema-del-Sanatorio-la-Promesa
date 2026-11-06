@@ -120,7 +120,9 @@
                                     action="{{ route('hospitalizacion.eliminar', $hospitalizacion->id_hospitalizacion) }}"
                                     method="POST"
                                     class="d-inline"
-                                    onsubmit="return confirm('¿Desea cancelar esta hospitalización?');"
+                                    data-confirmar="¿Desea cancelar esta hospitalización?"
+                                    data-confirmar-boton="Sí, cancelar hospitalización"
+                                    data-confirmar-volver="No, volver"
                                 >
 
                                     @csrf

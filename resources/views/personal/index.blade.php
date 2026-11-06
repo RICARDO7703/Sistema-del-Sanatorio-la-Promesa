@@ -256,7 +256,7 @@
                                         ) }}"
                                         method="POST"
                                         class="d-inline"
-                                        onsubmit="return confirm('¿Desea desactivar este personal?');"
+                                        data-confirmar="¿Desea desactivar este personal?"
                                     >
 
                                         @csrf
@@ -283,7 +283,7 @@
                                         ) }}"
                                         method="POST"
                                         class="d-inline"
-                                        onsubmit="return confirm('¿Desea activar nuevamente este personal?');"
+                                        data-confirmar="¿Desea activar nuevamente este personal?"
                                     >
 
                                         @csrf

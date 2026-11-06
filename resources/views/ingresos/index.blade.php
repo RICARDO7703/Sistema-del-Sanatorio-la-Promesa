@@ -164,7 +164,9 @@
                                         action="{{ route('ingresos.cancelar', $ingreso->id_ingreso) }}"
                                         method="POST"
                                         class="d-inline"
-                                        onsubmit="return confirm('¿Desea cancelar este ingreso?');"
+                                        data-confirmar="¿Desea cancelar este ingreso?"
+                                        data-confirmar-boton="Sí, cancelar ingreso"
+                                        data-confirmar-volver="No, volver"
                                     >
 
                                         @csrf

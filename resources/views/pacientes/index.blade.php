@@ -420,12 +420,12 @@
     <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalContactos{{ $paciente->id_paciente }}"><i class="bi bi-person-lines-fill" aria-hidden="true"></i> Contactos</button>
     @puede('Pacientes', 'Desactivar')
     @if($paciente->estado === 'Activo')
-    <form action="{{ route('pacientes.desactivar', $paciente->id_paciente) }}" method="POST" class="m-0" onsubmit="return confirm('¿Desea desactivar este paciente?');">
+    <form action="{{ route('pacientes.desactivar', $paciente->id_paciente) }}" method="POST" class="m-0" data-confirmar="¿Desea desactivar este paciente?">
         @csrf @method('PATCH')
         <button type="submit" class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-person-x" aria-hidden="true"></i> Desactivar</button>
     </form>
     @else
-    <form action="{{ route('pacientes.activar', $paciente->id_paciente) }}" method="POST" class="m-0" onsubmit="return confirm('¿Desea activar nuevamente este paciente?');">
+    <form action="{{ route('pacientes.activar', $paciente->id_paciente) }}" method="POST" class="m-0" data-confirmar="¿Desea activar nuevamente este paciente?">
         @csrf @method('PATCH')
         <button type="submit" class="btn btn-outline-success btn-sm w-100"><i class="bi bi-person-check" aria-hidden="true"></i> Activar</button>
     </form>
@@ -1339,7 +1339,7 @@
                                                     ) }}"
                                                     method="POST"
                                                     class="d-inline"
-                                                    onsubmit="return confirm('¿Desea quitar este contacto?');"
+                                                    data-confirmar="¿Desea quitar este contacto?"
                                                 >
 
                                                     @csrf

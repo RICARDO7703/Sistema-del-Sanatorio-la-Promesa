@@ -281,7 +281,7 @@
                                     action="{{ route('tratamientos.eliminar', $tratamiento->id_tratamiento) }}"
                                     method="POST"
                                     class="d-inline"
-                                    onsubmit="return confirm('¿Desea desactivar este tratamiento?');"
+                                    data-confirmar="¿Desea desactivar este tratamiento?"
                                 >
 
                                     @csrf

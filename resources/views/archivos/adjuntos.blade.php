@@ -18,7 +18,7 @@
     @if(session('adjunto_subido') === $claveAdjunto)<p class="text-success small mb-0 mt-2" role="status"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Archivo agregado.</p>@endif
     @foreach($archivosHoja as $archivo)<a class="d-block mt-2" href="{{ route('archivos.contenido',$archivo) }}" data-abrir-documento data-tipo-archivo="{{ $archivo->tipo_archivo }}" data-titulo-archivo="{{ $archivo->titulo }}" data-nombre-archivo="{{ $archivo->nombre_archivo }}"><i class="bi bi-file-earmark-{{ $archivo->tipo_archivo === 'pdf' ? 'pdf' : 'image' }}" aria-hidden="true"></i> {{ $archivo->tipo_archivo === 'pdf' ? 'PDF' : 'Imagen' }} · {{ $archivo->fecha_documento?->format('d/m/Y H:i') }} · Ver archivo <i class="bi bi-eye small" aria-hidden="true"></i></a>
     @if($archivo->puedeEditar((int)session('id_usuario')) && app(\App\Support\Permisos::class)->puede('Documentos clínicos','Editar'))
-    <form method="POST" action="{{ route('archivos.quitar',$archivo) }}" class="mt-2" onsubmit="return confirm('¿Quitar este archivo del expediente? La hoja clínica se conservará.');">@csrf @method('DELETE')<button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Quitar archivo</button></form>
+    <form method="POST" action="{{ route('archivos.quitar',$archivo) }}" class="mt-2" data-confirmar="¿Quitar este archivo del expediente? La hoja clínica se conservará.">@csrf @method('DELETE')<button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Quitar archivo</button></form>
     @endif
     @endforeach
     @if($permitirSubir)

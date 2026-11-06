@@ -285,7 +285,7 @@ class EmergenciaTest extends TestCase
 
         $this->post(route('hospitalizacion.guardar', $ingreso), ['id_habitacion' => 2])->assertSessionHasNoErrors();
         $this->assertSame('Hospitalización', $ingreso->fresh()->tipo_atencion);
-        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Valoración inicial registrada')->assertDontSee('Consulta externa');
+        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Valoración inicial')->assertDontSee('Iniciar valoración')->assertDontSee('Consulta externa');
     }
 
     public function test_guardar_otra_vez_actualiza_la_misma_consulta(): void
@@ -367,7 +367,7 @@ class EmergenciaTest extends TestCase
         DB::table('tbl_evolucion_clinica')->insert(['id_ingreso' => $ingreso->getKey(), 'id_personal' => 1, 'fecha_hora' => '2026-10-11 09:00:00', 'motivo_atencion' => 'Control', 'diagnostico' => 'Estable', 'id_usuario_creacion' => 1]);
 
         $this->get(route('atencion.show', $ingreso))->assertOk()
-            ->assertSee('Valoración inicial registrada')
+            ->assertSee('Valoración inicial')->assertDontSee('Iniciar valoración')
             ->assertSee('Evolución clínica y órdenes médicas')
             ->assertSee('Documentos de la atención')->assertSee('Cambiar habitación')->assertDontSee('<strong>Habitación</strong>', false)
             ->assertSee('data-elegir-signo', false)

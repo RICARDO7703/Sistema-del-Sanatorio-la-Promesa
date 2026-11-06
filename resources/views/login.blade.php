@@ -136,6 +136,8 @@
 
     </main>
 
+    {{-- Avisos de los campos con los mensajes del sistema, no los del navegador. --}}
+    <script src="{{ asset('js/scripts.js') }}?v={{ filemtime(public_path('js/scripts.js')) }}"></script>
     <script>
         const inputContrasena = document.getElementById('contrasena');
         const botonMostrar = document.getElementById('mostrarContrasena');

@@ -64,5 +64,7 @@
         <p class="text-center mt-4 mb-0"><a href="{{ url('/') }}">Volver a iniciar sesión</a></p>
     </div>
 </main>
+{{-- Avisos de los campos con los mensajes del sistema, no los del navegador. --}}
+<script src="{{ asset('js/scripts.js') }}?v={{ filemtime(public_path('js/scripts.js')) }}"></script>
 </body>
 </html>
