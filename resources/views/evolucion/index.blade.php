@@ -331,7 +331,7 @@
                                     action="{{ route('evolucion.eliminar', $evolucion->id_evolucion) }}"
                                     method="POST"
                                     class="d-inline"
-                                    onsubmit="return confirm('¿Desea eliminar esta evolución clínica?');"
+                                    data-confirmar="¿Desea eliminar esta evolución clínica?"
                                 >
 
                                     @csrf

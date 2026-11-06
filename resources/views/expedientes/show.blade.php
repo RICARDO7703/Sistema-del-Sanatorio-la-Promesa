@@ -164,7 +164,7 @@
             <div class="d-flex flex-wrap gap-2">
                 @puede('Documentos clínicos', 'Ver')<button type="button" class="btn btn-outline-primary btn-sm" data-archivo-url="{{ route('archivos.contenido', $archivoPaciente) }}" data-abrir-documento data-tipo-archivo="{{ $archivoPaciente->tipo_archivo }}" data-titulo-archivo="{{ $archivoPaciente->titulo }}" data-nombre-archivo="{{ $archivoPaciente->nombre_archivo }}"><i class="bi bi-eye" aria-hidden="true"></i> Ver</button><a class="btn btn-outline-primary btn-sm" href="{{ route('archivos.contenido',$archivoPaciente) }}" download="{{ $archivoPaciente->nombre_archivo }}"><i class="bi bi-download" aria-hidden="true"></i> Descargar</a>@endpuede
                 @if($archivoPaciente->puedeEditar((int) session('id_usuario')) && app(\App\Support\Permisos::class)->puede('Documentos clínicos', 'Editar'))
-                <form method="POST" action="{{ route('archivos.quitar',$archivoPaciente) }}" onsubmit="return confirm('¿Quitar este archivo del expediente?');">@csrf @method('DELETE')<button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Quitar archivo</button></form>
+                <form method="POST" action="{{ route('archivos.quitar',$archivoPaciente) }}" data-confirmar="¿Quitar este archivo del expediente?">@csrf @method('DELETE')<button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Quitar archivo</button></form>
                 @endif
             </div>
         </div>

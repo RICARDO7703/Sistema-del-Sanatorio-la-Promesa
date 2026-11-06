@@ -244,7 +244,7 @@ class OrdenesMedicasTest extends TestCase
         $this->assertSame(1, (int) $registro->id_personal);
 
         // Sigue siendo la valoración inicial y sus órdenes se muestran con ella.
-        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Valoración inicial registrada')->assertSee('Acetaminofén');
+        $this->get(route('atencion.show', $ingreso))->assertOk()->assertSee('Valoración inicial con orden médica')->assertDontSee('Iniciar valoración')->assertSee('Acetaminofén');
         $this->get(route('pacientes.expediente', $ingreso->id_paciente))->assertOk()->assertSee('Valoración inicial')->assertSee('Acetaminofén');
 
         // Al editarla sin marcar la casilla, las órdenes se quitan.

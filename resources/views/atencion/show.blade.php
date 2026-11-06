@@ -151,6 +151,8 @@
 @include('cirugias.panel')
 <fieldset class="atencion-contenido" @disabled($ingreso->estado !== 'Activo' && !(\App\Http\Controllers\EmergenciaController::puedeCorregir($ingreso) && (request()->boolean('editar_consulta') || old('accion')==='corregir')))>
 @else
+{{-- Con la valoración registrada, esta ya aparece en «Documentos de la atención» (con su botón Editar): la tarjeta solo se muestra mientras falta registrarla. --}}
+@if($ingreso->evoluciones->isEmpty())
 <div class="evolucion-card mb-3">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
         <div>
@@ -175,6 +177,7 @@
         @endif
     </div>
 </div>
+@endif
 
 <div class="modal fade" id="modalValoracion" tabindex="-1" aria-labelledby="modalValoracion-titulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="modalValoracion-titulo">{{ $ingreso->esConsultaExterna() ? 'Consulta externa' : 'Valoración inicial' }}</h5><a href="#" role="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></a></div><div class="modal-body">@if($errors->any())<div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 @include('atencion.partials.valoracion')</div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div></div></div></div>
